@@ -1,0 +1,39 @@
+# Adyton — prod overlay (STUB; populated in Phase 8 — Production Hardening).
+# See analysis/infrastructure.md §9.3 for the target shape: Coolify-managed
+# images, no host port bindings (Traefik routes via labels), COOKIE_SAMESITE
+# strict, internal-only network for db/redis, Cloudflare-proxied origin.
+#
+# Do NOT use this file to deploy yet. It exists so `run.bat prod-*` commands
+# resolve and so the base compose can be combined cleanly with either overlay.
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/yourorg/adyton-api:latest}
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      COOKIE_SAMESITE: strict
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      ENABLE_POW: ${ENABLE_POW:-false}
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/yourorg/adyton-web:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL}
+    deploy:
+      resources:
+        limits:
+          memory: 256m

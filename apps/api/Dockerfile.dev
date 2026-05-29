@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.7
+FROM node:22-alpine
+
+ENV CI=true
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+RUN apk add --no-cache libc6-compat \
+    && corepack enable \
+    && corepack prepare pnpm@9.15.4 --activate
+
+WORKDIR /app
+
+# Copy workspace manifests first so docker layer cache hits when source changes
+# without touching dependencies.
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+
+# Dev build: no lockfile-frozen install — first compose-up creates the lockfile.
+# Production hardening (frozen install, prune, multi-stage) lands in Phase 8.
+RUN pnpm install
+
+# Copy source. Bind mounts in docker-compose will overlay these paths in dev.
+COPY apps/api ./apps/api
+COPY packages/shared ./packages/shared
+COPY tsconfig.base.json ./
+
+EXPOSE 3001
+
+CMD ["pnpm", "--filter", "@adyton/api", "dev"]

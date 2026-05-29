@@ -1,0 +1,45 @@
+# Adyton — base compose.
+name: adyton
+
+# Holds services that do not change between dev and prod (db, redis) plus
+# the top-level secrets / volumes declarations referenced by api/web in the
+# overlays. Always combine with one overlay:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml  up -d
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# `run.bat` wraps both for convenience.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: adyton
+      POSTGRES_USER: adyton
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adyton"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+secrets:
+  jwt_private_key:
+    file: ./secrets/jwt_private.pem
+  jwt_public_key:
+    file: ./secrets/jwt_public.pem
+
+volumes:
+  postgres_data:

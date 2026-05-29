@@ -1,0 +1,194 @@
+## 8. Shared Package (`packages/shared`)
+
+### 8.1 Crypto Utilities
+
+The shared crypto module targets the Web Crypto API, which is available in browser main threads, browser workers, and Chromium extension service workers. Node.js 18+ also exposes `globalThis.crypto.subtle`, so the same module can be unit-tested with Vitest without mocking.
+
+The shared package exports two modules:
+- `crypto.ts` — key derivation, encryption, decryption, password generation
+- `password-validation.ts` — master password strength enforcement (see Section 3.3.3 for full implementation)
+
+Key exports from `password-validation.ts`:
+- `validateMasterPassword(password)` → `PasswordStrengthResult` (zxcvbn + HIBP + rules)
+- `isBreachedPassword(password)` → `boolean` (HIBP k-anonymity check, client-side only)
+
+```typescript
+// packages/shared/src/crypto.ts
+import argon2 from 'argon2-browser';
+
+export interface EncryptedPayload {
+  ciphertext: ArrayBuffer;
+  iv: Uint8Array;
+}
+
+export async function deriveEncryptionKey(
+  masterPassword: string,
+  salt: Uint8Array
+): Promise<CryptoKey> {
+  const result = await argon2.hash({
+    pass: masterPassword,
+    salt,
+    type: argon2.ArgonType.Argon2id,
+    mem: 65536,     // 64 MiB
+    time: 3,        // 3 iterations
+    parallelism: 1,
+    hashLen: 32,
+  });
+  return crypto.subtle.importKey(
+    'raw',
+    result.hash,
+    { name: 'AES-GCM' },
+    false,           // non-extractable
+    ['encrypt', 'decrypt']
+  );
+}
+
+export async function encryptData(key: CryptoKey, plaintext: string): Promise<EncryptedPayload> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(plaintext);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  return { ciphertext, iv };
+}
+
+export async function decryptData(key: CryptoKey, payload: EncryptedPayload): Promise<string> {
+  const plaintext = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: payload.iv },
+    key,
+    payload.ciphertext
+  );
+  return new TextDecoder().decode(plaintext);
+}
+
+export async function hashLabel(label: string): Promise<string> {
+  const encoded = new TextEncoder().encode(label.toLowerCase().trim());
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export function generatePassword(options: PasswordOptions): string {
+  const charsets: Record<string, string> = {
+    uppercase: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    lowercase: 'abcdefghijklmnopqrstuvwxyz',
+    numbers: '0123456789',
+    symbols: '!@#$%^&*()_+-=[]{}|;:,.?',
+  };
+  const ambiguous = /[O0Il1]/g;
+  let pool = Object.entries(charsets)
+    .filter(([k]) => options[k as keyof PasswordOptions])
+    .map(([, v]) => v)
+    .join('');
+  if (options.excludeAmbiguous) pool = pool.replace(ambiguous, '');
+  const bytes = crypto.getRandomValues(new Uint8Array(options.length * 2));
+  let result = '';
+  for (const byte of bytes) {
+    if (result.length >= options.length) break;
+    // Rejection sampling to eliminate modulo bias
+    if (byte < Math.floor(256 / pool.length) * pool.length)
+      result += pool[byte % pool.length];
+  }
+  return result;
+}
+
+export function generateRecoveryCodes(count = 8): string[] {
+  return Array.from({ length: count }, () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(10));
+    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 5)}-${hex.slice(5, 10)}-${hex.slice(10, 15)}-${hex.slice(15, 20)}`;
+  });
+}
+```
+
+AES-GCM with a 12-byte random IV provides 96-bit IV space. For a vault that might hold 10,000 entries the collision probability is negligible (birthday bound for 96-bit nonces across 10^4 entries is approximately 3×10^-22). IV uniqueness is critical because AES-GCM authentication tag integrity breaks catastrophically on IV reuse with the same key.
+
+The `generatePassword` function uses rejection sampling to eliminate modulo bias. The pool size rarely exceeds 90 characters, and 256 is not divisible by most pool sizes, so naive `byte % pool.length` over-represents low-index characters.
+
+### 8.2 Type Definitions
+
+```typescript
+// packages/shared/src/types.ts
+export enum VaultEntryType {
+  LOGIN       = 'LOGIN',
+  NOTE        = 'NOTE',
+  CARD        = 'CARD',
+  IDENTITY    = 'IDENTITY',
+  ENV_FILE    = 'ENV_FILE',   // .env file: multi-key encrypted blob
+  SECRET      = 'SECRET',     // Single named secret: API key, token, cert PEM, etc.
+}
+
+export type Environment = 'production' | 'staging' | 'development' | string;
+
+// Base interface shared by all entry types
+export interface DecryptedEntry {
+  id: string;
+  type: VaultEntryType;
+  label: string;
+  updatedAt: Date;
+  secretVersion: number;
+  environment?: Environment;
+
+  // LOGIN
+  username?: string;
+  password?: string;
+  url?: string;
+  notes?: string;
+
+  // CARD
+  cardNumber?: string;
+  cardExpiry?: string;
+  cardCvv?: string;
+  cardholderName?: string;
+
+  // IDENTITY
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+
+  // ENV_FILE — entire .env content stored as single encrypted string
+  // Client parses to key=value pairs; server never sees individual keys
+  envContent?: string;          // raw .env file text (newline-delimited KEY=VALUE)
+  envParsed?: Record<string, string>;  // derived client-side from envContent, not stored
+
+  // SECRET — single key/value (API key, token, certificate, SSH key, etc.)
+  secretKey?: string;           // variable name / identifier, e.g. "STRIPE_SECRET_KEY"
+  secretValue?: string;         // the secret value
+  secretDescription?: string;   // optional human description
+}
+
+export interface PasswordOptions {
+  length: number;
+  uppercase: boolean;
+  lowercase: boolean;
+  numbers: boolean;
+  symbols: boolean;
+  excludeAmbiguous: boolean;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  expiresIn: number;
+  user: { id: string; email: string; totpEnabled: boolean };
+}
+
+export interface ApiError {
+  statusCode: number;
+  error: string;
+  message: string;
+}
+
+export interface SessionInfo {
+  id: string;
+  userAgent: string;
+  ipAddress: string;
+  createdAt: Date;
+  lastUsedAt: Date;
+  current: boolean;
+}
+```
+
+These types are imported as path aliases (`@shared/types`) in the NestJS backend (type checking only — the backend never uses the crypto functions), the Nuxt frontend, and the extension. TypeScript project references in `tsconfig.json` at the workspace root ensure all packages see a consistent type surface.
+
+---
+

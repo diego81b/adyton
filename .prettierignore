@@ -1,0 +1,9 @@
+node_modules
+dist
+.nuxt
+.output
+coverage
+pnpm-lock.yaml
+**/migrations/*
+analysis
+ANALYSIS.original.md

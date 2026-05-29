@@ -1,0 +1,19 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": "tsconfig.json"
+      }
+    ]
+  },
+  "moduleNameMapper": {
+    "^@adyton/shared$": "<rootDir>/../../packages/shared/src/index.ts",
+    "^@adyton/shared/(.*)$": "<rootDir>/../../packages/shared/src/$1",
+    "^@shared/(.*)$": "<rootDir>/../../packages/shared/src/$1"
+  }
+}

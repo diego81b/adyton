@@ -1,0 +1,101 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── Build artifacts ───────────────────────────────────────────────────────────
+dist/
+.nuxt/
+.output/
+.turbo/
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ── Environment files (never commit any .env variant) ─────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Secrets — private keys, certificates, credentials ─────────────────────────
+secrets/*
+!secrets/.gitkeep
+!secrets/README.md
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.csr
+id_rsa
+id_ed25519
+id_ecdsa
+*.asc
+
+# ── Docker / infrastructure ───────────────────────────────────────────────────
+docker-compose.override.yml
+.docker/
+
+# ── Database / Redis data ─────────────────────────────────────────────────────
+pgdata/
+redisdata/
+*.sqlite
+*.sqlite3
+*.db
+
+# ── MikroORM ──────────────────────────────────────────────────────────────────
+mikro-orm.config.js
+
+# ── OS junk ───────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+*.sublime-workspace
+*.suo
+*.user
+.history/
+
+# ── Temporary / stale files ───────────────────────────────────────────────────
+*.tmp
+*.temp
+*.bak
+*.orig
+.cache/
+
+# ── Nuxt ──────────────────────────────────────────────────────────────────────
+.nuxt/
+.output/
+.data/
+
+# ── TypeDoc ───────────────────────────────────────────────────────────────────
+docs/

@@ -1,0 +1,47 @@
+import {
+  Entity,
+  PrimaryKey,
+  Property,
+  OneToMany,
+  Collection,
+  Cascade,
+} from '@mikro-orm/core';
+import { RefreshToken } from './refresh-token.entity';
+import { TrustedDevice } from './trusted-device.entity';
+import { WebAuthnCredential } from './webauthn-credential.entity';
+
+@Entity({ tableName: 'users' })
+export class User {
+  @PrimaryKey({ type: 'uuid', defaultRaw: 'gen_random_uuid()' })
+  id!: string;
+
+  @Property({ unique: true, length: 320 })
+  email!: string;
+
+  @Property({ hidden: true, length: 255 })
+  passwordHash!: string;
+
+  @Property({ length: 64 })
+  kdfSalt!: string; // hex-encoded 32 bytes, non-secret, sent to client for vault key derivation
+
+  @Property({ nullable: true, hidden: true, length: 512 })
+  totpSecretEncrypted: string | null = null;
+
+  @Property({ default: false })
+  totpEnabled: boolean = false;
+
+  @OneToMany(() => RefreshToken, (t) => t.user, { cascade: [Cascade.REMOVE] })
+  refreshTokens = new Collection<RefreshToken>(this);
+
+  @OneToMany(() => TrustedDevice, (d) => d.user, { cascade: [Cascade.REMOVE] })
+  trustedDevices = new Collection<TrustedDevice>(this);
+
+  @OneToMany(() => WebAuthnCredential, (c) => c.user, { cascade: [Cascade.REMOVE] })
+  webAuthnCredentials = new Collection<WebAuthnCredential>(this);
+
+  @Property()
+  createdAt: Date = new Date();
+
+  @Property({ onUpdate: () => new Date() })
+  updatedAt: Date = new Date();
+}

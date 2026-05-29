@@ -1,0 +1,21 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": "test/integration/.*\\.int-spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": "tsconfig.json"
+      }
+    ]
+  },
+  "testTimeout": 60000,
+  "maxWorkers": 1,
+  "moduleNameMapper": {
+    "^@adyton/shared$": "<rootDir>/../../packages/shared/src/index.ts",
+    "^@adyton/shared/(.*)$": "<rootDir>/../../packages/shared/src/$1",
+    "^@shared/(.*)$": "<rootDir>/../../packages/shared/src/$1"
+  }
+}
