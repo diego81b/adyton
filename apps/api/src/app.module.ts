@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { DevicesModule } from './devices/devices.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { VaultModule } from './vault/vault.module';
+import { AuditModule } from './audit/audit.module';
 import mikroOrmBaseConfig from './mikro-orm.config';
 
 @Module({
@@ -27,6 +29,8 @@ import mikroOrmBaseConfig from './mikro-orm.config';
     SessionsModule,
     DevicesModule,
     NotificationsModule,
+    AuditModule,
+    VaultModule,
   ],
   controllers: [HealthController],
   providers: [],
