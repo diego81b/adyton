@@ -48,6 +48,11 @@ const mockChallengeService = {
   verifyAndConsume: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockAuditService = {
+  log: jest.fn().mockResolvedValue(undefined),
+  persistLog: jest.fn(),
+};
+
 // ---- Helpers ---------------------------------------------------------------
 
 function makeUser(overrides: Partial<{ id: string; email: string; passwordHash: string; kdfSalt: string; totpEnabled: boolean }> = {}) {
@@ -104,6 +109,7 @@ describe('AuthService', () => {
       mockEmailNotifier as never,
       mockRedis as never,
       mockChallengeService as never,
+      mockAuditService as never,
     );
   });
 
@@ -289,7 +295,7 @@ describe('AuthService', () => {
       const token = makeRefreshToken();
       mockEm.flush.mockResolvedValue(undefined);
 
-      await service.logout(token as never);
+      await service.logout(token as never, '127.0.0.1', 'test-agent');
 
       expect(token.revokedAt).toBeInstanceOf(Date);
       expect(mockEm.flush).toHaveBeenCalledTimes(1);

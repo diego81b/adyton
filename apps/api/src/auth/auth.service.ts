@@ -20,6 +20,8 @@ import { JwtPayload } from './strategies/jwt.strategy';
 import { EmailNotifier, EMAIL_NOTIFIER } from '../notifications/email-notifier.interface';
 import { REDIS_CLIENT } from '../redis/redis.provider';
 import { ChallengeService } from './challenge/challenge.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../entities/audit-log.entity';
 
 export interface AuthResult {
   accessToken: string;
@@ -64,6 +66,7 @@ export class AuthService {
     @Inject(EMAIL_NOTIFIER) private readonly emailNotifier: EmailNotifier,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly challengeService: ChallengeService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async checkPoW(challenge: string | undefined, nonce: string | undefined): Promise<void> {
@@ -132,7 +135,7 @@ export class AuthService {
     await this.redis.setex(`device_otp:${otp}`, DEVICE_OTP_TTL_SECONDS, user.id);
 
     await this.emailNotifier.sendNewDeviceAlert(user.email, ip, userAgent);
-    // TODO: audit log — NEW_DEVICE_ALERT
+    this.auditService.persistLog(user.id, AuditAction.NEW_DEVICE_ALERT, ip, userAgent);
 
     return otp;
   }
@@ -162,11 +165,10 @@ export class AuthService {
       throw err;
     }
 
-    // TODO: audit log — REGISTER
-
     const familyId = randomUUID();
     const rawRefreshToken = await this.issueRefreshToken(user, familyId, ip, userAgent);
     const newDeviceId = await this.handleNewDevice(user, undefined, ip, userAgent);
+    this.auditService.persistLog(user.id, AuditAction.REGISTER, ip, userAgent);
     await this.em.flush();
 
     const accessToken = this.signAccessToken(user);
@@ -188,23 +190,23 @@ export class AuthService {
     const user = await this.em.findOne(User, { email });
     if (!user) {
       await this.progressiveDelay.recordFailure(ip, email);
-      // TODO: audit log — LOGIN_FAILURE (no user)
+      await this.auditService.log(null, AuditAction.LOGIN_FAILURE, ip, userAgent, { reason: 'unknown_email' });
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const valid = await this.cryptoService.verifyPassword(dto.password, user.passwordHash);
     if (!valid) {
       await this.progressiveDelay.recordFailure(ip, email);
-      // TODO: audit log — LOGIN_FAILURE
+      await this.auditService.log(user.id, AuditAction.LOGIN_FAILURE, ip, userAgent, { reason: 'wrong_password' });
       throw new UnauthorizedException('Invalid credentials');
     }
 
     await this.progressiveDelay.clearFailures(ip, email);
-    // TODO: audit log — LOGIN_SUCCESS
 
     const familyId = randomUUID();
     const rawRefreshToken = await this.issueRefreshToken(user, familyId, ip, userAgent);
     const newDeviceId = await this.handleNewDevice(user, deviceIdCookie, ip, userAgent);
+    this.auditService.persistLog(user.id, AuditAction.LOGIN_SUCCESS, ip, userAgent);
     await this.em.flush();
 
     const accessToken = this.signAccessToken(user);
@@ -245,9 +247,9 @@ export class AuthService {
     };
   }
 
-  async logout(refreshToken: RefreshToken): Promise<void> {
+  async logout(refreshToken: RefreshToken, ip: string, userAgent: string): Promise<void> {
     refreshToken.revokedAt = new Date();
-    // TODO: audit log — LOGOUT
+    this.auditService.persistLog(refreshToken.user.id, AuditAction.LOGOUT, ip, userAgent);
     await this.em.flush();
   }
 
