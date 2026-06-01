@@ -41,7 +41,9 @@ export default defineNuxtConfig({
 });
 ```
 
-SSR is enabled globally but vault pages opt out via `definePageMeta({ ssr: false })`. This is a security boundary: Web Crypto operations must run in the browser context where the user's key material exists. SSR rendering vault content on the server would require transmitting decrypted data to the server or bypassing encryption entirely — both unacceptable.
+**`ssr: false` globally (SPA mode).** Every page is auth-gated; no content has SEO value. Web Crypto requires browser context — SSR would require transmitting decrypted data server-side, which violates the zero-knowledge model. SPA mode also eliminates per-request server rendering overhead in dev and prod. Individual `definePageMeta({ ssr: false })` calls are no longer needed but harmless to keep.
+
+**CSP is applied in production only.** Nuxt dev mode injects inline scripts (HMR, `window.__NUXT__` state hydration) that violate a strict `script-src` policy. When CSP blocks those scripts, `window.__NUXT__` is undefined, `createNuxtApp` receives a non-object, and the Proxy constructor throws — crashing the entire app mount. The actual `nuxt.config.ts` gates the `Content-Security-Policy` header behind `process.env.NODE_ENV === 'production'`. In Phase 8 (production hardening), replace the static CSP header with `nuxt-security` nonce support for a proper solution that works with SSR + streaming.
 
 ### 6.2 Page Structure and Routing
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phase 2 complete.** Monorepo scaffold, Docker dev stack, and full NestJS auth surface are implemented and tested. Phase 3 (vault entities + API) is next. All implementation work follows the design documents in `analysis/`.
+**Phases 1–4 + 4.1 complete** (2026-06-01). Monorepo scaffold, Docker dev stack, NestJS auth, vault API, shared crypto, and Nuxt auth flows are implemented and tested. Phase 5 (Nuxt vault UI) is next, on branch `feature/phase-5-vault-ui`. All implementation work follows the design documents in `analysis/`.
 
 ## Project — Adyton
 
@@ -108,22 +108,37 @@ Simple or obvious changes: subject line only, no body.
 
 All project output must be in English: commit messages, code comments, documentation, API descriptions, test names. This applies regardless of the language used in conversation.
 
-## Phase completion checklist — MANDATORY, no exceptions
+## Branch workflow — MANDATORY
 
-Before declaring any phase or feature branch done, always do **both** of these in order:
+Each phase and each numbered step within a phase gets its own branch:
 
-**1. Memory update** — write or update memory files under `~/.claude/projects/C--varie-adyton/memory/`:
-- Update `project_phase2_plan.md` with the new phase status and what's next
+- Phase branch: `feature/phase-N-<short-name>` (e.g. `feature/phase-5-vault-ui`)
+- Step branch off the phase branch: `feature/phase-N-step-M-<short-name>` (e.g. `feature/phase-5-step-0-foundation`)
+- When step is verified, merge step branch into phase branch, then delete step branch
+- Never commit step work directly to a phase branch — always via step branch
+
+## Step / phase completion checklist — MANDATORY, no exceptions
+
+Before declaring any step or phase done, always do **all three** of these in order:
+
+**1. Automated verification** — run the relevant test suite and confirm it passes:
+- `pnpm --filter @adyton/web test:cov` for frontend changes
+- `pnpm --filter @adyton/shared test:cov` for shared changes
+- `pnpm --filter @adyton/api test:cov` for backend changes
+- TypeScript check: `pnpm --filter <package> typecheck`
+
+**2. Memory update** — write or update memory files under `~/.claude/projects/C--varie-adyton/memory/`:
+- Update `project_phase2_plan.md` with current phase/step status and what's next
 - Add any new feedback memories for non-obvious decisions made during the work
 - Update `MEMORY.md` index if new files were added
 
-**2. Manual test plan** — output a numbered, actionable test plan covering:
+**3. Manual test plan** — output a numbered, actionable test plan covering:
 - Golden path (register → login → vault unlock flow end-to-end)
 - Key edge cases (wrong password, reload, auto-lock timeout)
 - Security invariants (ciphertext not readable, cookie httpOnly, AAD rejection)
 - Anything automated tests don't cover (real browser behavior, DB state checks, cookie handling)
 
-These are not optional steps. Do not output "Phase N complete" or suggest a merge without completing both.
+These are not optional steps. Do not output "Step N complete" or "Phase N complete" or suggest a merge without completing all three.
 
 ## When in doubt
 

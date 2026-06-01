@@ -34,6 +34,8 @@ services:
       PORT: "3001"
       ALLOWED_ORIGINS: http://localhost:30000
       COOKIE_SAMESITE: lax
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "500"
     volumes:
       - ./apps/api:/app/apps/api
       - ./packages:/app/packages
@@ -50,10 +52,14 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     restart: unless-stopped
+    depends_on:
+      api: { condition: service_started }
     environment:
       NUXT_PUBLIC_API_BASE_URL: http://localhost:30001
       NODE_ENV: development
       HOST: 0.0.0.0
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "500"
     volumes:
       - ./apps/web:/app/apps/web
       - ./packages:/app/packages

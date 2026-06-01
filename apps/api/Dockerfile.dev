@@ -13,13 +13,11 @@ WORKDIR /app
 
 # Copy workspace manifests first so docker layer cache hits when source changes
 # without touching dependencies.
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
 
-# Dev build: no lockfile-frozen install — first compose-up creates the lockfile.
-# Production hardening (frozen install, prune, multi-stage) lands in Phase 8.
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy source. Bind mounts in docker-compose will overlay these paths in dev.
 COPY apps/api ./apps/api
