@@ -27,5 +27,11 @@
     "@vitest/coverage-v8": "^3.2.0",
     "typescript": "^5.7.2",
     "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "@zxcvbn-ts/core": "^3.0.4",
+    "@zxcvbn-ts/language-common": "^3.0.4",
+    "@zxcvbn-ts/language-en": "^3.0.2",
+    "hash-wasm": "^4.12.0"
   }
 }

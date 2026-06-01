@@ -1,6 +1,13 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '~': resolve(__dirname, './app'),
+      '@': resolve(__dirname, './app'),
+    },
+  },
   test: {
     environment: 'happy-dom',
     globals: true,
@@ -13,6 +20,8 @@ export default defineConfig({
         'app/app.vue',
         'app/app.config.ts',
         'app/pages/**',
+        'app/workers/**',               // Web Workers require browser runtime; covered by e2e
+        'app/composables/useArgon2Worker.ts',  // wraps Web Worker; covered by e2e
         '**/*.spec.ts',
         '**/*.config.ts',
       ],

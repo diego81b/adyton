@@ -51,11 +51,22 @@ export default tseslint.config(
     files: ['apps/web/**/*.{ts,vue}'],
     languageOptions: {
       globals: {
+        // Browser built-ins
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        fetch: 'readonly',
+        crypto: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
         // Nuxt 4 auto-imports — present at runtime, not by import statement.
         defineNuxtConfig: 'readonly',
         defineAppConfig: 'readonly',
         defineNuxtPlugin: 'readonly',
         defineNuxtRouteMiddleware: 'readonly',
+        definePageMeta: 'readonly',
         defineEventHandler: 'readonly',
         useHead: 'readonly',
         useSeoMeta: 'readonly',

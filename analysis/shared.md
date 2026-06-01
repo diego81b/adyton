@@ -14,7 +14,11 @@ Key exports from `password-validation.ts`:
 
 ```typescript
 // packages/shared/src/crypto.ts
-import argon2 from 'argon2-browser';
+// hash-wasm provides argon2id in both browser and Node.js via bundled WASM.
+// argon2-browser was spec-named but its WASM loader fails in Node.js/Vitest ESM
+// (locateFile/__dirname issues). hash-wasm produces identical Argon2id output
+// with the same parameters and tests exercise the exact production path.
+import { argon2id as hashWasmArgon2id } from 'hash-wasm';
 
 export interface EncryptedPayload {
   ciphertext: ArrayBuffer;
@@ -25,18 +29,18 @@ export async function deriveEncryptionKey(
   masterPassword: string,
   salt: Uint8Array
 ): Promise<CryptoKey> {
-  const result = await argon2.hash({
-    pass: masterPassword,
+  const rawKey = await hashWasmArgon2id({
+    password: masterPassword,
     salt,
-    type: argon2.ArgonType.Argon2id,
-    mem: 65536,     // 64 MiB
-    time: 3,        // 3 iterations
     parallelism: 1,
-    hashLen: 32,
+    iterations: 3,
+    memorySize: 65536,  // 64 MiB — load-bearing, do not lower
+    hashLength: 32,
+    outputType: 'binary',
   });
   return crypto.subtle.importKey(
     'raw',
-    result.hash,
+    rawKey.buffer,
     { name: 'AES-GCM' },
     false,           // non-extractable
     ['encrypt', 'decrypt']
