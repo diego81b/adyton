@@ -27,6 +27,9 @@ import { VaultService } from './vault.service';
 import { CreateVaultEntryDto } from './dto/create-vault-entry.dto';
 import { UpdateVaultEntryDto } from './dto/update-vault-entry.dto';
 import { ListVaultEntriesQueryDto } from './dto/list-vault-entries-query.dto';
+import { VaultEntryResponseDto } from './dto/vault-entry.response.dto';
+import { VaultEntryVersionResponseDto } from './dto/vault-entry-version.response.dto';
+import { PaginatedVaultEntriesResponseDto } from './dto/paginated-vault-entries.response.dto';
 
 type RequestWithUser = FastifyRequest & { user: JwtUser };
 
@@ -38,7 +41,7 @@ export class VaultController {
   constructor(private readonly vaultService: VaultService) {}
 
   @ApiOperation({ summary: 'List vault entries (cursor-paginated)' })
-  @ApiResponse({ status: 200, description: 'Paginated entry list' })
+  @ApiResponse({ status: 200, description: 'Paginated entry list', type: PaginatedVaultEntriesResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @Get()
   list(@Req() req: RequestWithUser, @Query() query: ListVaultEntriesQueryDto) {
@@ -46,7 +49,7 @@ export class VaultController {
   }
 
   @ApiOperation({ summary: 'Create a new vault entry' })
-  @ApiResponse({ status: 201, description: 'Entry created' })
+  @ApiResponse({ status: 201, description: 'Entry created', type: VaultEntryResponseDto })
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @Post()
@@ -61,7 +64,7 @@ export class VaultController {
 
   @ApiOperation({ summary: 'Get a single vault entry' })
   @ApiParam({ name: 'id', description: 'Entry UUID' })
-  @ApiResponse({ status: 200, description: 'Entry found' })
+  @ApiResponse({ status: 200, description: 'Entry found', type: VaultEntryResponseDto })
   @ApiResponse({ status: 404, description: 'Entry not found or not owned by caller' })
   @Get(':id')
   findOne(
@@ -74,7 +77,7 @@ export class VaultController {
 
   @ApiOperation({ summary: 'Update a vault entry (snapshots current version)' })
   @ApiParam({ name: 'id', description: 'Entry UUID' })
-  @ApiResponse({ status: 200, description: 'Entry updated, version incremented' })
+  @ApiResponse({ status: 200, description: 'Entry updated, version incremented', type: VaultEntryResponseDto })
   @ApiResponse({ status: 404, description: 'Entry not found or not owned by caller' })
   @Patch(':id')
   update(
@@ -102,7 +105,7 @@ export class VaultController {
 
   @ApiOperation({ summary: 'List version history for a vault entry (DESC order)' })
   @ApiParam({ name: 'id', description: 'Entry UUID' })
-  @ApiResponse({ status: 200, description: 'Version list' })
+  @ApiResponse({ status: 200, description: 'Version list', type: [VaultEntryVersionResponseDto] })
   @ApiResponse({ status: 404, description: 'Entry not found or not owned by caller' })
   @Get(':id/versions')
   listVersions(@Req() req: RequestWithUser, @Param('id') id: string) {
@@ -112,7 +115,7 @@ export class VaultController {
   @ApiOperation({ summary: 'Restore a vault entry to a previous version' })
   @ApiParam({ name: 'id', description: 'Entry UUID' })
   @ApiParam({ name: 'versionId', description: 'Version snapshot UUID' })
-  @ApiResponse({ status: 200, description: 'Entry restored, version incremented' })
+  @ApiResponse({ status: 200, description: 'Entry restored, version incremented', type: VaultEntryResponseDto })
   @ApiResponse({ status: 404, description: 'Entry or version not found' })
   @Post(':id/versions/:versionId/restore')
   @HttpCode(HttpStatus.OK)
