@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\(require.resolve\\('reka-ui',{paths:['apps/web']}\\)\\)\")",
+      "Bash(node -e \"console.log\\(require.resolve\\('@floating-ui/dom',{paths:['apps/web']}\\)\\)\")",
+      "Bash(node -e \"console.log\\(require.resolve\\('reka-ui',{paths:['c:/varie/adyton/apps/web/node_modules']}\\)\\)\")"
+    ]
+  }
+}

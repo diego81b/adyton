@@ -47,36 +47,65 @@ export default defineNuxtConfig({
 
 ### 6.2 Page Structure and Routing
 
+**Source of truth: `analysis/frontend/mockups/adyton.html`.** The route map below was derived from the mockup after a coherence audit (2026-06-01). The mockup diverges from the original design in several places; the mockup wins.
+
 The vault is a **flat, per-user model** — no groups. Entries belong directly to the authenticated user. The API is `/vault` (list/create) and `/vault/:id` (get/update/delete/versions).
 
 ```
 app/pages/
-├── index.vue                                    # Redirects to /vault
+├── index.vue                    # Redirects to /vault
 ├── auth/
-│   ├── login.vue                                # Email + password, TOTP if enabled
-│   ├── register.vue                             # Email + master password, KDF salt generated here
-│   └── setup-2fa.vue                            # QR code display, TOTP code verification, recovery codes
+│   ├── login.vue                # Email + password (Phase 4 — done)
+│   ├── register.vue             # Email + master password (Phase 4 — done)
+│   └── unlock.vue               # Vault unlock / Argon2id KDF (Phase 4 — done)
 ├── vault/
-│   ├── index.vue                                # Entry list: type filter tabs, real-time label search, cursor pagination
-│   ├── [id].vue                                 # Entry detail: inline edit, reveal fields, copy, version history
-│   └── env/
-│       ├── new.vue                              # Dedicated ENV_FILE creation (textarea + file upload)
-│       └── [id]/
-│           └── versions.vue                     # Version history browser
-├── generator.vue                                # Standalone password generator (no auth required)
+│   ├── index.vue                # All Items: type filter chips, real-time label search, cursor pagination, env dropdown
+│   └── [id].vue                 # Entry detail: view + inline edit, reveal, copy, TOTP countdown (LOGIN), version history button
+├── environments/
+│   └── index.vue                # ENV_FILE + SECRET grouped by environmentTag (Production/Staging/Development/Custom)
+├── generator/
+│   └── index.vue                # Password/passphrase generator with entropy arc
 └── settings/
-    ├── index.vue                                # Display name, email change
-    ├── security.vue                             # 2FA management, active sessions, per-session revocation
-    └── danger.vue                               # Account deletion with master password confirmation
+    └── index.vue                # Single scrollable page: Account + Security + Danger zone (in-page anchor nav on desktop)
+
+app/components/
+├── VaultEntryModal.vue          # Add/Edit entry bottom-sheet (mobile) / centered modal (desktop) — unified for all types
+├── LockOverlay.vue              # In-place lock overlay (triggered by auto-lock timer or lock button)
+├── AppSidebar.vue               # Desktop left sidebar (4 nav items: Vault / Environments / Generator / Settings)
+├── AppBottomNav.vue             # Mobile bottom nav bar (same 4 items)
+├── PasswordInput.vue            # UInput + reveal toggle
+└── StrengthMeter.vue            # 4-segment zxcvbn bar
 ```
 
-`/vault/index.vue` is the application's primary working surface. It fetches the entry list (label hashes only from the server), decrypts labels client-side to populate the table, and supports real-time filtering without round-trips because all decrypted labels are held in `useVaultStore`.
+**Key divergences from original design doc:**
 
-`/vault/[id].vue` handles both view and edit modes in the same route. Sensitive fields (password, card number, notes) render as masked inputs by default. Each field has a copy button that writes to the clipboard and schedules a 30-second clearance via `setTimeout(() => navigator.clipboard.writeText(''), 30000)`.
+| Original doc | Mockup (authoritative) |
+|---|---|
+| Accent color: violet | Accent color: **emerald** (`#10b981`) |
+| `/vault/env/new.vue` dedicated page | **VaultEntryModal** (type selector inside modal) |
+| `/vault/secret/new.vue` dedicated page | **VaultEntryModal** (same modal, type = SECRET) |
+| `/vault/env/[id]/versions.vue` page | History accessed via button on `/vault/[id].vue` |
+| `/settings/security.vue` + `/settings/danger.vue` separate pages | **Single `/settings/index.vue`** with in-page anchors |
+| Environment filter as dropdown on vault index | **Dedicated `/environments/` page** in nav |
+| TOTP only in Phase 6 (2FA setup) | **Per-LOGIN-entry TOTP field** (secret + countdown + copy) |
 
-`/auth/setup-2fa.vue` is a post-login flow gated by a short-lived setup token. It calls `GET /auth/2fa/setup` to receive the TOTP secret, renders it as a QR code using `qrcode` (client-side), verifies a user-provided TOTP code to confirm correct scanner setup, and displays the eight recovery codes exactly once. A mandatory acknowledgment checkbox is required before the user can proceed.
+**Navigation (4 items, desktop sidebar + mobile bottom nav):**
+1. Vault — `/vault` — all entry types, type-filter chips
+2. Environments — `/environments` — ENV_FILE + SECRET grouped by tag
+3. Generator — `/generator` — password/passphrase
+4. Settings — `/settings` — account + security + danger
 
-`/settings/danger.vue` requires re-entry of the master password before the account deletion API call. The master password is re-derived to verify it is correct (by attempting to decrypt one vault entry), then the deletion request is submitted.
+**Accent:** `app.config.ts` uses `primary: 'emerald'`. The mockup aliases emerald onto the `violet` Tailwind key for inline CSS, but NuxtUI uses the `primary` token directly — no aliasing needed.
+
+`/vault/index.vue` fetches the entry list (encrypted blobs from server), decrypts labels client-side, supports real-time label search and type-chip filtering without round-trips because all decrypted entries are held in `useVaultStore`.
+
+`/vault/[id].vue` handles view and edit mode in the same route. LOGIN entries display a live TOTP section (countdown ring + 6-digit code) if a TOTP secret is stored. Sensitive fields are masked by default; reveal auto-hides after 30s, clipboard auto-clears after 30s.
+
+`/environments/index.vue` fetches only `ENV_FILE` and `SECRET` entries, groups them client-side by `environmentTag` into sticky-header sections with colored dot indicators.
+
+`/settings/index.vue` is a single page. Account section: display name, email, change-master-password (opens a modal with re-encryption warning). Security section: 2FA status + management, active sessions with per-session revoke, trusted devices, auto-lock timeout segmented control. Danger zone: account deletion with master password confirmation. Desktop shows an in-page anchor sidebar. The change-master-password and confirm-action flows use overlay modals — no separate routes.
+
+`/auth/setup-2fa.vue` (Phase 6) is a post-login flow for TOTP setup. Not in Phase 5 scope but shown in Settings security section as a placeholder state.
 
 ### 6.3 Pinia Stores
 

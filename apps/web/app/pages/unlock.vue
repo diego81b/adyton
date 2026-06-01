@@ -78,7 +78,7 @@ async function onSubmit() {
           Not you?
           <button
             class="text-primary-400 hover:underline"
-            @click="authStore.logout().then(() => router.push('/auth/login'))"
+            @click="authStore.logout().then(() => router.push('/login'))"
           >
             Sign out
           </button>

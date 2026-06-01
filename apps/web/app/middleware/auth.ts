@@ -12,13 +12,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // Try silent refresh if no access token in memory
   const authenticated = await authStore.initialize();
   if (!authenticated) {
-    return navigateTo('/auth/login');
+    return navigateTo('/login');
   }
 
   // Vault is locked — redirect to unlock page so user can re-derive key.
   // The crypto store's CryptoKey is lost on page reload (in-memory only by design).
   const cryptoStore = useCryptoStore();
-  if (!cryptoStore.isUnlocked && to.path !== '/auth/unlock') {
-    return navigateTo('/auth/unlock');
+  if (!cryptoStore.isUnlocked && to.path !== '/unlock') {
+    return navigateTo('/unlock');
   }
 });

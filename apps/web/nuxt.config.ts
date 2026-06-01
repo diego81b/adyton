@@ -60,11 +60,16 @@ export default defineNuxtConfig({
 
   vite: {
     optimizeDeps: {
+      // Pre-bundle up-front so navigating to a new page doesn't trigger
+      // on-demand dep discovery -> re-optimize -> full page reload.
+      // reka-ui + @floating-ui/dom are NuxtUI's lazy-imported transitive deps;
+      // without them here each new route that mounts a new component re-bundles.
       include: [
-        '@nuxt/ui',
-        'reka-ui',
         '@vueuse/core',
-        'pinia',
+        'defu',
+        'klona',
+        'reka-ui',
+        'reka-ui > @floating-ui/dom',
       ],
     },
     // Docker on Windows/WSL2 bind mounts don't propagate inotify events reliably
@@ -72,6 +77,10 @@ export default defineNuxtConfig({
       watch: process.env.CHOKIDAR_USEPOLLING === 'true'
         ? { usePolling: true, interval: 500 }
         : {},
+      // Eagerly transform pages/components on boot so first navigation isn't cold.
+      warmup: {
+        clientFiles: ['./app/pages/**/*.vue', './app/components/**/*.vue'],
+      },
     },
   },
 });

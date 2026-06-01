@@ -148,7 +148,7 @@ async function onSubmit() {
       <template #footer>
         <p class="text-center text-sm text-neutral-400">
           Already have an account?
-          <NuxtLink to="/auth/login" class="text-primary-400 hover:underline">
+          <NuxtLink to="/login" class="text-primary-400 hover:underline">
             Sign in
           </NuxtLink>
         </p>

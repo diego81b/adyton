@@ -44,35 +44,35 @@ beforeEach(() => {
 describe('auth middleware', () => {
   it('does nothing for public routes', async () => {
     mockInitialize.mockResolvedValue(true);
-    await authMiddleware(makeTo('/auth/login'), makeTo('/'));
+    await authMiddleware(makeTo('/login'), makeTo('/'));
     expect(navigateToMock).not.toHaveBeenCalled();
   });
 
   it('does nothing for auth sub-routes', async () => {
     mockInitialize.mockResolvedValue(true);
-    await authMiddleware(makeTo('/auth/register'), makeTo('/'));
+    await authMiddleware(makeTo('/register'), makeTo('/'));
     expect(navigateToMock).not.toHaveBeenCalled();
   });
 
-  it('redirects to /auth/login when not authenticated', async () => {
+  it('redirects to /login when not authenticated', async () => {
     mockInitialize.mockResolvedValue(false);
     await authMiddleware(makeTo('/vault'), makeTo('/'));
-    expect(navigateToMock).toHaveBeenCalledWith('/auth/login');
+    expect(navigateToMock).toHaveBeenCalledWith('/login');
   });
 
-  it('redirects to /auth/unlock when authenticated but vault locked', async () => {
+  it('redirects to /unlock when authenticated but vault locked', async () => {
     mockInitialize.mockResolvedValue(true);
     mockIsUnlocked.value = false;
     await authMiddleware(makeTo('/vault'), makeTo('/'));
-    expect(navigateToMock).toHaveBeenCalledWith('/auth/unlock');
+    expect(navigateToMock).toHaveBeenCalledWith('/unlock');
   });
 
-  it('does NOT redirect to /auth/unlock when already on /auth/unlock', async () => {
+  it('does NOT redirect to /unlock when already on /unlock', async () => {
     mockInitialize.mockResolvedValue(true);
     mockIsUnlocked.value = false;
-    await authMiddleware(makeTo('/auth/unlock'), makeTo('/vault'));
+    await authMiddleware(makeTo('/unlock'), makeTo('/vault'));
     // No redirect loop — unlock page is allowed even when vault locked
-    expect(navigateToMock).not.toHaveBeenCalledWith('/auth/unlock');
+    expect(navigateToMock).not.toHaveBeenCalledWith('/unlock');
   });
 
   it('allows /vault access when authenticated and unlocked', async () => {
