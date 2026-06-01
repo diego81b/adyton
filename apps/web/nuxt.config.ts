@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
-  devtools: { enabled: true },
+  devtools: { enabled: false },
 
   modules: ['@nuxt/ui', '@pinia/nuxt'],
 
@@ -28,17 +28,20 @@ export default defineNuxtConfig({
     routeRules: {
       '/**': {
         headers: {
-          'Content-Security-Policy': [
-            "default-src 'self'",
-            "script-src 'self' 'wasm-unsafe-eval'",  // wasm-unsafe-eval required for hash-wasm Argon2id
-            "style-src 'self' 'unsafe-inline'",       // Tailwind runtime class injection
-            "img-src 'self' data:",
-            "connect-src 'self' https://api.pwnedpasswords.com",  // HIBP k-anonymity check
-            "frame-ancestors 'none'",
-            "form-action 'self'",
-            "base-uri 'self'",
-            "object-src 'none'",
-          ].join('; '),
+          // CSP applied in production only — dev mode requires unsafe-inline for HMR + __NUXT__ injection
+          ...(process.env.NODE_ENV === 'production' ? {
+            'Content-Security-Policy': [
+              "default-src 'self'",
+              "script-src 'self' 'wasm-unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data:",
+              "connect-src 'self' https://api.pwnedpasswords.com",
+              "frame-ancestors 'none'",
+              "form-action 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
+            ].join('; '),
+          } : {}),
           'X-Content-Type-Options': 'nosniff',
           'X-Frame-Options': 'DENY',
           'Referrer-Policy': 'no-referrer',
@@ -48,8 +51,27 @@ export default defineNuxtConfig({
     },
   },
 
+  ssr: false,
+
   typescript: {
     strict: true,
     typeCheck: false,
+  },
+
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@nuxt/ui',
+        'reka-ui',
+        '@vueuse/core',
+        'pinia',
+      ],
+    },
+    // Docker on Windows/WSL2 bind mounts don't propagate inotify events reliably
+    server: {
+      watch: process.env.CHOKIDAR_USEPOLLING === 'true'
+        ? { usePolling: true, interval: 500 }
+        : {},
+    },
   },
 });
