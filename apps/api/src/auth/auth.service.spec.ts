@@ -48,6 +48,11 @@ const mockChallengeService = {
   verifyAndConsume: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockAuditService = {
+  log: jest.fn().mockResolvedValue(undefined),
+  persistLog: jest.fn(),
+};
+
 // ---- Helpers ---------------------------------------------------------------
 
 function makeUser(overrides: Partial<{ id: string; email: string; passwordHash: string; kdfSalt: string; totpEnabled: boolean }> = {}) {
@@ -104,6 +109,7 @@ describe('AuthService', () => {
       mockEmailNotifier as never,
       mockRedis as never,
       mockChallengeService as never,
+      mockAuditService as never,
     );
   });
 
@@ -172,6 +178,20 @@ describe('AuthService', () => {
       await expect(service.register(dto, '127.0.0.1', 'test-agent')).rejects.toThrow(
         'Connection lost',
       );
+    });
+
+    it('throws ConflictException when error name includes UniqueConstraint', async () => {
+      const uniqueError = Object.assign(new Error('Unique constraint'), { name: 'UniqueConstraintViolationException' });
+      mockEm.flush.mockRejectedValueOnce(uniqueError);
+
+      await expect(service.register({ email: 'x@x.com', password: 'pass' }, '127.0.0.1', 'ua')).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException when error cause has code 23505', async () => {
+      const uniqueError = Object.assign(new Error('nested unique'), { cause: { code: '23505' } });
+      mockEm.flush.mockRejectedValueOnce(uniqueError);
+
+      await expect(service.register({ email: 'x@x.com', password: 'pass' }, '127.0.0.1', 'ua')).rejects.toThrow(ConflictException);
     });
   });
 
@@ -256,6 +276,18 @@ describe('AuthService', () => {
       expect(result.newDeviceId).toBeUndefined();
       expect(existingDevice.lastSeenAt).toBeInstanceOf(Date);
     });
+
+    it('lowercases email on register result', async () => {
+      mockEm.create.mockImplementation((_entity: unknown, data: Record<string, unknown>) => ({
+        id: 'user-uuid-1',
+        totpEnabled: false,
+        ...data,
+      }));
+      mockEm.findOne.mockResolvedValue(null);
+
+      const result = await service.register({ email: 'UPPER@EXAMPLE.COM', password: 'pass' }, '127.0.0.1', 'ua');
+      expect(result.user.email).toBe('upper@example.com');
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -289,7 +321,7 @@ describe('AuthService', () => {
       const token = makeRefreshToken();
       mockEm.flush.mockResolvedValue(undefined);
 
-      await service.logout(token as never);
+      await service.logout(token as never, '127.0.0.1', 'test-agent');
 
       expect(token.revokedAt).toBeInstanceOf(Date);
       expect(mockEm.flush).toHaveBeenCalledTimes(1);

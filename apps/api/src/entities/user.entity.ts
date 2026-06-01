@@ -9,6 +9,7 @@ import {
 import { RefreshToken } from './refresh-token.entity';
 import { TrustedDevice } from './trusted-device.entity';
 import { WebAuthnCredential } from './webauthn-credential.entity';
+import { VaultEntry } from './vault-entry.entity';
 
 @Entity({ tableName: 'users' })
 export class User {
@@ -38,6 +39,9 @@ export class User {
 
   @OneToMany(() => WebAuthnCredential, (c) => c.user, { cascade: [Cascade.REMOVE] })
   webAuthnCredentials = new Collection<WebAuthnCredential>(this);
+
+  @OneToMany(() => VaultEntry, (e) => e.user, { cascade: [Cascade.REMOVE] })
+  vaultEntries = new Collection<VaultEntry>(this);
 
   @Property()
   createdAt: Date = new Date();

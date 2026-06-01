@@ -2,6 +2,8 @@ import { SqlEntityManager } from '@mikro-orm/postgresql';
 
 const APP_TABLES = [
   'audit_logs',
+  'vault_entry_versions',
+  'vault_entries',
   'trusted_devices',
   'webauthn_credentials',
   'refresh_tokens',

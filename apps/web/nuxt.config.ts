@@ -26,13 +26,23 @@ export default defineNuxtConfig({
 
   nitro: {
     routeRules: {
-      // Phase 1 scaffold only — full CSP arrives in Phase 4 alongside Argon2id WASM.
-      // 'wasm-unsafe-eval' is required for the Argon2id Web Worker.
       '/**': {
         headers: {
+          'Content-Security-Policy': [
+            "default-src 'self'",
+            "script-src 'self' 'wasm-unsafe-eval'",  // wasm-unsafe-eval required for hash-wasm Argon2id
+            "style-src 'self' 'unsafe-inline'",       // Tailwind runtime class injection
+            "img-src 'self' data:",
+            "connect-src 'self' https://api.pwnedpasswords.com",  // HIBP k-anonymity check
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+          ].join('; '),
           'X-Content-Type-Options': 'nosniff',
           'X-Frame-Options': 'DENY',
           'Referrer-Policy': 'no-referrer',
+          'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
         },
       },
     },

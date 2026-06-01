@@ -108,6 +108,23 @@ Simple or obvious changes: subject line only, no body.
 
 All project output must be in English: commit messages, code comments, documentation, API descriptions, test names. This applies regardless of the language used in conversation.
 
+## Phase completion checklist — MANDATORY, no exceptions
+
+Before declaring any phase or feature branch done, always do **both** of these in order:
+
+**1. Memory update** — write or update memory files under `~/.claude/projects/C--varie-adyton/memory/`:
+- Update `project_phase2_plan.md` with the new phase status and what's next
+- Add any new feedback memories for non-obvious decisions made during the work
+- Update `MEMORY.md` index if new files were added
+
+**2. Manual test plan** — output a numbered, actionable test plan covering:
+- Golden path (register → login → vault unlock flow end-to-end)
+- Key edge cases (wrong password, reload, auto-lock timeout)
+- Security invariants (ciphertext not readable, cookie httpOnly, AAD rejection)
+- Anything automated tests don't cover (real browser behavior, DB state checks, cookie handling)
+
+These are not optional steps. Do not output "Phase N complete" or suggest a merge without completing both.
+
 ## When in doubt
 
 Re-read the relevant `analysis/*.md` file before writing code. The analysis is the source of truth; it took deliberate design work to produce and should not be re-derived from intuition.

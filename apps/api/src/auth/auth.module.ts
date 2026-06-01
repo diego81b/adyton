@@ -7,6 +7,7 @@ import { RefreshToken } from '../entities/refresh-token.entity';
 import { TrustedDevice } from '../entities/trusted-device.entity';
 import { CryptoModule } from '../crypto/crypto.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditModule } from '../audit/audit.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { ChallengeService } from './challenge/challenge.service';
@@ -26,6 +27,7 @@ import { ProgressiveDelayService } from './progressive-delay/progressive-delay.s
     PassportModule,
     CryptoModule,
     NotificationsModule,
+    AuditModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, ChallengeService, JwtStrategy, RefreshGuard, ProgressiveDelayService],

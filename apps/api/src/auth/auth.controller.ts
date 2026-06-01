@@ -132,9 +132,10 @@ export class AuthController {
   @ApiResponse({ status: 204 })
   async logout(
     @Req() req: RequestWithRefreshToken,
+    @Headers('user-agent') ua: string,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    await this.authService.logout(req.refreshToken);
+    await this.authService.logout(req.refreshToken, req.ip, ua ?? '');
     clearRefreshCookie(res);
   }
 
