@@ -88,6 +88,7 @@ export class VaultService {
     userAgent: string,
   ): Promise<VaultEntry> {
     const entry = this.em.create(VaultEntry, {
+      id: dto.id,
       user: this.em.getReference(User, userId),
       entryType: dto.entryType,
       encryptedData: dto.encryptedData,
@@ -96,6 +97,7 @@ export class VaultService {
       labelHash: dto.labelHash,
       encryptedMetadata: dto.encryptedMetadata ?? null,
       metadataIv: dto.metadataIv ?? null,
+      metadataAuthTag: dto.metadataAuthTag ?? null,
       environmentTag: dto.environmentTag ?? null,
       version: 1,
       createdAt: new Date(),
@@ -139,6 +141,7 @@ export class VaultService {
     if (dto.labelHash !== undefined) entry.labelHash = dto.labelHash;
     if (dto.encryptedMetadata !== undefined) entry.encryptedMetadata = dto.encryptedMetadata;
     if (dto.metadataIv !== undefined) entry.metadataIv = dto.metadataIv;
+    if (dto.metadataAuthTag !== undefined) entry.metadataAuthTag = dto.metadataAuthTag;
     if ('environmentTag' in dto) entry.environmentTag = (dto.environmentTag as EnvironmentTag | null | undefined) ?? null;
     entry.version += 1;
 

@@ -33,6 +33,11 @@ export class UpdateVaultEntryDto {
   metadataIv?: string;
 
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  metadataAuthTag?: string;
+
+  @IsOptional()
   @IsEnum(EnvironmentTag)
   environmentTag?: EnvironmentTag | null;
 

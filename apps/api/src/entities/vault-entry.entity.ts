@@ -63,6 +63,9 @@ export class VaultEntry {
   @Property({ length: 64, nullable: true })
   metadataIv: string | null = null;
 
+  @Property({ length: 64, nullable: true })
+  metadataAuthTag: string | null = null;
+
   // Plaintext environment tag for ENV_FILE entries — never a secret
   @Enum({ items: () => EnvironmentTag, nullable: true })
   environmentTag: EnvironmentTag | null = null;

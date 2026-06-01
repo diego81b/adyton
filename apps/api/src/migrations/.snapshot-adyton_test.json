@@ -935,6 +935,22 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "datetime"
+        },
+        "metadata_auth_tag": {
+          "name": "metadata_auth_tag",
+          "type": "varchar(64)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 64,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "string"
         }
       },
       "name": "vault_entries",

@@ -8,8 +8,10 @@ import { EntryType, EnvironmentTag } from '../entities/vault-entry.entity';
 import { CreateVaultEntryDto } from './dto/create-vault-entry.dto';
 import { UpdateVaultEntryDto } from './dto/update-vault-entry.dto';
 
+const CLIENT_UUID = '00000000-0000-4000-8000-000000000001';
+
 const mockEntry = (overrides = {}) => ({
-  id: 'entry-1',
+  id: CLIENT_UUID,
   user: { id: 'user-1' },
   entryType: EntryType.LOGIN,
   encryptedData: 'ciphertext-abc',
@@ -18,6 +20,7 @@ const mockEntry = (overrides = {}) => ({
   labelHash: 'a'.repeat(64),
   encryptedMetadata: null,
   metadataIv: null,
+  metadataAuthTag: null,
   environmentTag: null,
   version: 1,
   createdAt: new Date('2026-01-01T00:00:00Z'),
@@ -71,11 +74,11 @@ describe('VaultService', () => {
       const entry = mockEntry();
       mockEm.findOne.mockResolvedValue(entry);
 
-      const result = await service.findOne('user-1', 'entry-1');
+      const result = await service.findOne('user-1', CLIENT_UUID);
 
       expect(mockEm.findOne).toHaveBeenCalledWith(
         expect.anything(),
-        { id: 'entry-1', user: { id: 'user-1' } },
+        { id: CLIENT_UUID, user: { id: 'user-1' } },
       );
       expect(result).toBe(entry);
     });
@@ -89,7 +92,7 @@ describe('VaultService', () => {
     it('throws NotFoundException for entry owned by another user (no info leak)', async () => {
       mockEm.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('user-2', 'entry-1')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('user-2', CLIENT_UUID)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -150,8 +153,9 @@ describe('VaultService', () => {
   });
 
   describe('create', () => {
-    it('persists entry, flushes, and logs audit', async () => {
+    it('persists entry with client-provided id, flushes, and logs audit', async () => {
       const dto: CreateVaultEntryDto = {
+        id: CLIENT_UUID,
         entryType: EntryType.LOGIN,
         encryptedData: 'cipher',
         iv: 'nonce',
@@ -159,11 +163,15 @@ describe('VaultService', () => {
         labelHash: 'h'.repeat(64),
       };
 
-      const created = mockEntry({ id: 'new-entry' });
+      const created = mockEntry({ id: CLIENT_UUID });
       mockEm.create.mockReturnValueOnce(created);
 
       const result = await service.create('user-1', dto, '1.1.1.1', 'TestAgent');
 
+      expect(mockEm.create).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ id: CLIENT_UUID }),
+      );
       expect(mockEm.persist).toHaveBeenCalled();
       expect(mockEm.flush).toHaveBeenCalled();
       expect(mockAudit.log).toHaveBeenCalledWith(
@@ -171,13 +179,14 @@ describe('VaultService', () => {
         AuditAction.VAULT_CREATE,
         '1.1.1.1',
         'TestAgent',
-        expect.objectContaining({ entryId: 'new-entry' }),
+        expect.objectContaining({ entryId: CLIENT_UUID }),
       );
       expect(result).toBe(created);
     });
 
     it('sets environmentTag for ENV_FILE entries', async () => {
       const dto: CreateVaultEntryDto = {
+        id: CLIENT_UUID,
         entryType: EntryType.ENV_FILE,
         encryptedData: 'cipher',
         iv: 'nonce',
@@ -195,8 +204,9 @@ describe('VaultService', () => {
       );
     });
 
-    it('stores encryptedMetadata and metadataIv when provided', async () => {
+    it('stores encryptedMetadata, metadataIv, and metadataAuthTag when provided', async () => {
       const dto: CreateVaultEntryDto = {
+        id: CLIENT_UUID,
         entryType: EntryType.LOGIN,
         encryptedData: 'cipher',
         iv: 'nonce',
@@ -204,13 +214,40 @@ describe('VaultService', () => {
         labelHash: 'h'.repeat(64),
         encryptedMetadata: 'meta-cipher',
         metadataIv: 'meta-iv',
+        metadataAuthTag: 'meta-tag',
       };
       mockEm.create.mockReturnValueOnce(mockEntry());
       await service.create('user-1', dto, '1.1.1.1', 'UA');
 
       expect(mockEm.create).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ encryptedMetadata: 'meta-cipher', metadataIv: 'meta-iv' }),
+        expect.objectContaining({
+          encryptedMetadata: 'meta-cipher',
+          metadataIv: 'meta-iv',
+          metadataAuthTag: 'meta-tag',
+        }),
+      );
+    });
+
+    it('defaults metadata fields to null when omitted', async () => {
+      const dto: CreateVaultEntryDto = {
+        id: CLIENT_UUID,
+        entryType: EntryType.LOGIN,
+        encryptedData: 'cipher',
+        iv: 'nonce',
+        authTag: 'tag',
+        labelHash: 'h'.repeat(64),
+      };
+      mockEm.create.mockReturnValueOnce(mockEntry());
+      await service.create('user-1', dto, '1.1.1.1', 'UA');
+
+      expect(mockEm.create).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          encryptedMetadata: null,
+          metadataIv: null,
+          metadataAuthTag: null,
+        }),
       );
     });
   });
@@ -222,7 +259,7 @@ describe('VaultService', () => {
       mockEm.count.mockResolvedValue(1);
 
       const dto: UpdateVaultEntryDto = { encryptedData: 'new-cipher', iv: 'new-iv', authTag: 'new-tag' };
-      await service.update('user-1', 'entry-1', dto, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, dto, '1.1.1.1', 'UA');
 
       expect(mockEm.create).toHaveBeenCalledWith(
         expect.anything(),
@@ -240,7 +277,7 @@ describe('VaultService', () => {
       mockEm.findOne.mockResolvedValue(entry);
       mockEm.count.mockResolvedValue(1);
 
-      await service.update('user-1', 'entry-1', { encryptedData: 'new' }, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, { encryptedData: 'new' }, '1.1.1.1', 'UA');
 
       expect(entry.version).toBe(2);
     });
@@ -252,7 +289,7 @@ describe('VaultService', () => {
       const oldVersions = [{ id: 'v-old-1' }];
       mockEm.find.mockResolvedValue(oldVersions);
 
-      await service.update('user-1', 'entry-1', {}, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, {}, '1.1.1.1', 'UA');
 
       expect(mockEm.remove).toHaveBeenCalledWith(oldVersions[0]);
     });
@@ -262,7 +299,7 @@ describe('VaultService', () => {
       mockEm.findOne.mockResolvedValue(entry);
       mockEm.count.mockResolvedValue(5);
 
-      await service.update('user-1', 'entry-1', {}, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, {}, '1.1.1.1', 'UA');
 
       expect(mockEm.remove).not.toHaveBeenCalled();
     });
@@ -272,14 +309,14 @@ describe('VaultService', () => {
       mockEm.findOne.mockResolvedValue(entry);
       mockEm.count.mockResolvedValue(1);
 
-      await service.update('user-1', 'entry-1', {}, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, {}, '1.1.1.1', 'UA');
 
       expect(mockAudit.log).toHaveBeenCalledWith(
         'user-1',
         AuditAction.VAULT_UPDATE,
         '1.1.1.1',
         'UA',
-        expect.objectContaining({ entryId: 'entry-1' }),
+        expect.objectContaining({ entryId: CLIENT_UUID }),
       );
     });
 
@@ -289,20 +326,27 @@ describe('VaultService', () => {
       mockEm.count.mockResolvedValue(1);
       const newHash = 'b'.repeat(64);
 
-      await service.update('user-1', 'entry-1', { labelHash: newHash }, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, { labelHash: newHash }, '1.1.1.1', 'UA');
 
       expect(entry.labelHash).toBe(newHash);
     });
 
-    it('updates encryptedMetadata and metadataIv when provided', async () => {
+    it('updates encryptedMetadata, metadataIv, and metadataAuthTag when provided', async () => {
       const entry = mockEntry();
       mockEm.findOne.mockResolvedValue(entry);
       mockEm.count.mockResolvedValue(1);
 
-      await service.update('user-1', 'entry-1', { encryptedMetadata: 'meta-cipher', metadataIv: 'meta-iv' }, '1.1.1.1', 'UA');
+      await service.update(
+        'user-1',
+        CLIENT_UUID,
+        { encryptedMetadata: 'meta-cipher', metadataIv: 'meta-iv', metadataAuthTag: 'meta-tag' },
+        '1.1.1.1',
+        'UA',
+      );
 
       expect(entry.encryptedMetadata).toBe('meta-cipher');
       expect(entry.metadataIv).toBe('meta-iv');
+      expect(entry.metadataAuthTag).toBe('meta-tag');
     });
 
     it('updates environmentTag when present in dto (even if undefined value)', async () => {
@@ -310,7 +354,7 @@ describe('VaultService', () => {
       mockEm.findOne.mockResolvedValue(entry);
       mockEm.count.mockResolvedValue(1);
 
-      await service.update('user-1', 'entry-1', { environmentTag: null }, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, { environmentTag: null }, '1.1.1.1', 'UA');
 
       expect(entry.environmentTag).toBeNull();
     });
@@ -320,7 +364,7 @@ describe('VaultService', () => {
       mockEm.findOne.mockResolvedValue(entry);
       mockEm.count.mockResolvedValue(1);
 
-      await service.update('user-1', 'entry-1', { encryptedData: 'new' }, '1.1.1.1', 'UA');
+      await service.update('user-1', CLIENT_UUID, { encryptedData: 'new' }, '1.1.1.1', 'UA');
 
       expect(entry.environmentTag).toBe(EnvironmentTag.STAGING);
     });
@@ -331,7 +375,7 @@ describe('VaultService', () => {
       const entry = mockEntry();
       mockEm.findOne.mockResolvedValue(entry);
 
-      await service.remove('user-1', 'entry-1', '1.1.1.1', 'UA');
+      await service.remove('user-1', CLIENT_UUID, '1.1.1.1', 'UA');
 
       expect(mockEm.remove).toHaveBeenCalledWith(entry);
       expect(mockEm.flush).toHaveBeenCalled();
@@ -340,7 +384,7 @@ describe('VaultService', () => {
         AuditAction.VAULT_DELETE,
         '1.1.1.1',
         'UA',
-        expect.objectContaining({ entryId: 'entry-1' }),
+        expect.objectContaining({ entryId: CLIENT_UUID }),
       );
     });
 
@@ -358,12 +402,12 @@ describe('VaultService', () => {
       const versions = [{ id: 'v2', version: 2 }, { id: 'v1', version: 1 }];
       mockEm.find.mockResolvedValue(versions);
 
-      const result = await service.listVersions('user-1', 'entry-1');
+      const result = await service.listVersions('user-1', CLIENT_UUID);
 
       expect(result).toBe(versions);
       expect(mockEm.find).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ entry: { id: 'entry-1' } }),
+        expect.objectContaining({ entry: { id: CLIENT_UUID } }),
         expect.objectContaining({ orderBy: { version: 'DESC' } }),
       );
     });
@@ -371,7 +415,7 @@ describe('VaultService', () => {
     it('throws NotFoundException when entry not owned by user', async () => {
       mockEm.findOne.mockResolvedValue(null);
 
-      await expect(service.listVersions('user-2', 'entry-1')).rejects.toThrow(NotFoundException);
+      await expect(service.listVersions('user-2', CLIENT_UUID)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -384,7 +428,7 @@ describe('VaultService', () => {
         .mockResolvedValueOnce(ver);
       mockEm.create.mockImplementation((_, data) => ({ ...data }));
 
-      await service.restoreVersion('user-1', 'entry-1', 'v-1', '1.1.1.1', 'UA');
+      await service.restoreVersion('user-1', CLIENT_UUID, 'v-1', '1.1.1.1', 'UA');
 
       expect(entry.encryptedData).toBe('old-cipher');
       expect(entry.iv).toBe('old-iv');
@@ -399,7 +443,7 @@ describe('VaultService', () => {
         .mockResolvedValueOnce(null);
 
       await expect(
-        service.restoreVersion('user-1', 'entry-1', 'v-missing', '1.1.1.1', 'UA'),
+        service.restoreVersion('user-1', CLIENT_UUID, 'v-missing', '1.1.1.1', 'UA'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -411,7 +455,7 @@ describe('VaultService', () => {
         .mockResolvedValueOnce(ver);
       mockEm.create.mockImplementation((_, data) => ({ ...data }));
 
-      await service.restoreVersion('user-1', 'entry-1', 'v-1', '1.1.1.1', 'UA');
+      await service.restoreVersion('user-1', CLIENT_UUID, 'v-1', '1.1.1.1', 'UA');
 
       expect(mockAudit.log).toHaveBeenCalledWith(
         'user-1',
@@ -419,7 +463,7 @@ describe('VaultService', () => {
         '1.1.1.1',
         'UA',
         expect.objectContaining({
-          entryId: 'entry-1',
+          entryId: CLIENT_UUID,
           restoredVersionId: 'v-1',
           restoredVersion: 1,
         }),
@@ -432,7 +476,7 @@ describe('VaultService', () => {
       const entry = mockEntry();
       mockEm.findOne.mockResolvedValue(entry);
 
-      const result = await service.findOneAndAudit('user-1', 'entry-1', '1.1.1.1', 'UA');
+      const result = await service.findOneAndAudit('user-1', CLIENT_UUID, '1.1.1.1', 'UA');
 
       expect(result).toBe(entry);
       expect(mockAudit.log).toHaveBeenCalledWith(
@@ -440,7 +484,7 @@ describe('VaultService', () => {
         AuditAction.VAULT_READ,
         '1.1.1.1',
         'UA',
-        { entryId: 'entry-1' },
+        { entryId: CLIENT_UUID },
       );
     });
   });

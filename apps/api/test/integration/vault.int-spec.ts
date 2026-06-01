@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { createHash } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { MikroORM } from '@mikro-orm/core';
 import { SqlEntityManager } from '@mikro-orm/postgresql';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -19,13 +19,18 @@ function sha256(s: string): string {
   return createHash('sha256').update(s).digest('hex');
 }
 
-const BASE_ENTRY = {
+const BASE_ENTRY_FIELDS = {
   entryType: 'LOGIN',
   encryptedData: 'base64-ciphertext-v1',
   iv: 'base64-iv-v1',
   authTag: 'base64-tag-v1',
   labelHash: sha256('github.com'),
 };
+
+/** Returns a fresh BASE_ENTRY with a new client-generated UUID each call. */
+function baseEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { id: randomUUID(), ...BASE_ENTRY_FIELDS, ...overrides };
+}
 
 async function registerAndToken(payload: typeof USER_A): Promise<string> {
   const resp = await app.inject({ method: 'POST', url: REGISTER_URL, payload });
@@ -40,7 +45,7 @@ async function createEntry(
     method: 'POST',
     url: VAULT_URL,
     headers: { authorization: `Bearer ${token}` },
-    payload: { ...BASE_ENTRY, ...overrides },
+    payload: baseEntry(overrides),
   });
   return resp.json<{ id: string }>();
 }
@@ -84,12 +89,13 @@ describe('GET /api/vault — unauthenticated', () => {
 describe('POST /api/vault — create entry', () => {
   it('creates entry and returns 201 with correct fields', async () => {
     const token = await registerAndToken(USER_A);
+    const clientId = randomUUID();
 
     const resp = await app.inject({
       method: 'POST',
       url: VAULT_URL,
       headers: { authorization: `Bearer ${token}` },
-      payload: BASE_ENTRY,
+      payload: { id: clientId, ...BASE_ENTRY_FIELDS },
     });
 
     expect(resp.statusCode).toBe(201);
@@ -100,6 +106,21 @@ describe('POST /api/vault — create entry', () => {
     expect(body.labelHash).toBe(sha256('github.com'));
   });
 
+  it('persists the client-provided UUID as entry id (AAD binding)', async () => {
+    const token = await registerAndToken(USER_A);
+    const clientId = randomUUID();
+
+    const resp = await app.inject({
+      method: 'POST',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { id: clientId, ...BASE_ENTRY_FIELDS },
+    });
+
+    expect(resp.statusCode).toBe(201);
+    expect(resp.json<{ id: string }>().id).toBe(clientId);
+  });
+
   it('accepts ENV_FILE with environmentTag', async () => {
     const token = await registerAndToken(USER_A);
 
@@ -107,16 +128,33 @@ describe('POST /api/vault — create entry', () => {
       method: 'POST',
       url: VAULT_URL,
       headers: { authorization: `Bearer ${token}` },
-      payload: {
-        ...BASE_ENTRY,
-        entryType: 'ENV_FILE',
-        labelHash: sha256('.env.production'),
-        environmentTag: 'production',
-      },
+      payload: baseEntry({ entryType: 'ENV_FILE', labelHash: sha256('.env.production'), environmentTag: 'production' }),
     });
 
     expect(resp.statusCode).toBe(201);
     expect(resp.json<{ environmentTag: string }>().environmentTag).toBe('production');
+  });
+
+  it('returns 400 when id field is missing', async () => {
+    const token = await registerAndToken(USER_A);
+    const resp = await app.inject({
+      method: 'POST',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+      payload: BASE_ENTRY_FIELDS,
+    });
+    expect(resp.statusCode).toBe(400);
+  });
+
+  it('returns 400 when id is not a valid UUID', async () => {
+    const token = await registerAndToken(USER_A);
+    const resp = await app.inject({
+      method: 'POST',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { id: 'not-a-uuid', ...BASE_ENTRY_FIELDS },
+    });
+    expect(resp.statusCode).toBe(400);
   });
 
   it('returns 400 when labelHash is not 64 hex chars', async () => {
@@ -125,7 +163,7 @@ describe('POST /api/vault — create entry', () => {
       method: 'POST',
       url: VAULT_URL,
       headers: { authorization: `Bearer ${token}` },
-      payload: { ...BASE_ENTRY, labelHash: 'tooshort' },
+      payload: { id: randomUUID(), ...BASE_ENTRY_FIELDS, labelHash: 'tooshort' },
     });
     expect(resp.statusCode).toBe(400);
   });
@@ -136,7 +174,7 @@ describe('POST /api/vault — create entry', () => {
       method: 'POST',
       url: VAULT_URL,
       headers: { authorization: `Bearer ${token}` },
-      payload: { ...BASE_ENTRY, entryType: 'UNKNOWN_TYPE' },
+      payload: { id: randomUUID(), ...BASE_ENTRY_FIELDS, entryType: 'UNKNOWN_TYPE' },
     });
     expect(resp.statusCode).toBe(400);
   });
@@ -378,7 +416,7 @@ describe('POST /api/vault/:id/versions/:versionId/restore', () => {
 
     expect(restoreResp.statusCode).toBe(200);
     const restored = restoreResp.json<{ encryptedData: string; version: number }>();
-    expect(restored.encryptedData).toBe(BASE_ENTRY.encryptedData);
+    expect(restored.encryptedData).toBe(BASE_ENTRY_FIELDS.encryptedData);
     expect(restored.version).toBe(3);
   });
 
@@ -429,7 +467,6 @@ describe('DELETE /api/vault/:id', () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    // Version endpoints should 404 after entry deleted
     const versionsResp = await app.inject({
       method: 'GET', url: `${VAULT_URL}/${id}/versions`,
       headers: { authorization: `Bearer ${token}` },
@@ -452,24 +489,45 @@ describe('DELETE /api/vault/:id', () => {
 
 // ---------------------------------------------------------------------------
 describe('POST /api/vault — metadata fields', () => {
-  it('stores encryptedMetadata and metadataIv when provided', async () => {
+  it('stores encryptedMetadata, metadataIv, and metadataAuthTag when provided', async () => {
     const token = await registerAndToken(USER_A);
 
     const resp = await app.inject({
       method: 'POST',
       url: VAULT_URL,
       headers: { authorization: `Bearer ${token}` },
-      payload: {
-        ...BASE_ENTRY,
+      payload: baseEntry({
         encryptedMetadata: 'base64-meta-cipher',
         metadataIv: 'base64-meta-iv',
-      },
+        metadataAuthTag: 'base64-meta-tag',
+      }),
     });
 
     expect(resp.statusCode).toBe(201);
-    const body = resp.json<{ encryptedMetadata: string; metadataIv: string }>();
+    const body = resp.json<{ encryptedMetadata: string; metadataIv: string; metadataAuthTag: string }>();
     expect(body.encryptedMetadata).toBe('base64-meta-cipher');
     expect(body.metadataIv).toBe('base64-meta-iv');
+    expect(body.metadataAuthTag).toBe('base64-meta-tag');
+  });
+
+  it('rounds-trip update: metadataAuthTag replaced on PATCH', async () => {
+    const token = await registerAndToken(USER_A);
+    const { id } = await createEntry(token, {
+      encryptedMetadata: 'old-meta',
+      metadataIv: 'old-meta-iv',
+      metadataAuthTag: 'old-meta-tag',
+    });
+
+    const resp = await app.inject({
+      method: 'PATCH',
+      url: `${VAULT_URL}/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { encryptedMetadata: 'new-meta', metadataIv: 'new-meta-iv', metadataAuthTag: 'new-meta-tag' },
+    });
+
+    expect(resp.statusCode).toBe(200);
+    const body = resp.json<{ metadataAuthTag: string }>();
+    expect(body.metadataAuthTag).toBe('new-meta-tag');
   });
 });
 
@@ -490,7 +548,7 @@ describe('PATCH /api/vault/:id — partial updates', () => {
     expect(resp.statusCode).toBe(200);
     const body = resp.json<{ labelHash: string; encryptedData: string }>();
     expect(body.labelHash).toBe(newHash);
-    expect(body.encryptedData).toBe(BASE_ENTRY.encryptedData); // unchanged
+    expect(body.encryptedData).toBe(BASE_ENTRY_FIELDS.encryptedData);
   });
 
   it('updates environmentTag to a new value', async () => {
@@ -515,7 +573,6 @@ describe('Version pruning — max 10 versions', () => {
     const token = await registerAndToken(USER_A);
     const { id } = await createEntry(token);
 
-    // 11 updates → 11 version snapshots created, oldest should be pruned to 10
     for (let i = 0; i < 11; i++) {
       await app.inject({
         method: 'PATCH',
@@ -533,9 +590,8 @@ describe('Version pruning — max 10 versions', () => {
 
     const versions = versionsResp.json<{ version: number }[]>();
     expect(versions.length).toBeLessThanOrEqual(10);
-    // All remaining versions should be the most recent ones
     const versionNumbers = versions.map((v) => v.version).sort((a, b) => b - a);
-    expect(versionNumbers[0]).toBe(11); // latest snapshot = version 11 (entry is now v12)
+    expect(versionNumbers[0]).toBe(11);
   });
 });
 
@@ -550,7 +606,6 @@ describe('GET /api/vault — cursor edge cases', () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    // Should either 400 (validation) or 200 empty (ignore invalid cursor)
     expect([200, 400]).toContain(resp.statusCode);
   });
 });

@@ -45,6 +45,8 @@ SSR is enabled globally but vault pages opt out via `definePageMeta({ ssr: false
 
 ### 6.2 Page Structure and Routing
 
+The vault is a **flat, per-user model** — no groups. Entries belong directly to the authenticated user. The API is `/vault` (list/create) and `/vault/:id` (get/update/delete/versions).
+
 ```
 app/pages/
 ├── index.vue                                    # Redirects to /vault
@@ -53,11 +55,12 @@ app/pages/
 │   ├── register.vue                             # Email + master password, KDF salt generated here
 │   └── setup-2fa.vue                            # QR code display, TOTP code verification, recovery codes
 ├── vault/
-│   ├── index.vue                                # Groups list (sidebar layout root)
-│   ├── [groupId]/
-│   │   ├── index.vue                            # Secrets list: search, type filter (PASSWORD/FILE), pagination
-│   │   └── [secretId].vue                       # Secret detail: inline edit, reveal fields, copy, version history
-│   └── new-group.vue                            # Create group modal/page
+│   ├── index.vue                                # Entry list: type filter tabs, real-time label search, cursor pagination
+│   ├── [id].vue                                 # Entry detail: inline edit, reveal fields, copy, version history
+│   └── env/
+│       ├── new.vue                              # Dedicated ENV_FILE creation (textarea + file upload)
+│       └── [id]/
+│           └── versions.vue                     # Version history browser
 ├── generator.vue                                # Standalone password generator (no auth required)
 └── settings/
     ├── index.vue                                # Display name, email change
@@ -139,18 +142,29 @@ export const useCryptoStore = defineStore('crypto', () => {
 
 ```typescript
 // stores/vault.ts
+//
+// Crypto contract:
+//   - entryId generated client-side before encryption (crypto.randomUUID())
+//   - main blob AAD:      `${userId}:${entryId}`
+//   - metadata blob AAD:  `${userId}:${entryId}:meta`
+//   - uses encryptSecret / decryptSecret from @adyton/shared
+//   - auth header injected by useAuthStore().apiFetch — never use bare $fetch for vault endpoints
+
 export const useVaultStore = defineStore('vault', () => {
   const entries = ref<DecryptedEntry[]>([]);
   const loading = ref(false);
   const cursor = ref<string | null>(null);
 
   async function fetchEntries(reset = false) {
-    const crypto = useCryptoStore();
-    if (!crypto.isUnlocked) throw new Error('Vault is locked');
+    const auth = useAuthStore();
+    const cryptoStore = useCryptoStore();
+    if (!cryptoStore.isUnlocked) throw new Error('Vault is locked');
     loading.value = true;
-    const raw = await apiFetch('/vault', { params: { cursor: reset ? null : cursor.value } });
+    const raw = await auth.apiFetch<{ data: RawVaultEntry[]; nextCursor: string | null }>(
+      '/vault', { params: { cursor: reset ? null : cursor.value } }
+    );
     const decrypted = await Promise.all(
-      raw.items.map(e => decryptEntry(e, crypto.cryptoKey!))
+      raw.data.map(e => decryptRawEntry(e, cryptoStore.cryptoKey!, auth.user!.id))
     );
     entries.value = reset ? decrypted : [...entries.value, ...decrypted];
     cursor.value = raw.nextCursor;
@@ -158,9 +172,12 @@ export const useVaultStore = defineStore('vault', () => {
   }
 
   async function createEntry(data: Omit<DecryptedEntry, 'id' | 'updatedAt'>) {
-    const encrypted = await encryptEntry(data, useCryptoStore().cryptoKey!);
-    const created = await apiFetch('/vault', { method: 'POST', body: encrypted });
-    entries.value.unshift(await decryptEntry(created, useCryptoStore().cryptoKey!));
+    const auth = useAuthStore();
+    const cryptoStore = useCryptoStore();
+    const entryId = crypto.randomUUID();
+    const payload = await encryptEntry(entryId, data, cryptoStore.cryptoKey!, auth.user!.id);
+    const created = await auth.apiFetch<RawVaultEntry>('/vault', { method: 'POST', body: payload });
+    entries.value.unshift(await decryptRawEntry(created, cryptoStore.cryptoKey!, auth.user!.id));
   }
 
   function clear() { entries.value = []; cursor.value = null; }
@@ -173,9 +190,21 @@ export const useVaultStore = defineStore('vault', () => {
 
 ### 6.4 Client-Side Crypto Integration
 
-The `packages/shared` crypto module is imported directly by both the web app and the extension. Key derivation happens once per session in `useCryptoStore.deriveKey`, and the resulting `CryptoKey` object (marked `extractable: false`) is reused for every encrypt/decrypt operation.
+The `packages/shared` crypto module is imported directly by both the web app and the extension. There is **no group key** — each user has a single vault key derived from their master password via Argon2id. Key derivation happens once per session in `useCryptoStore.deriveKey`, and the resulting `CryptoKey` object (marked `extractable: false`) is reused for every encrypt/decrypt operation.
 
-Argon2id runs via `argon2-browser` WASM. On the main thread it blocks for roughly 500ms to 2 seconds. Moving this to a Web Worker eliminates the UI freeze:
+Shared exports used by the vault store:
+
+- `encryptSecret(key, plaintext, aad)` → `EncryptedBlob` (`ciphertext`, `iv`, `authTag`)
+- `decryptSecret(key, blob, aad)` → `string`
+- `hashLabel(label)` → `string` (SHA-256 hex, for `labelHash` field)
+
+AAD values:
+- Main blob: `` `${userId}:${entryId}` ``
+- Metadata blob: `` `${userId}:${entryId}:meta` ``
+
+`entryId` must be generated client-side (`crypto.randomUUID()`) **before** encrypting, so it can be baked into the AAD. It is sent as the `id` field of `CreateVaultEntryDto` and the server persists it as the primary key.
+
+Argon2id runs via `hash-wasm` WASM (not `argon2-browser`). On the main thread it blocks for roughly 500ms to 2 seconds. Moving this to a Web Worker eliminates the UI freeze:
 
 ```typescript
 // composables/useArgon2Worker.ts

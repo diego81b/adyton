@@ -34,19 +34,22 @@
 
 ---
 
-### Phase 3 — MikroORM Entities, Migrations, and Vault API | Complexity: M
+### Phase 3 — MikroORM Entities, Migrations, and Vault API | Complexity: M ✅ DONE
 
 **Goals:** Define the full data model and expose the vault CRUD API. Server stores and retrieves opaque blobs — no crypto knowledge required.
 
-**Deliverables:**
-- Full entity set: `User`, `RefreshToken`, `VaultEntry`, `WebAuthnCredential`, `AuditLog`
-- Initial migration + seed script for development
-- `GroupsModule`: full CRUD + `POST /groups/:id/rotate-key` (member removal + atomic group re-key)
-- `SecretsModule`: full CRUD under `/groups/:groupId/secrets`, version history, restore
+**Deliverables (as implemented):**
+- Full entity set: `User`, `RefreshToken`, `VaultEntry`, `VaultEntryVersion`, `TrustedDevice`, `WebAuthnCredential`, `AuditLog`
+- Migrations: `Migration20260528110043_initial_schema`, `Migration20260529172416_vault_entities`, `Migration20260601_add_metadata_auth_tag`
+- `VaultModule`: flat per-user CRUD — `GET/POST /vault`, `GET/PATCH/DELETE /vault/:id`, `GET /vault/:id/versions`, `POST /vault/:id/versions/:versionId/restore`
 - Request DTOs with `class-validator`: structural validation only (server cannot validate encrypted content)
-- **Group key rotation** — atomic transaction: delete membership + bulk update secrets + bulk update remaining memberships. Server validates secret count integrity.
-- `AuditModule` global interceptor (logs `GROUP_MEMBER_REMOVE` + `SECRET_UPDATE` x n on rotate)
-- E2E tests: auth flow + group CRUD + secret CRUD + rotation flow
+- **Client-provided UUID** — `CreateVaultEntryDto.id` is required (UUID v4). Client generates before encrypting so AAD `${userId}:${entryId}` can be computed correctly.
+- **Metadata auth tag** — `VaultEntry` stores `encryptedMetadata`, `metadataIv`, `metadataAuthTag` (all nullable). Metadata AAD: `${userId}:${entryId}:meta`.
+- **Version history** — `VaultEntryVersion` snapshots previous blobs on each update; retention policy: last 10 versions per entry.
+- `AuditModule` global interceptor — logs `VAULT_CREATE`, `VAULT_READ`, `VAULT_UPDATE`, `VAULT_DELETE`, `VAULT_VERSION_RESTORE`
+- Unit tests: 100% coverage. Integration tests: 70+ tests (TestContainers + real PostgreSQL)
+
+**Note:** An earlier design explored a group-based model (`GroupsModule`/`SecretsModule`/`rotate-key`). This was replaced by a flat per-user vault for V1 simplicity. Group-based sharing is listed as a post-V1 feature in the Future Roadmap.
 
 ---
 
