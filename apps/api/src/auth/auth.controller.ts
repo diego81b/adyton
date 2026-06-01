@@ -27,6 +27,9 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshGuard } from './guards/refresh.guard';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { JwtUser } from './strategies/jwt.strategy';
+import { ChallengeResponseDto } from './dto/challenge.response.dto';
+import { AuthTokensResponseDto } from './dto/auth-tokens.response.dto';
+import { UserProfileResponseDto } from './dto/user-profile.response.dto';
 
 type RequestWithRefreshToken = FastifyRequest & { refreshToken: RefreshToken };
 type RequestWithUser = FastifyRequest & { user: JwtUser };
@@ -57,7 +60,7 @@ export class AuthController {
   @Get('challenge')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Issue a PoW challenge (only when ENABLE_POW=true)' })
-  @ApiResponse({ status: 200, description: 'Challenge issued' })
+  @ApiResponse({ status: 200, description: 'Challenge issued', type: ChallengeResponseDto })
   @ApiResponse({ status: 404, description: 'PoW not enabled' })
   async getChallenge() {
     if (process.env.ENABLE_POW !== 'true') {
@@ -69,7 +72,7 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register new user' })
-  @ApiResponse({ status: 201, description: 'User registered, tokens issued' })
+  @ApiResponse({ status: 201, description: 'User registered, tokens issued', type: AuthTokensResponseDto })
   @ApiResponse({ status: 409, description: 'Email already registered' })
   async register(
     @Body() dto: RegisterDto,
@@ -89,8 +92,8 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login' })
-  @ApiResponse({ status: 200 })
-  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 200, type: AuthTokensResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid credentials or rate-limited' })
   async login(
     @Body() dto: LoginDto,
     @Req() req: FastifyRequest,
@@ -112,8 +115,8 @@ export class AuthController {
   @UseGuards(RefreshGuard)
   @ApiOperation({ summary: 'Rotate refresh token' })
   @ApiCookieAuth('refreshToken')
-  @ApiResponse({ status: 200 })
-  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 200, type: AuthTokensResponseDto })
+  @ApiResponse({ status: 401, description: 'Refresh token missing, expired, or revoked' })
   async refresh(
     @Req() req: RequestWithRefreshToken,
     @Headers('user-agent') ua: string,
@@ -143,8 +146,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200 })
-  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 200, type: UserProfileResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMe(@Req() req: RequestWithUser) {
     return this.authService.getMe(req.user.userId);
   }

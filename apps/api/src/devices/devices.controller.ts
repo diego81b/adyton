@@ -13,11 +13,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DevicesService } from './devices.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtUser } from '../auth/strategies/jwt.strategy';
+import { TrustedDeviceResponseDto } from './dto/trusted-device.response.dto';
+import { RegisterDeviceResponseDto } from './dto/register-device.response.dto';
 
 type RequestWithUser = FastifyRequest & { user: JwtUser };
 
@@ -30,7 +32,7 @@ export class DevicesController {
 
   @Get()
   @ApiOperation({ summary: 'List trusted devices' })
-  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 200, type: [TrustedDeviceResponseDto] })
   async listDevices(@Req() req: RequestWithUser) {
     return this.devicesService.listDevices(req.user.userId);
   }
@@ -38,7 +40,7 @@ export class DevicesController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register device using one-time OTP from login' })
-  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 201, type: RegisterDeviceResponseDto })
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
   async registerDevice(
     @Body() dto: RegisterDeviceDto,
@@ -67,7 +69,8 @@ export class DevicesController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke a specific device' })
-  @ApiResponse({ status: 204 })
+  @ApiParam({ name: 'id', description: 'Device UUID' })
+  @ApiResponse({ status: 204, description: 'Device revoked' })
   async revokeDevice(
     @Req() req: RequestWithUser,
     @Param('id') id: string,
