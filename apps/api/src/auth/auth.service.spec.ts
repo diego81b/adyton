@@ -179,6 +179,20 @@ describe('AuthService', () => {
         'Connection lost',
       );
     });
+
+    it('throws ConflictException when error name includes UniqueConstraint', async () => {
+      const uniqueError = Object.assign(new Error('Unique constraint'), { name: 'UniqueConstraintViolationException' });
+      mockEm.flush.mockRejectedValueOnce(uniqueError);
+
+      await expect(service.register({ email: 'x@x.com', password: 'pass' }, '127.0.0.1', 'ua')).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException when error cause has code 23505', async () => {
+      const uniqueError = Object.assign(new Error('nested unique'), { cause: { code: '23505' } });
+      mockEm.flush.mockRejectedValueOnce(uniqueError);
+
+      await expect(service.register({ email: 'x@x.com', password: 'pass' }, '127.0.0.1', 'ua')).rejects.toThrow(ConflictException);
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -261,6 +275,18 @@ describe('AuthService', () => {
 
       expect(result.newDeviceId).toBeUndefined();
       expect(existingDevice.lastSeenAt).toBeInstanceOf(Date);
+    });
+
+    it('lowercases email on register result', async () => {
+      mockEm.create.mockImplementation((_entity: unknown, data: Record<string, unknown>) => ({
+        id: 'user-uuid-1',
+        totpEnabled: false,
+        ...data,
+      }));
+      mockEm.findOne.mockResolvedValue(null);
+
+      const result = await service.register({ email: 'UPPER@EXAMPLE.COM', password: 'pass' }, '127.0.0.1', 'ua');
+      expect(result.user.email).toBe('upper@example.com');
     });
   });
 

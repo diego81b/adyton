@@ -12,6 +12,9 @@ const REGISTER_URL = '/api/auth/register';
 const LOGIN_URL = '/api/auth/login';
 const SESSIONS_URL = '/api/sessions';
 
+const REFRESH_URL = '/api/auth/refresh';
+const LOGOUT_URL = '/api/auth/logout';
+
 const USER_A = { email: 'user-a@adyton.test', password: 'passwordforUserA123' };
 const USER_B = { email: 'user-b@adyton.test', password: 'passwordforUserB123' };
 
@@ -187,5 +190,69 @@ describe('DELETE /auth/sessions/:id', () => {
       url: `${SESSIONS_URL}/some-id`,
     });
     expect(resp.statusCode).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Session revocation — refresh token interaction', () => {
+  it('revoked session cannot be used to refresh — returns 401', async () => {
+    // Register — creates one session
+    const regResp = await app.inject({
+      method: 'POST',
+      url: REGISTER_URL,
+      payload: USER_A,
+    });
+    const { accessToken } = regResp.json<{ accessToken: string }>();
+    const rtCookie = regResp.cookies.find((c) => c.name === 'refreshToken')!;
+
+    // List sessions and revoke the only one
+    const listResp = await app.inject({
+      method: 'GET',
+      url: SESSIONS_URL,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    const sessions = listResp.json<{ id: string }[]>();
+    expect(sessions).toHaveLength(1);
+
+    await app.inject({
+      method: 'DELETE',
+      url: `${SESSIONS_URL}/${sessions[0].id}`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    // Refresh with the revoked token → 401
+    const refreshResp = await app.inject({
+      method: 'POST',
+      url: REFRESH_URL,
+      cookies: { refreshToken: rtCookie.value },
+    });
+    expect(refreshResp.statusCode).toBe(401);
+  });
+
+  it('session list is empty after all sessions are revoked via logout', async () => {
+    const regResp = await app.inject({
+      method: 'POST',
+      url: REGISTER_URL,
+      payload: USER_A,
+    });
+    const { accessToken } = regResp.json<{ accessToken: string }>();
+    const rtCookie = regResp.cookies.find((c) => c.name === 'refreshToken')!;
+
+    // Logout
+    await app.inject({
+      method: 'POST',
+      url: LOGOUT_URL,
+      cookies: { refreshToken: rtCookie.value },
+    });
+
+    // Sessions list with the (still-valid for 15 min) access token → 0 active sessions
+    const listResp = await app.inject({
+      method: 'GET',
+      url: SESSIONS_URL,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(listResp.statusCode).toBe(200);
+    const sessions = listResp.json<unknown[]>();
+    expect(sessions).toHaveLength(0);
   });
 });

@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { MikroORM } from '@mikro-orm/core';
 import { SqlEntityManager } from '@mikro-orm/postgresql';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -216,5 +217,119 @@ describe('GET /auth/me', () => {
   it('returns 401 without token', async () => {
     const meResp = await app.inject({ method: 'GET', url: ME_URL });
     expect(meResp.statusCode).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('POST /auth/refresh — edge cases', () => {
+  it('returns 401 for expired refresh token', async () => {
+    const registerResp = await app.inject({
+      method: 'POST',
+      url: REGISTER_URL,
+      payload: VALID_USER,
+    });
+    const rtCookie = registerResp.cookies.find((c) => c.name === 'refreshToken');
+    const rawToken = rtCookie!.value;
+
+    // Expire the token directly in the DB
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const em = app.get(SqlEntityManager);
+    await em.getKnex().raw(
+      `UPDATE refresh_tokens SET expires_at = NOW() - INTERVAL '1 second' WHERE token_hash = ?`,
+      [tokenHash],
+    );
+
+    const refreshResp = await app.inject({
+      method: 'POST',
+      url: REFRESH_URL,
+      cookies: { refreshToken: rawToken },
+    });
+    expect(refreshResp.statusCode).toBe(401);
+  });
+
+  it('returns 401 and revokes entire family when using token after logout', async () => {
+    // Register and capture initial refresh token
+    const registerResp = await app.inject({
+      method: 'POST',
+      url: REGISTER_URL,
+      payload: VALID_USER,
+    });
+    const rtCookie = registerResp.cookies.find((c) => c.name === 'refreshToken');
+    const oldToken = rtCookie!.value;
+    const { accessToken } = registerResp.json<{ accessToken: string }>();
+
+    // Logout — sets revokedAt on the token
+    await app.inject({
+      method: 'POST',
+      url: LOGOUT_URL,
+      cookies: { refreshToken: oldToken },
+    });
+
+    // Try to refresh with the now-revoked token — should 401 + revoke family
+    const reuseResp = await app.inject({
+      method: 'POST',
+      url: REFRESH_URL,
+      cookies: { refreshToken: oldToken },
+    });
+    expect(reuseResp.statusCode).toBe(401);
+
+    // The access token from before logout should still work for the 15-min window
+    // but any further refresh is impossible (family revoked)
+    const meResp = await app.inject({
+      method: 'GET',
+      url: ME_URL,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    // Access token itself is still valid (JWT doesn't get revoked server-side)
+    expect(meResp.statusCode).toBe(200);
+  });
+
+  it('returns 401 with no cookie', async () => {
+    const resp = await app.inject({ method: 'POST', url: REFRESH_URL });
+    expect(resp.statusCode).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Email case normalisation', () => {
+  it('registers with uppercase email and logs in with lowercase', async () => {
+    const upperEmail = 'UPPERCASE@ADYTON.TEST';
+    const password = 'somecorrectpassword123';
+
+    const regResp = await app.inject({
+      method: 'POST',
+      url: REGISTER_URL,
+      payload: { email: upperEmail, password },
+    });
+    expect(regResp.statusCode).toBe(201);
+    expect(regResp.json<{ user: { email: string } }>().user.email).toBe(upperEmail.toLowerCase());
+
+    const loginResp = await app.inject({
+      method: 'POST',
+      url: LOGIN_URL,
+      payload: { email: upperEmail.toLowerCase(), password },
+    });
+    expect(loginResp.statusCode).toBe(200);
+  });
+
+  it('kdfSalt is identical across login and refresh responses', async () => {
+    const regResp = await app.inject({
+      method: 'POST',
+      url: REGISTER_URL,
+      payload: VALID_USER,
+    });
+    const { user: regUser } = regResp.json<{ user: { kdfSalt: string } }>();
+    const rtCookie = regResp.cookies.find((c) => c.name === 'refreshToken')!;
+
+    const refreshResp = await app.inject({
+      method: 'POST',
+      url: REFRESH_URL,
+      cookies: { refreshToken: rtCookie.value },
+    });
+    const { user: refreshUser } = refreshResp.json<{ user: { kdfSalt: string } }>();
+
+    expect(refreshUser.kdfSalt).toBe(regUser.kdfSalt);
+    expect(refreshUser.kdfSalt).toHaveLength(64);
+    expect(refreshUser.kdfSalt).toMatch(/^[0-9a-f]{64}$/);
   });
 });

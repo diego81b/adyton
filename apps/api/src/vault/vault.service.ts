@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/core';
 import { VaultEntry, EnvironmentTag } from '../entities/vault-entry.entity';
 import { VaultEntryVersion } from '../entities/vault-entry-version.entity';
@@ -17,7 +17,13 @@ function encodeCursor(date: Date): string {
 }
 
 function decodeCursor(cursor: string): Date {
-  return new Date(Buffer.from(cursor, 'base64url').toString('utf-8'));
+  try {
+    const date = new Date(Buffer.from(cursor, 'base64url').toString('utf-8'));
+    if (isNaN(date.getTime())) throw new Error('invalid');
+    return date;
+  } catch {
+    throw new BadRequestException('Invalid cursor');
+  }
 }
 
 export interface PaginatedResult<T> {

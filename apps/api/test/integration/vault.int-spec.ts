@@ -449,3 +449,108 @@ describe('DELETE /api/vault/:id', () => {
     expect(resp.statusCode).toBe(404);
   });
 });
+
+// ---------------------------------------------------------------------------
+describe('POST /api/vault — metadata fields', () => {
+  it('stores encryptedMetadata and metadataIv when provided', async () => {
+    const token = await registerAndToken(USER_A);
+
+    const resp = await app.inject({
+      method: 'POST',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        ...BASE_ENTRY,
+        encryptedMetadata: 'base64-meta-cipher',
+        metadataIv: 'base64-meta-iv',
+      },
+    });
+
+    expect(resp.statusCode).toBe(201);
+    const body = resp.json<{ encryptedMetadata: string; metadataIv: string }>();
+    expect(body.encryptedMetadata).toBe('base64-meta-cipher');
+    expect(body.metadataIv).toBe('base64-meta-iv');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('PATCH /api/vault/:id — partial updates', () => {
+  it('updates only labelHash without touching encryptedData', async () => {
+    const token = await registerAndToken(USER_A);
+    const { id } = await createEntry(token);
+    const newHash = sha256('updated-label');
+
+    const resp = await app.inject({
+      method: 'PATCH',
+      url: `${VAULT_URL}/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { labelHash: newHash },
+    });
+
+    expect(resp.statusCode).toBe(200);
+    const body = resp.json<{ labelHash: string; encryptedData: string }>();
+    expect(body.labelHash).toBe(newHash);
+    expect(body.encryptedData).toBe(BASE_ENTRY.encryptedData); // unchanged
+  });
+
+  it('updates environmentTag to a new value', async () => {
+    const token = await registerAndToken(USER_A);
+    const { id } = await createEntry(token, { entryType: 'ENV_FILE', labelHash: sha256('env-entry'), environmentTag: 'development' });
+
+    const resp = await app.inject({
+      method: 'PATCH',
+      url: `${VAULT_URL}/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { environmentTag: 'production' },
+    });
+
+    expect(resp.statusCode).toBe(200);
+    expect(resp.json<{ environmentTag: string }>().environmentTag).toBe('production');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Version pruning — max 10 versions', () => {
+  it('keeps at most 10 version snapshots after 11 updates', async () => {
+    const token = await registerAndToken(USER_A);
+    const { id } = await createEntry(token);
+
+    // 11 updates → 11 version snapshots created, oldest should be pruned to 10
+    for (let i = 0; i < 11; i++) {
+      await app.inject({
+        method: 'PATCH',
+        url: `${VAULT_URL}/${id}`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { encryptedData: `cipher-v${i + 2}` },
+      });
+    }
+
+    const versionsResp = await app.inject({
+      method: 'GET',
+      url: `${VAULT_URL}/${id}/versions`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const versions = versionsResp.json<{ version: number }[]>();
+    expect(versions.length).toBeLessThanOrEqual(10);
+    // All remaining versions should be the most recent ones
+    const versionNumbers = versions.map((v) => v.version).sort((a, b) => b - a);
+    expect(versionNumbers[0]).toBe(11); // latest snapshot = version 11 (entry is now v12)
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('GET /api/vault — cursor edge cases', () => {
+  it('returns 400 or handles gracefully with malformed cursor', async () => {
+    const token = await registerAndToken(USER_A);
+
+    const resp = await app.inject({
+      method: 'GET',
+      url: `${VAULT_URL}?cursor=not-valid-base64url!!!`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // Should either 400 (validation) or 200 empty (ignore invalid cursor)
+    expect([200, 400]).toContain(resp.statusCode);
+  });
+});

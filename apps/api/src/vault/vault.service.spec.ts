@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { VaultService } from './vault.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../entities/audit-log.entity';
@@ -143,6 +143,10 @@ describe('VaultService', () => {
         expect.anything(),
       );
     });
+
+    it('throws BadRequestException for malformed cursor', async () => {
+      await expect(service.list('user-1', { cursor: 'not-valid-base64url!!!' })).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('create', () => {
@@ -188,6 +192,25 @@ describe('VaultService', () => {
       expect(mockEm.create).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ environmentTag: EnvironmentTag.PRODUCTION }),
+      );
+    });
+
+    it('stores encryptedMetadata and metadataIv when provided', async () => {
+      const dto: CreateVaultEntryDto = {
+        entryType: EntryType.LOGIN,
+        encryptedData: 'cipher',
+        iv: 'nonce',
+        authTag: 'tag',
+        labelHash: 'h'.repeat(64),
+        encryptedMetadata: 'meta-cipher',
+        metadataIv: 'meta-iv',
+      };
+      mockEm.create.mockReturnValueOnce(mockEntry());
+      await service.create('user-1', dto, '1.1.1.1', 'UA');
+
+      expect(mockEm.create).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ encryptedMetadata: 'meta-cipher', metadataIv: 'meta-iv' }),
       );
     });
   });
@@ -258,6 +281,48 @@ describe('VaultService', () => {
         'UA',
         expect.objectContaining({ entryId: 'entry-1' }),
       );
+    });
+
+    it('updates labelHash when provided', async () => {
+      const entry = mockEntry();
+      mockEm.findOne.mockResolvedValue(entry);
+      mockEm.count.mockResolvedValue(1);
+      const newHash = 'b'.repeat(64);
+
+      await service.update('user-1', 'entry-1', { labelHash: newHash }, '1.1.1.1', 'UA');
+
+      expect(entry.labelHash).toBe(newHash);
+    });
+
+    it('updates encryptedMetadata and metadataIv when provided', async () => {
+      const entry = mockEntry();
+      mockEm.findOne.mockResolvedValue(entry);
+      mockEm.count.mockResolvedValue(1);
+
+      await service.update('user-1', 'entry-1', { encryptedMetadata: 'meta-cipher', metadataIv: 'meta-iv' }, '1.1.1.1', 'UA');
+
+      expect(entry.encryptedMetadata).toBe('meta-cipher');
+      expect(entry.metadataIv).toBe('meta-iv');
+    });
+
+    it('updates environmentTag when present in dto (even if undefined value)', async () => {
+      const entry = mockEntry({ environmentTag: EnvironmentTag.PRODUCTION });
+      mockEm.findOne.mockResolvedValue(entry);
+      mockEm.count.mockResolvedValue(1);
+
+      await service.update('user-1', 'entry-1', { environmentTag: null }, '1.1.1.1', 'UA');
+
+      expect(entry.environmentTag).toBeNull();
+    });
+
+    it('does NOT update environmentTag when key is absent from dto', async () => {
+      const entry = mockEntry({ environmentTag: EnvironmentTag.STAGING });
+      mockEm.findOne.mockResolvedValue(entry);
+      mockEm.count.mockResolvedValue(1);
+
+      await service.update('user-1', 'entry-1', { encryptedData: 'new' }, '1.1.1.1', 'UA');
+
+      expect(entry.environmentTag).toBe(EnvironmentTag.STAGING);
     });
   });
 
