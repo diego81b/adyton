@@ -41,14 +41,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function apiFetch<T>(path: string, options?: Omit<RequestInit, 'body'> & { body?: unknown }): Promise<T> {
     const baseUrl = getBaseUrl();
+    const hasBody = options?.body !== undefined;
     const res = await fetch(`${baseUrl}${path}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        // Only declare a JSON content-type when we actually send a body — Fastify
+        // rejects an empty body that carries Content-Type: application/json (400),
+        // which would break the no-body POSTs (/auth/refresh, /auth/logout).
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         ...(accessToken.value ? { Authorization: `Bearer ${accessToken.value}` } : {}),
         ...(options?.headers as Record<string, string> ?? {}),
       },
-      body: options?.body ? JSON.stringify(options.body) : undefined,
+      body: hasBody ? JSON.stringify(options!.body) : undefined,
       credentials: 'include',
     });
     if (!res.ok) {

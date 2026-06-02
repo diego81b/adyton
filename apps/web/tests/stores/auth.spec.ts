@@ -133,6 +133,20 @@ describe('useAuthStore.refresh', () => {
     expect(store.accessToken).toBeNull();
     expect(store.isAuthenticated).toBe(false);
   });
+
+  // Regression: a no-body POST must NOT declare Content-Type: application/json,
+  // or Fastify rejects it with 400 "Body cannot be empty", breaking session refresh.
+  it('sends no body and no JSON content-type on the refresh POST', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    await store.refresh();
+
+    const init = mockFetch.mock.calls[0][1];
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeUndefined();
+    expect(init.headers['Content-Type']).toBeUndefined();
+    expect(init.credentials).toBe('include');
+  });
 });
 
 describe('useAuthStore.initialize', () => {

@@ -12,8 +12,27 @@ const password = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
+// /unlock is reached after a reload/auto-lock: the session (refresh cookie) is
+// still valid but the in-memory CryptoKey is gone. Re-hydrate the session so we
+// have the user's kdfSalt to derive from; bounce to login if there's no session,
+// or straight to the vault if it's somehow already unlocked.
+onMounted(async () => {
+  if (cryptoStore.isUnlocked) {
+    await router.push('/vault');
+    return;
+  }
+  if (!authStore.user) {
+    const ok = await authStore.initialize();
+    if (!ok) await router.push('/login');
+  }
+});
+
 async function onSubmit() {
-  if (!password.value || !authStore.user?.kdfSalt) return;
+  if (!password.value) return;
+  if (!authStore.user?.kdfSalt) {
+    error.value = 'Your session has expired. Please sign in again.';
+    return;
+  }
   loading.value = true;
   error.value = null;
   try {
@@ -33,6 +52,9 @@ async function onSubmit() {
   <AuthShell>
     <template #brand>
       <BrandLogo size="md" pulse />
+      <p v-if="authStore.user?.email" class="mt-2 text-center text-sm text-muted">
+        Unlocking <span class="font-medium text-default">{{ authStore.user.email }}</span>
+      </p>
     </template>
 
     <AuthCard>
