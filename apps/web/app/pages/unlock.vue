@@ -30,60 +30,61 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
-    <UCard class="w-full max-w-sm">
-      <template #header>
-        <div class="flex items-center gap-2">
-          <span class="text-2xl">🔒</span>
-          <h1 class="text-lg font-semibold">Vault locked</h1>
-        </div>
-      </template>
+  <AuthShell>
+    <template #brand>
+      <BrandLogo size="md" pulse />
+    </template>
 
-      <UForm @submit.prevent="onSubmit" class="space-y-4">
-        <p class="text-sm text-neutral-400">
-          Enter your master password to unlock the vault.
-          <strong class="text-neutral-200">Your password never leaves this device.</strong>
-        </p>
-
-        <UFormField label="Master password" name="password">
+    <AuthCard>
+      <UForm :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
+        <UFormField
+          name="password"
+          label="Master Password"
+          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+        >
           <UInput
             v-model="password"
             type="password"
-            placeholder="············"
+            icon="i-lucide-lock"
+            size="lg"
+            class="w-full font-mono"
+            placeholder="••••••••••••"
             autocomplete="current-password"
             autofocus
             required
           />
         </UFormField>
 
-        <UAlert
-          v-if="error"
-          color="error"
-          variant="soft"
-          :description="error"
-        />
+        <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
         <UButton
           type="submit"
           block
+          size="lg"
+          class="accent-glow"
           :loading="loading"
           :disabled="!password"
         >
-          {{ loading ? 'Unlocking…' : 'Unlock vault' }}
+          {{ loading ? 'Unlocking…' : 'Unlock Vault' }}
         </UButton>
+
+        <KeyDerivationStatus v-if="loading" />
       </UForm>
 
-      <template #footer>
-        <p class="text-center text-sm text-neutral-400">
-          Not you?
-          <button
-            class="text-primary-400 hover:underline"
-            @click="authStore.logout().then(() => router.push('/login'))"
-          >
-            Sign out
-          </button>
-        </p>
-      </template>
-    </UCard>
-  </div>
+      <p class="mt-5 text-center text-xs text-muted">
+        Not you?
+        <button
+          type="button"
+          class="ml-1 font-medium text-primary hover:underline"
+          @click="authStore.logout().then(() => router.push('/login'))"
+        >
+          Sign out
+        </button>
+      </p>
+    </AuthCard>
+
+    <template #footer>
+      🛡️ Zero-knowledge · Your data stays encrypted, even from us
+    </template>
+  </AuthShell>
 </template>

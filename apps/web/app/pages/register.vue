@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { validateMasterPassword } from '@adyton/shared';
-import type { PasswordStrengthResult } from '@adyton/shared';
 import { useAuthStore } from '~/stores/auth';
 import { useCryptoStore } from '~/stores/crypto';
+import { usePasswordStrength } from '~/composables/usePasswordStrength';
 
 definePageMeta({ ssr: false });
 
@@ -12,39 +11,25 @@ const router = useRouter();
 
 const email = ref('');
 const password = ref('');
+const confirmPassword = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
-const strength = ref<PasswordStrengthResult | null>(null);
-const validating = ref(false);
-let validationTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Debounced strength validation (runs at most once per 500ms after typing stops)
-watch(password, (pw) => {
-  strength.value = null;
-  if (validationTimer) clearTimeout(validationTimer);
-  if (!pw) return;
-  validationTimer = setTimeout(async () => {
-    validating.value = true;
-    try {
-      strength.value = await validateMasterPassword(pw);
-    } finally {
-      validating.value = false;
-    }
-  }, 500);
-});
+const { validating, score, valid, segColor, label, labelColor, bits } =
+  usePasswordStrength(password);
 
-const canSubmit = computed(() =>
-  !loading.value &&
-  !!email.value &&
-  !!password.value &&
-  strength.value?.valid === true,
+const passwordsMatch = computed(
+  () => !confirmPassword.value || password.value === confirmPassword.value,
 );
 
-const strengthColor = computed(() => {
-  if (!strength.value) return 'neutral';
-  const map = ['error', 'error', 'warning', 'warning', 'success'] as const;
-  return map[strength.value.score] ?? 'neutral';
-});
+const canSubmit = computed(
+  () =>
+    !loading.value &&
+    !!email.value &&
+    !!password.value &&
+    password.value === confirmPassword.value &&
+    valid.value,
+);
 
 async function onSubmit() {
   if (!canSubmit.value) return;
@@ -54,9 +39,11 @@ async function onSubmit() {
     const result = await authStore.register(email.value, password.value);
     await cryptoStore.deriveKey(password.value, result.user.kdfSalt);
     password.value = '';
+    confirmPassword.value = '';
     await router.push('/vault');
   } catch (err: unknown) {
     password.value = '';
+    confirmPassword.value = '';
     if (err && typeof err === 'object' && 'data' in err) {
       const e = err as { data: { message?: string } };
       error.value = e.data?.message ?? 'Registration failed.';
@@ -70,89 +57,106 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
-    <UCard class="w-full max-w-sm">
-      <template #header>
-        <h1 class="text-lg font-semibold">Create your vault</h1>
-      </template>
+  <AuthShell>
+    <template #brand>
+      <BrandLogo size="md" tagline="Your master password never leaves this device" />
+    </template>
 
-      <UForm @submit.prevent="onSubmit" class="space-y-4">
-        <UFormField label="Email" name="email">
+    <AuthCard>
+      <UForm
+        :state="{ email, password, confirmPassword }"
+        class="space-y-5"
+        @submit.prevent="onSubmit"
+      >
+        <UFormField
+          name="email"
+          label="Email"
+          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+        >
           <UInput
             v-model="email"
             type="email"
+            icon="i-lucide-mail"
+            size="lg"
+            class="w-full"
             placeholder="you@example.com"
             autocomplete="email"
             required
           />
         </UFormField>
 
-        <UFormField label="Master password" name="password">
+        <UFormField
+          name="password"
+          label="Master Password"
+          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+        >
           <UInput
             v-model="password"
             type="password"
-            placeholder="············"
+            icon="i-lucide-lock"
+            size="lg"
+            class="w-full font-mono"
+            placeholder="Choose something memorable but strong"
+            autocomplete="new-password"
+            required
+          />
+          <PasswordStrengthMeter
+            v-if="password"
+            class="mt-2"
+            :score="score"
+            :label="label"
+            :label-color="labelColor"
+            :bits="bits"
+            :seg-color="segColor"
+            :validating="validating"
+          />
+        </UFormField>
+
+        <UFormField
+          name="confirmPassword"
+          label="Confirm Password"
+          :error="!passwordsMatch && 'Passwords do not match.'"
+          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+        >
+          <UInput
+            v-model="confirmPassword"
+            type="password"
+            icon="i-lucide-lock"
+            size="lg"
+            class="w-full font-mono"
+            placeholder="Type it again"
             autocomplete="new-password"
             required
           />
         </UFormField>
 
-        <!-- Strength meter -->
-        <div v-if="password" class="space-y-1">
-          <div class="flex gap-1">
-            <div
-              v-for="i in 4"
-              :key="i"
-              class="h-1 flex-1 rounded-full transition-colors"
-              :class="strength && strength.score >= i ? `bg-${strengthColor}-400` : 'bg-neutral-700'"
-            />
-          </div>
-          <div v-if="validating" class="text-xs text-neutral-500">Checking…</div>
-          <div v-else-if="strength" class="space-y-1">
-            <p
-              v-for="(msg, i) in strength.feedback"
-              :key="i"
-              class="text-xs text-error-400"
-            >
-              {{ msg }}
-            </p>
-            <p v-if="strength.valid" class="text-xs text-success-400">
-              Password meets all requirements.
-            </p>
-          </div>
-        </div>
+        <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
-        <UAlert
-          v-if="error"
-          color="error"
-          variant="soft"
-          :description="error"
-        />
-
-        <UAlert
-          color="info"
-          variant="soft"
-          description="Your master password never leaves this device. It encrypts your vault locally. If you forget it, your vault cannot be recovered."
-        />
+        <UAlert color="primary" variant="soft" icon="i-lucide-info">
+          <template #description>
+            <strong class="font-semibold">Your master password never leaves this device.</strong>
+            If you forget it, your vault is unrecoverable. There is no reset.
+          </template>
+        </UAlert>
 
         <UButton
           type="submit"
           block
+          size="lg"
+          class="accent-glow"
           :loading="loading"
           :disabled="!canSubmit"
         >
-          {{ loading ? 'Creating vault…' : 'Create vault' }}
+          {{ loading ? 'Creating vault…' : 'Create Account' }}
         </UButton>
       </UForm>
 
-      <template #footer>
-        <p class="text-center text-sm text-neutral-400">
-          Already have an account?
-          <NuxtLink to="/login" class="text-primary-400 hover:underline">
-            Sign in
-          </NuxtLink>
-        </p>
-      </template>
-    </UCard>
-  </div>
+      <p class="mt-5 text-center text-xs text-muted">
+        Already have an account?
+        <NuxtLink to="/login" class="ml-1 font-medium text-primary hover:underline">
+          Sign in
+        </NuxtLink>
+      </p>
+    </AuthCard>
+  </AuthShell>
 </template>

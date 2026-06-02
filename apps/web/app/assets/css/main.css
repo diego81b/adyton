@@ -1,2 +1,43 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* Design tokens. @nuxt/fonts detects these family names and self-hosts them
+   (no CDN, consistent with zero-knowledge). Animations are registered here so
+   `animate-pulse-ring` / `animate-fade-in` resolve as first-class Tailwind utilities. */
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --animate-pulse-ring: pulse-ring 2s ease-out infinite;
+  --animate-fade-in: fade-in 0.3s ease-out;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  70%, 100% { transform: scale(1.2); opacity: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Custom utilities for primitives Tailwind has no built-in for — emerald grid
+   backdrop, radial wash, and accent halo on the brand badge / primary button.
+   Ported from analysis/frontend/mockups/adyton.html (accent is emerald, #10b981). */
+@utility bg-grid {
+  background-image:
+    linear-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@utility radial-glow {
+  background: radial-gradient(circle at 50% 30%, rgba(16, 185, 129, 0.15), transparent 60%);
+}
+
+@utility accent-glow {
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
+}

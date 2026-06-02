@@ -39,43 +39,57 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
-    <UCard class="w-full max-w-sm">
-      <template #header>
-        <h1 class="text-lg font-semibold">Sign in to Adyton</h1>
-      </template>
+  <AuthShell>
+    <template #brand>
+      <BrandLogo tagline="Zero-knowledge vault for what matters" />
+    </template>
 
-      <UForm @submit.prevent="onSubmit" class="space-y-4">
-        <UFormField label="Email" name="email">
+    <AuthCard>
+      <h2 class="mb-5 text-lg font-semibold">Welcome back</h2>
+
+      <UForm :state="{ email, password }" class="space-y-5" @submit.prevent="onSubmit">
+        <UFormField
+          name="email"
+          label="Email"
+          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+        >
           <UInput
             v-model="email"
             type="email"
+            icon="i-lucide-mail"
+            size="lg"
+            class="w-full"
             placeholder="you@example.com"
             autocomplete="email"
             required
           />
         </UFormField>
 
-        <UFormField label="Master password" name="password">
+        <UFormField
+          name="password"
+          label="Master Password"
+          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+        >
           <UInput
             v-model="password"
             type="password"
-            placeholder="············"
+            icon="i-lucide-lock"
+            size="lg"
+            class="w-full"
+            placeholder="••••••••••••"
             autocomplete="current-password"
             required
           />
         </UFormField>
 
-        <UAlert
-          v-if="error"
-          color="error"
-          variant="soft"
-          :description="error"
-        />
+        <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
         <UButton
           type="submit"
           block
+          size="lg"
+          trailing-icon="i-lucide-arrow-right"
+          class="accent-glow"
           :loading="loading"
           :disabled="!email || !password"
         >
@@ -83,14 +97,16 @@ async function onSubmit() {
         </UButton>
       </UForm>
 
-      <template #footer>
-        <p class="text-center text-sm text-neutral-400">
-          No account?
-          <NuxtLink to="/register" class="text-primary-400 hover:underline">
-            Create one
-          </NuxtLink>
-        </p>
-      </template>
-    </UCard>
-  </div>
+      <p class="mt-5 text-center text-xs text-muted">
+        New here?
+        <NuxtLink to="/register" class="ml-1 font-medium text-primary hover:underline">
+          Create an account →
+        </NuxtLink>
+      </p>
+    </AuthCard>
+
+    <template #footer>
+      🔐 Encrypted client-side · Argon2id + AES-256-GCM
+    </template>
+  </AuthShell>
 </template>
