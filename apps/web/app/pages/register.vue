@@ -139,6 +139,11 @@ async function onSubmit() {
 
         <UAlert v-if="error" color="error" variant="soft" :description="error" />
 
+        <!-- TODO(phase-10): when the zero-knowledge Recovery Kit lands
+             (analysis/roadmap/device-as-key.md §16.9 — BIP39 phrase wraps the vault
+             key, server never sees it), soften this copy to e.g. "unrecoverable
+             without your recovery kit". Until then "no reset" is correct by design:
+             a server-side reset would break zero-knowledge (invariant #1). -->
         <UAlert color="primary" variant="soft" icon="i-lucide-info">
           <template #description>
             <strong class="font-semibold">Your master password never leaves this device.</strong>
