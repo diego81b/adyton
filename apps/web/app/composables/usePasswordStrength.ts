@@ -41,6 +41,7 @@ export function usePasswordStrength(password: Ref<string>, debounceMs = 500) {
 
   const score = computed(() => result.value?.score ?? 0);
   const valid = computed(() => result.value?.valid === true);
+  const feedback = computed(() => result.value?.feedback ?? []);
   const segColor = computed(() => SEG_COLORS[Math.min(score.value - 1, 3)] ?? '');
   const label = computed(() => LABELS[score.value] || 'Strength');
   const labelColor = computed(() => LABEL_COLORS[score.value] ?? '#64748b');
@@ -57,5 +58,5 @@ export function usePasswordStrength(password: Ref<string>, debounceMs = 500) {
     return pool ? Math.floor(pw.length * Math.log2(pool)) : 0;
   });
 
-  return { result, validating, score, valid, segColor, label, labelColor, bits };
+  return { result, validating, score, valid, feedback, segColor, label, labelColor, bits };
 }

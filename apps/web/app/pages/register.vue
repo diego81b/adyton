@@ -15,7 +15,7 @@ const confirmPassword = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-const { validating, score, valid, segColor, label, labelColor, bits } =
+const { validating, score, valid, feedback, segColor, label, labelColor, bits } =
   usePasswordStrength(password);
 
 const passwordsMatch = computed(
@@ -105,6 +105,23 @@ async function onSubmit() {
             :seg-color="segColor"
             :validating="validating"
           />
+
+          <!-- Strength is enforced client-side only (backend checks length 12+),
+               so the rejection reasons must be surfaced here. -->
+          <div v-if="password && !validating" class="mt-2 space-y-1">
+            <p
+              v-for="(msg, i) in feedback"
+              :key="i"
+              class="flex items-start gap-1.5 text-xs text-error"
+            >
+              <UIcon name="i-lucide-x" class="mt-0.5 size-3.5 shrink-0" />
+              <span>{{ msg }}</span>
+            </p>
+            <p v-if="valid" class="flex items-center gap-1.5 text-xs text-success">
+              <UIcon name="i-lucide-check" class="size-3.5 shrink-0" />
+              <span>Password meets all requirements.</span>
+            </p>
+          </div>
         </UFormField>
 
         <UFormField

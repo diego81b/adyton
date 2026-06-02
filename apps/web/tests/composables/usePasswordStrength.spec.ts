@@ -8,8 +8,8 @@ vi.mock('@adyton/shared', () => ({
 
 const { usePasswordStrength } = await import('../../app/composables/usePasswordStrength');
 
-function result(score: number, valid: boolean) {
-  return { valid, score, crackTimeSec: 1, feedback: [], breached: false };
+function result(score: number, valid: boolean, feedback: string[] = []) {
+  return { valid, score, crackTimeSec: 1, feedback, breached: false };
 }
 
 describe('usePasswordStrength', () => {
@@ -56,18 +56,24 @@ describe('usePasswordStrength', () => {
     scope.stop();
   });
 
-  it('maps a weak score to the red palette', async () => {
-    mockValidate.mockResolvedValue(result(1, false));
+  it('maps a weak score to the red palette and exposes feedback', async () => {
+    mockValidate.mockResolvedValue(
+      result(1, false, ['Minimum 12 characters required.', 'Password is too predictable.']),
+    );
     const scope = effectScope();
     await scope.run(async () => {
       const pw = ref('');
-      const { label, labelColor, segColor, valid } = usePasswordStrength(pw);
+      const { label, labelColor, segColor, valid, feedback } = usePasswordStrength(pw);
       pw.value = 'abc';
       await vi.advanceTimersByTimeAsync(500);
       expect(label.value).toBe('Weak');
       expect(labelColor.value).toBe('#f87171');
       expect(segColor.value).toBe('#ef4444');
       expect(valid.value).toBe(false);
+      expect(feedback.value).toEqual([
+        'Minimum 12 characters required.',
+        'Password is too predictable.',
+      ]);
     });
     scope.stop();
   });
