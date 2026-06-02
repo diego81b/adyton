@@ -27,13 +27,15 @@ const titleClass = computed(() =>
     <div class="relative inline-block" :class="badgeClass">
       <div
         v-if="pulse"
-        class="absolute inset-0 rounded-2xl bg-primary/30 animate-pulse-ring"
+        class="absolute inset-0 rounded-full bg-primary/30 animate-pulse-ring"
       />
+      <!-- logo.svg is a transparent vector using currentColor; <img> can't inherit
+           it, so we mask it and paint with bg-primary (emerald brand accent). -->
       <div
-        class="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl accent-glow"
-      >
-        <img src="/logo.svg" alt="Adyton" class="h-full w-full object-cover" >
-      </div>
+        role="img"
+        aria-label="Adyton"
+        class="relative h-full w-full bg-primary drop-shadow-[0_0_12px_rgba(16,185,129,0.45)] [mask:url(/logo.svg)_center/contain_no-repeat] [-webkit-mask:url(/logo.svg)_center/contain_no-repeat]"
+      />
     </div>
     <h1 class="font-bold tracking-tight" :class="titleClass">Adyton</h1>
     <p v-if="tagline" class="mt-1.5 text-sm text-muted">{{ tagline }}</p>

@@ -61,7 +61,7 @@ async function onSubmit() {
           type="submit"
           block
           size="lg"
-          class="accent-glow"
+          class="accent-glow text-white"
           :loading="loading"
           :disabled="!password"
         >

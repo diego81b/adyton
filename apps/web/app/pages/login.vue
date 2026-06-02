@@ -89,7 +89,7 @@ async function onSubmit() {
           block
           size="lg"
           trailing-icon="i-lucide-arrow-right"
-          class="accent-glow"
+          class="accent-glow text-white"
           :loading="loading"
           :disabled="!email || !password"
         >

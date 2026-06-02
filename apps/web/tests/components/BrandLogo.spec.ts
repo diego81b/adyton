@@ -3,12 +3,12 @@ import { mount } from '@vue/test-utils';
 import BrandLogo from '../../app/components/BrandLogo.vue';
 
 describe('BrandLogo', () => {
-  it('renders the wordmark and logo image', () => {
+  it('renders the wordmark and the masked logo mark', () => {
     const wrapper = mount(BrandLogo);
     expect(wrapper.text()).toContain('Adyton');
-    const img = wrapper.find('img');
-    expect(img.attributes('src')).toBe('/logo.svg');
-    expect(img.attributes('alt')).toBe('Adyton');
+    const mark = wrapper.find('[role="img"]');
+    expect(mark.attributes('aria-label')).toBe('Adyton');
+    expect(mark.classes().join(' ')).toContain('url(/logo.svg)');
   });
 
   it('renders the tagline only when provided', () => {
