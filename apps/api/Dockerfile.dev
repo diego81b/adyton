@@ -13,7 +13,7 @@ WORKDIR /app
 
 # Copy workspace manifests first so docker layer cache hits when source changes
 # without touching dependencies.
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
 

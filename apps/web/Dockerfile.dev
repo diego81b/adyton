@@ -11,10 +11,12 @@ RUN apk add --no-cache libc6-compat \
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 
+# .npmrc carries the public-hoist-pattern that lifts shared's client-bundled deps
+# (hash-wasm, zxcvbn) into root node_modules so web's Vite can resolve them.
 RUN pnpm install --frozen-lockfile
 
 COPY apps/web ./apps/web
