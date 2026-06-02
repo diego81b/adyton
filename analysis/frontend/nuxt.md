@@ -54,10 +54,9 @@ The vault is a **flat, per-user model** — no groups. Entries belong directly t
 ```
 app/pages/
 ├── index.vue                    # Redirects to /vault
-├── auth/
-│   ├── login.vue                # Email + password (Phase 4 — done)
-│   ├── register.vue             # Email + master password (Phase 4 — done)
-│   └── unlock.vue               # Vault unlock / Argon2id KDF (Phase 4 — done)
+├── login.vue                   # Email + password (Phase 4 + Step 0 retrofit — done; flat, not under auth/)
+├── register.vue                # Email + master password + strength feedback (Phase 4 + Step 0 retrofit — done)
+├── unlock.vue                  # Vault unlock / Argon2id KDF; re-hydrates session, shows account email (Phase 4 + Step 0 — done)
 ├── vault/
 │   ├── index.vue                # All Items: type filter chips, real-time label search, cursor pagination, env dropdown
 │   └── [id].vue                 # Entry detail: view + inline edit, reveal, copy, TOTP countdown (LOGIN), version history button
@@ -69,12 +68,21 @@ app/pages/
     └── index.vue                # Single scrollable page: Account + Security + Danger zone (in-page anchor nav on desktop)
 
 app/components/
+# Built in Phase 5 Step 0 (auth UI foundation):
+├── AuthShell.vue               # Full-screen grid+glow backdrop, centered column, slots: brand / default / footer
+├── AuthCard.vue                # Translucent themed card (NuxtUI bg-elevated/border-default)
+├── BrandLogo.vue               # /logo.svg painted emerald via CSS mask + wordmark + tagline (props: size, pulse)
+├── PasswordInput.vue           # UInput + lock leading icon + eye show/hide toggle (v-model)
+├── PasswordStrengthMeter.vue   # 4-segment bar + label + entropy bits (presentational; fed by usePasswordStrength)
+├── KeyDerivationStatus.vue     # "Deriving encryption key…" spinner during Argon2id
+# To build in Phase 5 proper:
 ├── VaultEntryModal.vue          # Add/Edit entry bottom-sheet (mobile) / centered modal (desktop) — unified for all types
 ├── LockOverlay.vue              # In-place lock overlay (triggered by auto-lock timer or lock button)
 ├── AppSidebar.vue               # Desktop left sidebar (4 nav items: Vault / Environments / Generator / Settings)
-├── AppBottomNav.vue             # Mobile bottom nav bar (same 4 items)
-├── PasswordInput.vue            # UInput + reveal toggle
-└── StrengthMeter.vue            # 4-segment zxcvbn bar
+└── AppBottomNav.vue             # Mobile bottom nav bar (same 4 items)
+
+app/composables/
+└── usePasswordStrength.ts      # Debounced zxcvbn validation -> score/valid/feedback/segColor/label/bits (Step 0)
 ```
 
 **Key divergences from original design doc:**
@@ -95,7 +103,14 @@ app/components/
 3. Generator — `/generator` — password/passphrase
 4. Settings — `/settings` — account + security + danger
 
-**Accent:** `app.config.ts` uses `primary: 'emerald'`. The mockup aliases emerald onto the `violet` Tailwind key for inline CSS, but NuxtUI uses the `primary` token directly — no aliasing needed.
+**Accent:** `app.config.ts` uses `primary: 'emerald'`. The mockup aliases emerald onto the `violet` Tailwind key for inline CSS, but NuxtUI uses the `primary` token directly — no aliasing needed. Solid emerald buttons need an explicit `text-white` (NuxtUI's solid variant uses inverted = dark label text in dark mode).
+
+**Auth integration contract (learned in Step 0 — do not regress):**
+- The API uses `setGlobalPrefix('api')`, so every route is `/api/...`. `NUXT_PUBLIC_API_BASE_URL` must end in `/api`; the refresh cookie `path` must be `/api/auth` (otherwise the browser never sends it and the session is lost on reload).
+- `useAuthStore().apiFetch` must NOT set `Content-Type: application/json` on no-body POSTs (`/auth/refresh`, `/auth/logout`) — Fastify rejects an empty JSON body with 400.
+- Master-password strength (zxcvbn score ≥ 4, char classes, weak patterns, HIBP breach) is enforced **client-side only**; the backend checks length ≥ 12. Register must surface `usePasswordStrength` feedback so a disabled submit has a visible reason.
+- `/unlock` is reached after reload/auto-lock (session cookie valid, in-memory `CryptoKey` gone). It re-hydrates via `authStore.initialize()`, redirects to `/login` when there's no session, and shows the account email.
+- Recovery: V1 has **no master-password recovery** (intentional — zero-knowledge). The "unrecoverable / no reset" copy on register is correct until the Phase-10 Recovery Kit (`roadmap/device-as-key.md §16.9`); a `TODO(phase-10)` marks where to soften it.
 
 `/vault/index.vue` fetches the entry list (encrypted blobs from server), decrypts labels client-side, supports real-time label search and type-chip filtering without round-trips because all decrypted entries are held in `useVaultStore`.
 

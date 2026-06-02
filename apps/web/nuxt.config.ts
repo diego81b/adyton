@@ -3,9 +3,15 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: false },
 
-  modules: ['@nuxt/ui', '@pinia/nuxt'],
+  modules: ['@nuxt/ui', '@pinia/nuxt', '@nuxt/fonts'],
 
   css: ['~/assets/css/main.css'],
+
+  // Mockup is dark-first; honor the user's system preference but default to dark.
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+  },
 
   runtimeConfig: {
     public: {
