@@ -87,6 +87,24 @@ When multiple agents/scopes work in parallel after Phase 1 lands:
 - **`packages/shared` is upstream of everything.** Bump its version and update consumers in the same change; do not let `apps/api` and `apps/web` drift on different shared versions.
 - **API contracts live in `packages/shared/types`.** Backend changes that alter request/response shapes require a shared types update + frontend/extension callers in the same PR.
 
+## Frontend conventions (Nuxt `apps/web`) — MANDATORY
+
+The mockup at `analysis/frontend/mockups/adyton.html` is the authoritative UI source. Read the relevant `screen-*` section before building any page. The mockup names the accent `violet` but overrides it to **emerald** (`#10b981`); NuxtUI uses `primary: 'emerald'`.
+
+1. **Tailwind-first. No plain CSS scattered around.** Use Tailwind utilities and NuxtUI semantic tokens (`bg-elevated`, `border-default`, `text-muted`, `bg-accented`) that flip with the theme. When a primitive doesn't exist in Tailwind (e.g. `bg-grid`, `radial-glow`, `accent-glow`), define it as a Tailwind v4 `@utility` in `app/assets/css/main.css` — never a loose `.class {}` rule, never `html:not(.dark) .x` selectors. Component-specific styling goes as Tailwind classes in the `.vue`. Maximum concreteness, no over-abstraction.
+
+2. **Pages are thin composition surfaces.** Always evaluate extracting a component or composable from a page. Move UI sections into child components (props down, events up); move stateful/side-effect logic into `composables/useX.ts`. Prefer small focused components + composables over mega-components.
+
+3. **Use the vue/nuxt skills** (`vue-best-practices` is the convention source; also `vue-testing-best-practices`, `nuxt`, `nuxt-ui`, `pinia`, `vueuse-functions`) for Vue/Nuxt work.
+
+4. **Inputs: full-width AND proper height.** `class="w-full"` + `size="lg"` (~42px, matches mockup `py-2.5`). No microscopic forms — not on mobile, not on desktop.
+
+5. **Vue helpers imported explicitly in source** (`import { ref, computed } from 'vue'`) — matches the store convention and keeps files testable under plain vitest. User auto-imported composables must be explicitly imported in pages too (eslint `no-undef` otherwise).
+
+6. **Self-hosted assets only (no CDN):** fonts via `@nuxt/fonts`, icons via `@iconify-json/lucide`. Consistent with zero-knowledge / CSP.
+
+7. **Dev runtime:** run ONE at a time. Native (`run.bat web-local`) OR Docker — never both, they share the bind-mounted `.nuxt` and corrupt each other.
+
 ## Commit style
 
 After every code change, propose a commit message. Format:
