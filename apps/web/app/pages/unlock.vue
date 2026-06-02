@@ -42,16 +42,11 @@ async function onSubmit() {
           label="Master Password"
           :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
         >
-          <UInput
+          <PasswordInput
             v-model="password"
-            type="password"
-            icon="i-lucide-lock"
-            size="lg"
-            class="w-full font-mono"
             placeholder="••••••••••••"
             autocomplete="current-password"
             autofocus
-            required
           />
         </UFormField>
 

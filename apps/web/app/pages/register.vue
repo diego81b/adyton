@@ -90,15 +90,10 @@ async function onSubmit() {
           label="Master Password"
           :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
         >
-          <UInput
+          <PasswordInput
             v-model="password"
-            type="password"
-            icon="i-lucide-lock"
-            size="lg"
-            class="w-full font-mono"
             placeholder="Choose something memorable but strong"
             autocomplete="new-password"
-            required
           />
           <PasswordStrengthMeter
             v-if="password"
@@ -118,15 +113,10 @@ async function onSubmit() {
           :error="!passwordsMatch && 'Passwords do not match.'"
           :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
         >
-          <UInput
+          <PasswordInput
             v-model="confirmPassword"
-            type="password"
-            icon="i-lucide-lock"
-            size="lg"
-            class="w-full font-mono"
             placeholder="Type it again"
             autocomplete="new-password"
-            required
           />
         </UFormField>
 
