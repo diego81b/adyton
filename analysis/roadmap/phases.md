@@ -77,7 +77,9 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 **Goals:** Build the complete vault interface using NuxtUI 4 components backed by `useVaultStore`. All CRUD operations encrypt before sending and decrypt on receive.
 
-**Deliverables:**
+**Step 0 — Auth UI foundation + retrofit (DONE 2026-06-02):** before the vault UI, the design system and existing auth pages were brought to mockup fidelity. Delivered: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default color mode); reusable components `AuthShell`, `AuthCard`, `BrandLogo`, `PasswordInput` (lock + eye toggle), `PasswordStrengthMeter`, `KeyDerivationStatus`; composable `usePasswordStrength`; login/register/unlock retrofitted (full-width `size=lg` inputs, confirm-password, client-side strength feedback, account email on unlock). Also fixed session persistence (refresh cookie path `/api/auth`, no-body POST content-type). Note: accent is **emerald** (mockup is authoritative), not violet; `PasswordInput` already exists from Step 0.
+
+**Deliverables (remaining):**
 - `/vault/index.vue`: entry table, type filter tabs, real-time label search (client-side), infinite scroll cursor pagination
 - `/vault/[id].vue`: entry detail, inline edit mode, field reveal, copy to clipboard with 30s clear
 - `/generator.vue`: standalone password generator with all `PasswordOptions` exposed
@@ -85,8 +87,7 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 - `/settings/danger.vue`: account deletion with master password confirmation
 - `useVaultStore` with full encrypt/decrypt lifecycle; **no persistence plugin**
 - Auto-lock composable and lock screen overlay in `vault.vue` layout
-- NuxtUI theming (dark mode, violet accent)
-- `PasswordInput` component with zxcvbn strength meter
+- NuxtUI theming (dark mode, emerald accent)
 
 ---
 

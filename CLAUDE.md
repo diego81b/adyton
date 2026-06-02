@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phases 1–4 + 4.1 complete** (2026-06-01). Monorepo scaffold, Docker dev stack, NestJS auth, vault API, shared crypto, and Nuxt auth flows are implemented and tested. Phase 5 (Nuxt vault UI) is next, on branch `feature/phase-5-vault-ui`. All implementation work follows the design documents in `analysis/`.
+**Phases 1–4 + 4.1 complete** (2026-06-01). Monorepo scaffold, Docker dev stack, NestJS auth, vault API, shared crypto, and Nuxt auth flows are implemented and tested.
+
+**Phase 5 Step 0 complete** (2026-06-02) on `feature/phase-5-step-0-foundation` (off `feature/phase-5-vault-ui`), not yet merged. Step 0 delivered the auth-UI foundation + a mockup-faithful retrofit of login/register/unlock: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default color mode); reusable components `AuthShell`/`AuthCard`/`BrandLogo`/`PasswordInput`/`PasswordStrengthMeter`/`KeyDerivationStatus` + `usePasswordStrength` composable; and fixes to session persistence (see below). **Next:** merge Step 0 → phase branch, then Phase 5 proper (vault list, environments, generator, settings, `VaultEntryModal`).
+
+Integration contracts learned in Step 0 (do not regress): the API uses `setGlobalPrefix('api')`, so `NUXT_PUBLIC_API_BASE_URL` must end in `/api` and the refresh cookie path is `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client-bundled deps (hash-wasm, zxcvbn) and must be `COPY`d into the dev Dockerfiles. Editing `apps/api` source requires `docker compose restart api` (tsc watch misses Windows bind-mount changes).
+
+All implementation work follows the design documents in `analysis/`.
 
 ## Project — Adyton
 
