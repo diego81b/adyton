@@ -48,6 +48,19 @@ export interface RawVaultEntry {
   updatedAt: string;
 }
 
+// Mirrors apps/api VaultEntryVersionResponseDto (a historical snapshot of an entry).
+// The snapshot blob is a byte-copy of the parent entry's main blob, so it decrypts
+// under the PARENT entry id — the version row's own `id` is NEVER used in the AAD.
+export interface RawVaultEntryVersion {
+  id: string;
+  version: number;
+  encryptedData: string;
+  iv: string;
+  authTag: string;
+  changeNote: string | null;
+  createdAt: string;
+}
+
 // Payload sent to POST /vault (mirrors CreateVaultEntryDto).
 export interface CreateEntryPayload {
   id: string;
@@ -74,13 +87,17 @@ export interface UpdateEntryPayload {
 const STRUCTURAL_KEYS = new Set<keyof DecryptedEntry>([
   'id',
   'type',
+  'createdAt',
   'updatedAt',
   'secretVersion',
   'environment',
   'envParsed', // derived client-side, never persisted
 ]);
 
-export type EntryDraft = Omit<DecryptedEntry, 'id' | 'updatedAt' | 'secretVersion' | 'envParsed'>;
+export type EntryDraft = Omit<
+  DecryptedEntry,
+  'id' | 'createdAt' | 'updatedAt' | 'secretVersion' | 'envParsed'
+>;
 
 function buildBlobPayload(draft: EntryDraft): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
@@ -169,6 +186,21 @@ export async function encryptEntryUpdate(
 }
 
 /**
+ * Decrypt a main blob and JSON-parse its secret fields. Shared by entry and version
+ * decryption — both store the same blob shape under the same AAD `${userId}:${entryId}`.
+ * Throws if the AAD or auth tag fail (Web Crypto rejects the decrypt).
+ */
+async function decryptBlobFields(
+  blob: { ciphertext: string; iv: string; authTag: string },
+  key: CryptoKey,
+  userId: string,
+  entryId: string,
+): Promise<Record<string, unknown>> {
+  const json = await decryptSecret(key, blob, `${userId}:${entryId}`);
+  return JSON.parse(json) as Record<string, unknown>;
+}
+
+/**
  * Decrypt a wire entry into a DecryptedEntry. Throws if the AAD or auth tag fail
  * (tampered blob, wrong key, or wrong userId) — Web Crypto rejects the decrypt.
  */
@@ -177,18 +209,19 @@ export async function decryptRawEntry(
   key: CryptoKey,
   userId: string,
 ): Promise<DecryptedEntry> {
-  const json = await decryptSecret(
-    key,
+  const fields = await decryptBlobFields(
     { ciphertext: raw.encryptedData, iv: raw.iv, authTag: raw.authTag },
-    `${userId}:${raw.id}`,
+    key,
+    userId,
+    raw.id,
   );
-  const fields = JSON.parse(json) as Record<string, unknown>;
 
   const entry: DecryptedEntry = {
     ...fields,
     id: raw.id,
     type: raw.entryType,
     label: (fields.label as string) ?? '',
+    createdAt: new Date(raw.createdAt),
     updatedAt: new Date(raw.updatedAt),
     secretVersion: raw.version,
   };
@@ -197,4 +230,44 @@ export async function decryptRawEntry(
     entry.envParsed = parseEnv(entry.envContent);
   }
   return entry;
+}
+
+// A decrypted historical snapshot. `entry` carries the recovered secret fields of the
+// snapshot; version metadata (number, note, timestamp) lives alongside it.
+export interface DecryptedVersion {
+  id: string;
+  version: number;
+  changeNote: string | null;
+  createdAt: Date;
+  entry: DecryptedFields;
+}
+
+// The recoverable contents of a snapshot blob (label + secret fields). Excludes the
+// structural columns that a version row does not carry (type/environment/timestamps).
+export type DecryptedFields = { label: string } & Record<string, unknown>;
+
+/**
+ * Decrypt a version snapshot. The blob is encrypted under the PARENT entry id, so the
+ * caller MUST pass `entryId` (the parent vault entry id), NOT `raw.id` (the snapshot
+ * UUID). Using the snapshot id in the AAD makes Web Crypto reject the decrypt.
+ */
+export async function decryptVersion(
+  raw: RawVaultEntryVersion,
+  key: CryptoKey,
+  userId: string,
+  entryId: string,
+): Promise<DecryptedVersion> {
+  const fields = await decryptBlobFields(
+    { ciphertext: raw.encryptedData, iv: raw.iv, authTag: raw.authTag },
+    key,
+    userId,
+    entryId,
+  );
+  return {
+    id: raw.id,
+    version: raw.version,
+    changeNote: raw.changeNote,
+    createdAt: new Date(raw.createdAt),
+    entry: { ...fields, label: (fields.label as string) ?? '' },
+  };
 }

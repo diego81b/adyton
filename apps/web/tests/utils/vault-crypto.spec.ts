@@ -4,9 +4,11 @@ import {
   encryptEntry,
   encryptEntryUpdate,
   decryptRawEntry,
+  decryptVersion,
   parseEnv,
   type EntryDraft,
   type RawVaultEntry,
+  type RawVaultEntryVersion,
 } from '../../app/utils/vault-crypto';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -165,6 +167,70 @@ describe('AAD / tamper rejection', () => {
     await expect(
       decryptRawEntry(rawFromCreate(payload, { encryptedData: flipped }), key, USER_ID),
     ).rejects.toThrow();
+  });
+});
+
+describe('decryptVersion', () => {
+  const PARENT_ID = 'c0c0c0c0-0000-4000-8000-000000000000';
+  const SNAPSHOT_ID = '5na95607-0000-4000-8000-000000000000';
+
+  // A version snapshot is a byte-copy of the parent entry's blob (encrypted under the
+  // PARENT id), wearing its own snapshot UUID and version metadata.
+  async function makeVersion(
+    draft: EntryDraft,
+    overrides: Partial<RawVaultEntryVersion> = {},
+  ): Promise<RawVaultEntryVersion> {
+    const blob = await encryptEntry(PARENT_ID, draft, key, USER_ID);
+    return {
+      id: SNAPSHOT_ID,
+      version: 3,
+      encryptedData: blob.encryptedData,
+      iv: blob.iv,
+      authTag: blob.authTag,
+      changeNote: 'snapshot before rotation',
+      createdAt: '2026-06-02T12:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  it('round-trips a snapshot decrypted under the parent entry id', async () => {
+    const draft: EntryDraft = {
+      type: VaultEntryType.LOGIN,
+      label: 'GitHub',
+      username: 'octocat',
+      password: 'old-pw',
+    };
+    const raw = await makeVersion(draft);
+    const v = await decryptVersion(raw, key, USER_ID, PARENT_ID);
+
+    expect(v.id).toBe(SNAPSHOT_ID);
+    expect(v.version).toBe(3);
+    expect(v.changeNote).toBe('snapshot before rotation');
+    expect(v.createdAt).toBeInstanceOf(Date);
+    expect(v.entry.label).toBe('GitHub');
+    expect(v.entry.username).toBe('octocat');
+    expect(v.entry.password).toBe('old-pw');
+  });
+
+  it('preserves a null changeNote', async () => {
+    const raw = await makeVersion(
+      { type: VaultEntryType.SECRET, label: 'X', secretValue: 'v' },
+      { changeNote: null },
+    );
+    const v = await decryptVersion(raw, key, USER_ID, PARENT_ID);
+    expect(v.changeNote).toBeNull();
+    expect(v.entry.secretValue).toBe('v');
+  });
+
+  it('REJECTS when the snapshot id is used as the AAD entryId instead of the parent id', async () => {
+    const raw = await makeVersion({ type: VaultEntryType.LOGIN, label: 'X', password: 'p' });
+    // The version row's own id must NEVER be used in the AAD — doing so fails the decrypt.
+    await expect(decryptVersion(raw, key, USER_ID, raw.id)).rejects.toThrow();
+  });
+
+  it('rejects with a wrong userId (AAD mismatch)', async () => {
+    const raw = await makeVersion({ type: VaultEntryType.LOGIN, label: 'X', password: 'p' });
+    await expect(decryptVersion(raw, key, OTHER_USER, PARENT_ID)).rejects.toThrow();
   });
 });
 

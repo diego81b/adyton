@@ -23,10 +23,10 @@ function mountNav(comp: unknown) {
 }
 
 describe('AppSidebar', () => {
-  it('renders all four nav links', () => {
+  it('renders the nav links (environments dropped — folded into in-list filters)', () => {
     const w = mountNav(AppSidebar);
     const links = w.findAll('a').map((a) => a.attributes('data-to'));
-    expect(links).toEqual(['/vault', '/environments', '/generator', '/settings']);
+    expect(links).toEqual(['/vault', '/generator', '/settings']);
   });
 
   it('marks the active route with the primary text class', () => {
@@ -45,10 +45,10 @@ describe('AppSidebar', () => {
 });
 
 describe('AppBottomNav', () => {
-  it('renders four links', () => {
+  it('renders the nav links', () => {
     route.path = '/generator';
     const w = mountNav(AppBottomNav);
-    expect(w.findAll('a')).toHaveLength(4);
+    expect(w.findAll('a')).toHaveLength(3);
     const gen = w.findAll('a').find((a) => a.attributes('data-to') === '/generator')!;
     expect(gen.attributes('class')).toContain('text-primary');
   });

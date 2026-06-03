@@ -64,6 +64,10 @@ export default tseslint.config(
         HTMLElement: 'readonly',
         HTMLInputElement: 'readonly',
         URLSearchParams: 'readonly',
+        URL: 'readonly',
+        Blob: 'readonly',
+        Event: 'readonly',
+        FileReader: 'readonly',
         // Nuxt 4 auto-imports — present at runtime, not by import statement.
         defineNuxtConfig: 'readonly',
         defineAppConfig: 'readonly',

@@ -13,7 +13,7 @@ const UButtonStub = {
 };
 
 function entry(partial: Partial<DecryptedEntry> & { type: VaultEntryType }): DecryptedEntry {
-  return { id: 'e1', label: 'GitHub', updatedAt: new Date(), secretVersion: 1, ...partial };
+  return { id: 'e1', label: 'GitHub', createdAt: new Date(), updatedAt: new Date(), secretVersion: 1, ...partial };
 }
 
 function mountCard(e: DecryptedEntry) {

@@ -24,6 +24,35 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Disable the browser's pull-to-refresh / overscroll chaining. A full reload wipes the
+   in-memory vault key by design (invariant #3) and bounces to /unlock, so an accidental
+   swipe-to-refresh on mobile is costly UX. `contain` stops the gesture without weakening
+   the security model. (Chrome Android; Safari iOS 16+.) */
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Suppress the browser's native password reveal/clear control (Edge/Chromium
+   `::-ms-reveal` / `::-ms-clear`). PasswordInput provides its own eye toggle, so the
+   browser's duplicate control is unwanted — and on a zero-knowledge master-password
+   field we never want the UA exposing the value. Base reset on the element, not a
+   utility class. */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
+/* Masks an input WITHOUT using type="password", so Chromium/Edge attach none of their
+   password UI (saved-password autofill, "suggest strong password" dropdown, native
+   reveal eye). PasswordInput renders type="text" and toggles this class for its own
+   eye control. Real value is unaffected (copy/submit get plaintext); only the glyphs
+   render as discs. Supported in Chromium, Safari, and Firefox 121+. */
+@utility text-security-disc {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
 /* Custom utilities for primitives Tailwind has no built-in for — emerald grid
    backdrop, radial wash, and accent halo on the brand badge / primary button.
    Ported from analysis/frontend/mockups/adyton.html (accent is emerald, #10b981). */
@@ -40,4 +69,15 @@ body {
 
 @utility accent-glow {
   box-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
+}
+
+/* TOTP countdown ring — conic-gradient sweep driven by `--progress` (0%..100%),
+   masked into a ring. Track uses the elevated token so it works in both themes. */
+@utility totp-ring {
+  background: conic-gradient(
+    var(--ui-primary, #10b981) var(--progress, 0%),
+    var(--ui-bg-elevated, #1e293b) var(--progress, 0%)
+  );
+  -webkit-mask: radial-gradient(circle at center, transparent 56%, black 58%);
+  mask: radial-gradient(circle at center, transparent 56%, black 58%);
 }

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { VaultEntryType } from '@adyton/shared';
-import { encryptEntry, type EntryDraft, type RawVaultEntry } from '../../app/utils/vault-crypto';
+import {
+  encryptEntry,
+  type EntryDraft,
+  type RawVaultEntry,
+  type RawVaultEntryVersion,
+} from '../../app/utils/vault-crypto';
 
 ;(globalThis as Record<string, unknown>).__TEST_API_BASE__ = 'http://test-api';
 const mockFetch = vi.fn();
@@ -44,6 +49,27 @@ async function rawEntry(id: string, draft: EntryDraft, version = 1): Promise<Raw
     version,
     createdAt: '2026-06-03T00:00:00.000Z',
     updatedAt: '2026-06-03T00:00:00.000Z',
+  };
+}
+
+// Build a raw version snapshot whose blob is encrypted under the PARENT entry id.
+async function rawVersion(
+  parentId: string,
+  snapshotId: string,
+  draft: EntryDraft,
+  version: number,
+  overrides: Partial<RawVaultEntryVersion> = {},
+): Promise<RawVaultEntryVersion> {
+  const p = await encryptEntry(parentId, draft, key, USER_ID);
+  return {
+    id: snapshotId,
+    version,
+    encryptedData: p.encryptedData,
+    iv: p.iv,
+    authTag: p.authTag,
+    changeNote: null,
+    createdAt: '2026-06-02T00:00:00.000Z',
+    ...overrides,
   };
 }
 
@@ -112,6 +138,57 @@ describe('useVaultStore.fetchEntries', () => {
     await store.fetchEntries(true);
     await store.loadMore();
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useVaultStore.fetchAll', () => {
+  it('drains every page until hasMore is false', async () => {
+    await unlock();
+    const r1 = await rawEntry('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { type: VaultEntryType.LOGIN, label: 'A' });
+    const r2 = await rawEntry('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', { type: VaultEntryType.LOGIN, label: 'B' });
+    const r3 = await rawEntry('cccccccc-cccc-4ccc-8ccc-cccccccccccc', { type: VaultEntryType.LOGIN, label: 'C' });
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [r1], nextCursor: 'c1', hasMore: true }));
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [r2], nextCursor: 'c2', hasMore: true }));
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [r3], nextCursor: null, hasMore: false }));
+
+    const store = useVaultStore();
+    await store.fetchAll();
+
+    expect(store.entries.map((e) => e.label)).toEqual(['A', 'B', 'C']);
+    expect(store.hasMore).toBe(false);
+    expect(store.loaded).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    // second/third requests carry the advancing cursor
+    expect(mockFetch.mock.calls[1]![0]).toContain('cursor=c1');
+    expect(mockFetch.mock.calls[2]![0]).toContain('cursor=c2');
+  });
+
+  it('fetches once when the first page is the only page', async () => {
+    await unlock();
+    const r1 = await rawEntry('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { type: VaultEntryType.LOGIN, label: 'A' });
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [r1], nextCursor: null, hasMore: false }));
+
+    const store = useVaultStore();
+    await store.fetchAll();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(store.entries).toHaveLength(1);
+  });
+
+  it('stops if the cursor stops advancing (no infinite loop)', async () => {
+    await unlock();
+    const r1 = await rawEntry('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { type: VaultEntryType.LOGIN, label: 'A' });
+    const r2 = await rawEntry('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', { type: VaultEntryType.LOGIN, label: 'B' });
+    // Page 1 advances to c1; page 2 (and any further) keep returning hasMore=true with the
+    // SAME cursor — the no-progress guard must break instead of looping forever.
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [r1], nextCursor: 'c1', hasMore: true }));
+    mockFetch.mockResolvedValue(okResponse({ data: [r2], nextCursor: 'c1', hasMore: true }));
+
+    const store = useVaultStore();
+    await store.fetchAll();
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(store.hasMore).toBe(true); // still "more" per server, but we stopped safely
   });
 });
 
@@ -216,6 +293,89 @@ describe('useVaultStore.fetchEntry', () => {
     const entry = await store.fetchEntry(id);
     expect(entry.secretValue).toBe('v');
     expect(store.byId(id)?.label).toBe('API');
+  });
+});
+
+describe('useVaultStore.listVersions', () => {
+  it('decrypts each version under the parent id, in order, without storing them', async () => {
+    await unlock();
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const v2 = await rawVersion(
+      id,
+      'v2v2v2v2-0000-4000-8000-000000000000',
+      { type: VaultEntryType.LOGIN, label: 'GitHub', password: 'pw-v2' },
+      2,
+      { changeNote: 'rotate' },
+    );
+    const v1 = await rawVersion(
+      id,
+      'v1v1v1v1-0000-4000-8000-000000000000',
+      { type: VaultEntryType.LOGIN, label: 'GitHub', password: 'pw-v1' },
+      1,
+    );
+    // API returns DESC order.
+    mockFetch.mockResolvedValueOnce(okResponse([v2, v1]));
+
+    const store = useVaultStore();
+    const versions = await store.listVersions(id);
+
+    expect(versions).toHaveLength(2);
+    expect(versions.map((v) => v.version)).toEqual([2, 1]);
+    expect(versions[0]!.entry.password).toBe('pw-v2');
+    expect(versions[0]!.changeNote).toBe('rotate');
+    expect(versions[1]!.entry.password).toBe('pw-v1');
+    expect(mockFetch.mock.calls[0]![0]).toContain(`/vault/${id}/versions`);
+    // Not stored in state.
+    expect(store.entries).toHaveLength(0);
+  });
+
+  it('throws when the vault is locked', async () => {
+    const store = useVaultStore();
+    await expect(store.listVersions('x')).rejects.toThrow('Vault is locked');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('useVaultStore.restoreVersion', () => {
+  it('posts to the restore URL, decrypts the response, and replaces the cached entry', async () => {
+    await unlock();
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const versionId = 'v1v1v1v1-0000-4000-8000-000000000000';
+
+    // Seed the cache with the current (newer) entry.
+    const current = await rawEntry(id, { type: VaultEntryType.LOGIN, label: 'Current', password: 'new' }, 3);
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [current], nextCursor: null, hasMore: false }));
+    const store = useVaultStore();
+    await store.fetchEntries(true);
+    expect(store.entries[0]!.password).toBe('new');
+
+    // Server returns the restored current entry (bumped version, restored secret).
+    const restored = await rawEntry(id, { type: VaultEntryType.LOGIN, label: 'Restored', password: 'old' }, 4);
+    mockFetch.mockResolvedValueOnce(okResponse(restored));
+
+    const entry = await store.restoreVersion(id, versionId);
+    expect(entry.label).toBe('Restored');
+    expect(entry.password).toBe('old');
+    expect(entry.secretVersion).toBe(4);
+    expect(store.entries).toHaveLength(1);
+    expect(store.entries[0]!.label).toBe('Restored');
+
+    const call = mockFetch.mock.calls[1]!;
+    expect(call[0]).toContain(`/vault/${id}/versions/${versionId}/restore`);
+    expect(call[1].method).toBe('POST');
+  });
+
+  it('unshifts the entry when it is not already cached', async () => {
+    await unlock();
+    const id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const versionId = 'v0v0v0v0-0000-4000-8000-000000000000';
+    const restored = await rawEntry(id, { type: VaultEntryType.LOGIN, label: 'R', password: 'x' }, 2);
+    mockFetch.mockResolvedValueOnce(okResponse(restored));
+
+    const store = useVaultStore();
+    const entry = await store.restoreVersion(id, versionId);
+    expect(store.entries).toHaveLength(1);
+    expect(store.entries[0]!.id).toBe(entry.id);
   });
 });
 

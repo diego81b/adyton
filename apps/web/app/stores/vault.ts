@@ -7,8 +7,11 @@ import {
   encryptEntry,
   encryptEntryUpdate,
   decryptRawEntry,
+  decryptVersion,
   type EntryDraft,
   type RawVaultEntry,
+  type RawVaultEntryVersion,
+  type DecryptedVersion,
 } from '../utils/vault-crypto';
 
 interface PaginatedResponse {
@@ -63,6 +66,23 @@ export const useVaultStore = defineStore('vault', () => {
     return fetchEntries(false);
   }
 
+  /**
+   * Load EVERY page into the store. Client-side search/filter operate over `entries`,
+   * and the server cannot search ciphertext (zero-knowledge), so the client must hold
+   * all entries for search to be complete — otherwise a query only matches the pages
+   * already lazily loaded. Called once on unlock.
+   * Defensive: stops if the cursor stops advancing, so a misbehaving server returning
+   * `hasMore: true` without a fresh cursor can never loop forever.
+   */
+  async function fetchAll(): Promise<void> {
+    await fetchEntries(true);
+    while (hasMore.value) {
+      const prev = cursor.value;
+      await fetchEntries(false);
+      if (cursor.value === prev) break;
+    }
+  }
+
   /** Fetch + decrypt a single entry (detail view), updating the cached copy if present. */
   async function fetchEntry(id: string): Promise<DecryptedEntry> {
     const { key, userId, auth } = requireUnlocked();
@@ -99,6 +119,35 @@ export const useVaultStore = defineStore('vault', () => {
     return entry;
   }
 
+  /**
+   * Fetch + decrypt an entry's version history (DESC order, as the API returns it).
+   * Snapshots are decrypted under the PARENT entry id `id`, never the snapshot's own id.
+   * Results are returned, not stored in state.
+   */
+  async function listVersions(id: string): Promise<DecryptedVersion[]> {
+    const { key, userId, auth } = requireUnlocked();
+    const raw = await auth.apiFetch<RawVaultEntryVersion[]>(`/vault/${id}/versions`);
+    return Promise.all(raw.map((v) => decryptVersion(v, key, userId, id)));
+  }
+
+  /**
+   * Restore a historical version server-side (the server copies the snapshot blob to
+   * current and bumps the version). Decrypts the returned current entry and refreshes
+   * the cached copy.
+   */
+  async function restoreVersion(id: string, versionId: string): Promise<DecryptedEntry> {
+    const { key, userId, auth } = requireUnlocked();
+    const raw = await auth.apiFetch<RawVaultEntry>(
+      `/vault/${id}/versions/${versionId}/restore`,
+      { method: 'POST' },
+    );
+    const entry = await decryptRawEntry(raw, key, userId);
+    const idx = entries.value.findIndex((e) => e.id === id);
+    if (idx === -1) entries.value.unshift(entry);
+    else entries.value[idx] = entry;
+    return entry;
+  }
+
   async function deleteEntry(id: string): Promise<void> {
     const { auth } = requireUnlocked();
     await auth.apiFetch(`/vault/${id}`, { method: 'DELETE' });
@@ -122,10 +171,13 @@ export const useVaultStore = defineStore('vault', () => {
     byId,
     fetchEntries,
     loadMore,
+    fetchAll,
     fetchEntry,
     createEntry,
     updateEntry,
     deleteEntry,
+    listVersions,
+    restoreVersion,
     clear,
   };
 });

@@ -5,7 +5,8 @@ import { VaultEntryType, type DecryptedEntry, type EnvironmentTag } from '@adyto
 import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
 import { useSecureClipboard } from '~/composables/useSecureClipboard';
-import { TYPE_FILTERS, ENVIRONMENT_META, searchHaystack, chipClass } from '~/utils/entry-display';
+import type { EntryDraft } from '~/utils/vault-crypto';
+import { TYPE_FILTERS, ENVIRONMENT_META, searchHaystack } from '~/utils/entry-display';
 
 definePageMeta({ ssr: false, layout: 'vault', middleware: 'auth' });
 
@@ -18,26 +19,32 @@ const { copy } = useSecureClipboard();
 const search = ref('');
 const typeFilter = ref<VaultEntryType | 'all'>('all');
 const envFilter = ref<EnvironmentTag | 'all'>('all');
+const addOpen = ref(false);
+const filtersOpen = ref(false);
 
-// DEV-ONLY: seed sample entries so the list is testable before the Step 2 create modal.
-// import.meta.dev is false in production builds, so this branch tree-shakes away.
-const isDev = import.meta.dev;
-const seeding = ref(false);
-async function seedSampleData() {
-  const { SAMPLE_DRAFTS } = await import('~/utils/dev-seed');
-  seeding.value = true;
+const activeFilterCount = computed(
+  () => (typeFilter.value !== 'all' ? 1 : 0) + (envFilter.value !== 'all' ? 1 : 0),
+);
+
+async function onAdd(draft: EntryDraft) {
   try {
-    for (const draft of SAMPLE_DRAFTS) await vault.createEntry(draft);
-    toast.add({ title: `Seeded ${SAMPLE_DRAFTS.length} sample entries`, color: 'success' });
+    const created = await vault.createEntry(draft);
+    addOpen.value = false;
+    toast.add({ title: 'Entry created', color: 'success' });
+    router.push(`/vault/${created.id}`);
   } catch (err) {
-    reportError(err);
-  } finally {
-    seeding.value = false;
+    toast.add({
+      title: 'Create failed',
+      description: err instanceof Error ? err.message : String(err),
+      color: 'error',
+    });
   }
 }
 
 onMounted(() => {
-  if (!vault.loaded) vault.fetchEntries(true).catch(reportError);
+  // Load all pages so client-side search/filter cover the whole vault (the server
+  // cannot search ciphertext, so partial loading would silently miss entries).
+  if (!vault.loaded) vault.fetchAll().catch(reportError);
 });
 
 // The window is the scroll container (layout <main> flows naturally). Bind here, not
@@ -116,7 +123,8 @@ async function copyEntry(entry: DecryptedEntry) {
 
 <template>
   <div class="space-y-4">
-    <!-- Search + Add -->
+    <!-- Search + Filters + Add. Search stays inline (primary action); type + environment
+         filters live in a slideover to keep the list clean. -->
     <div class="flex gap-2.5">
       <UInput
         v-model="search"
@@ -126,60 +134,36 @@ async function copyEntry(entry: DecryptedEntry) {
         class="flex-1"
         :ui="{ root: 'w-full' }"
       />
-      <UButton
-        v-if="isDev"
-        size="lg"
-        color="neutral"
-        variant="soft"
-        icon="i-lucide-database"
-        label="Seed"
-        :loading="seeding"
-        title="DEV only: create sample entries"
-        @click="seedSampleData"
-      />
+      <UChip :text="activeFilterCount" :show="activeFilterCount > 0" color="primary" size="2xl">
+        <UButton
+          size="lg"
+          color="neutral"
+          variant="soft"
+          icon="i-lucide-list-filter"
+          aria-label="Filters"
+          @click="filtersOpen = true"
+        >
+          <span class="hidden sm:inline">Filters</span>
+        </UButton>
+      </UChip>
       <UButton
         size="lg"
         icon="i-lucide-plus"
         class="accent-glow text-white"
-        label="Add"
-        disabled
-        title="Add entry — coming in step 2"
-      />
+        aria-label="Add entry"
+        @click="addOpen = true"
+      >
+        <span class="hidden sm:inline">Add</span>
+      </UButton>
     </div>
 
-    <!-- Type filter chips (per-type colors, mockup screen-vault) -->
-    <div class="flex gap-2 overflow-x-auto scrollbar-none -mx-4 lg:mx-0 px-4 lg:px-0">
-      <button
-        type="button"
-        class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition"
-        :class="chipClass('all', typeFilter === 'all')"
-        @click="typeFilter = 'all'"
-      >
-        All <span class="opacity-75 ml-1">{{ counts.all }}</span>
-      </button>
-      <button
-        v-for="f in TYPE_FILTERS"
-        :key="f.type"
-        type="button"
-        class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition"
-        :class="chipClass(f.type, typeFilter === f.type)"
-        @click="typeFilter = f.type"
-      >
-        {{ f.label }} <span class="opacity-75 ml-1">{{ counts[f.type] }}</span>
-      </button>
-    </div>
-
-    <!-- Environment filter -->
-    <div class="flex items-center gap-2 text-xs">
-      <span class="text-muted font-medium">Environment:</span>
-      <USelect
-        v-model="envFilter"
-        :items="envOptions"
-        value-key="value"
-        size="sm"
-        class="w-44"
-      />
-    </div>
+    <VaultFilters
+      v-model:open="filtersOpen"
+      v-model:type="typeFilter"
+      v-model:environment="envFilter"
+      :counts="counts"
+      :env-options="envOptions"
+    />
 
     <!-- Entries -->
     <div v-if="vault.loading && !vault.entries.length" class="space-y-2.5">
@@ -212,5 +196,7 @@ async function copyEntry(entry: DecryptedEntry) {
         {{ vault.entries.length ? 'No entries match your filters.' : 'Your vault is empty.' }}
       </p>
     </div>
+
+    <VaultEntryModal v-model="addOpen" @save="onAdd" />
   </div>
 </template>

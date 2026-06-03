@@ -25,7 +25,6 @@ export default defineConfig({
         'app/pages/**',
         'app/layouts/**',            // Nuxt composition surface; covered by e2e/manual
         'app/workers/**',               // Web Workers require browser runtime; covered by e2e
-        'app/utils/dev-seed.ts',         // dev-only sample data (import.meta.dev gated), no logic
         'app/composables/useArgon2Worker.ts',  // wraps Web Worker; covered by e2e
         '**/*.spec.ts',
         '**/*.config.ts',
