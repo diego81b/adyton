@@ -134,12 +134,12 @@ All project output must be in English: commit messages, code comments, documenta
 
 ## Branch workflow — MANDATORY
 
-Each phase and each numbered step within a phase gets its own branch:
+Branches are per **phase** (and, in future, per issue) — NOT per step.
 
 - Phase branch: `feature/phase-N-<short-name>` (e.g. `feature/phase-5-vault-ui`)
-- Step branch off the phase branch: `feature/phase-N-step-M-<short-name>` (e.g. `feature/phase-5-step-0-foundation`)
-- When step is verified, merge step branch into phase branch, then delete step branch
-- Never commit step work directly to a phase branch — always via step branch
+- Numbered steps within a phase are committed **directly to the phase branch** as separate commits (one or more `feat`/`fix`/`test` commits per step). Do NOT create a branch per step.
+- No step→phase merge step exists anymore; a "step" is a logical grouping of commits, not a branch.
+- (Historical note: Step 0 used a `feature/phase-5-step-0-foundation` branch; that per-step-branch convention is retired as of 2026-06-03.)
 
 ## Step / phase completion checklist — MANDATORY, no exceptions
 
@@ -162,7 +162,7 @@ Before declaring any step or phase done, always do **all three** of these in ord
 - Security invariants (ciphertext not readable, cookie httpOnly, AAD rejection)
 - Anything automated tests don't cover (real browser behavior, DB state checks, cookie handling)
 
-These are not optional steps. Do not output "Step N complete" or "Phase N complete" or suggest a merge without completing all three.
+These are not optional steps. Do not output "Step N complete" or "Phase N complete" without completing all three.
 
 ## When in doubt
 
