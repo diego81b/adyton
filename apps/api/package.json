@@ -7,6 +7,9 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
+    "dev:migrate": "mikro-orm migration:up && nest start --watch",
+    "migrate:up": "mikro-orm migration:up",
+    "migration:sql": "ts-node scripts/dump-pending-sql.ts",
     "start": "nest start",
     "start:prod": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",

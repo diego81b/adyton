@@ -26,4 +26,7 @@ COPY tsconfig.base.json ./
 
 EXPOSE 3001
 
-CMD ["pnpm", "--filter", "@adyton/api", "dev"]
+# Dev startup: apply pending migrations via the mikro-orm CLI (ts-node reads
+# src/migrations directly — fresh, no dependency on the watch-compiled dist), then
+# start the watcher. db is gated on `service_healthy` in compose so it is reachable.
+CMD ["pnpm", "--filter", "@adyton/api", "dev:migrate"]
