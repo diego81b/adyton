@@ -20,9 +20,12 @@ export default defineConfig({
       include: ['app/**/*.ts', 'app/**/*.vue'],
       exclude: [
         'app/app.vue',
+        'app/error.vue',               // Nuxt root error boundary; runtime-only clearError
         'app/app.config.ts',
         'app/pages/**',
+        'app/layouts/**',            // Nuxt composition surface; covered by e2e/manual
         'app/workers/**',               // Web Workers require browser runtime; covered by e2e
+        'app/utils/dev-seed.ts',         // dev-only sample data (import.meta.dev gated), no logic
         'app/composables/useArgon2Worker.ts',  // wraps Web Worker; covered by e2e
         '**/*.spec.ts',
         '**/*.config.ts',

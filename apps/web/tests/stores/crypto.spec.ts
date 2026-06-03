@@ -60,6 +60,15 @@ describe('useCryptoStore.deriveKey', () => {
     expect(store.isUnlocked).toBe(false);
     expect(store.cryptoKey).toBeNull();
   });
+
+  it('sets lockAt to ~15 minutes ahead on derive and clears it on lock', async () => {
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'f'.repeat(64));
+    expect(store.lockAt).toBe(Date.now() + 15 * 60 * 1000);
+    store.lock();
+    expect(store.lockAt).toBeNull();
+  });
 });
 
 describe('useCryptoStore.lock', () => {
