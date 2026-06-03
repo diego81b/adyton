@@ -134,9 +134,13 @@ describe('useVaultStore.createEntry', () => {
       }, 201);
     });
 
-    const entry = await store.createEntry({ type: VaultEntryType.LOGIN, label: 'New', password: 'pw' });
+    // Sentinel includes '!' — a char NOT in the base64url alphabet — so it can never
+    // appear by chance in the random ciphertext (a short marker like 'pw' collides
+    // ~1% of the time and made this test flaky under load).
+    const secret = 'leak!sentinel!42';
+    const entry = await store.createEntry({ type: VaultEntryType.LOGIN, label: 'New', password: secret });
     expect(entry.label).toBe('New');
-    expect(entry.password).toBe('pw');
+    expect(entry.password).toBe(secret);
     expect(store.entries[0]!.id).toBe(entry.id);
 
     const init = mockFetch.mock.calls[0]![1];
@@ -144,7 +148,7 @@ describe('useVaultStore.createEntry', () => {
     const sent = JSON.parse(init.body);
     expect(sent.entryType).toBe('LOGIN');
     expect(sent.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(JSON.stringify(sent)).not.toContain('pw'); // secret never in plaintext on the wire
+    expect(JSON.stringify(sent)).not.toContain(secret); // secret never in plaintext on the wire
   });
 });
 
