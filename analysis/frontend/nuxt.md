@@ -97,11 +97,16 @@ app/composables/
 | Environment filter as dropdown on vault index | **Dedicated `/environments/` page** in nav |
 | TOTP only in Phase 6 (2FA setup) | **Per-LOGIN-entry TOTP field** (secret + countdown + copy) |
 
-**Navigation (4 items, desktop sidebar + mobile bottom nav):**
+**Navigation (desktop sidebar + mobile bottom nav):**
 1. Vault — `/vault` — all entry types, type-filter chips
-2. Environments — `/environments` — ENV_FILE + SECRET grouped by tag
-3. Generator — `/generator` — password/passphrase
-4. Settings — `/settings` — account + security + danger
+2. Generator — `/generator` — password/passphrase
+3. Settings — `/settings` — account + security + danger
+
+> **Deviation (2026-06-03): the dedicated `/environments` view was dropped.** It was only a
+> pre-filtered vault (ENV_FILE + SECRET by `environmentTag`) rendering the same cards — not
+> worth a dedicated route. The type + environment filters now live in an in-list `VaultFilters`
+> slideover on `/vault`. The nav item was removed. Re-introduce a dedicated view only if a
+> genuinely distinct grouped UX is justified later.
 
 **Accent:** `app.config.ts` uses `primary: 'emerald'`. The mockup aliases emerald onto the `violet` Tailwind key for inline CSS, but NuxtUI uses the `primary` token directly — no aliasing needed. Solid emerald buttons need an explicit `text-white` (NuxtUI's solid variant uses inverted = dark label text in dark mode).
 

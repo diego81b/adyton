@@ -6,9 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Phases 1–4 + 4.1 complete** (2026-06-01). Monorepo scaffold, Docker dev stack, NestJS auth, vault API, shared crypto, and Nuxt auth flows are implemented and tested.
 
-**Phase 5 Step 0 complete** (2026-06-02) on `feature/phase-5-step-0-foundation` (off `feature/phase-5-vault-ui`), not yet merged. Step 0 delivered the auth-UI foundation + a mockup-faithful retrofit of login/register/unlock: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default color mode); reusable components `AuthShell`/`AuthCard`/`BrandLogo`/`PasswordInput`/`PasswordStrengthMeter`/`KeyDerivationStatus` + `usePasswordStrength` composable; and fixes to session persistence (see below). **Next:** merge Step 0 → phase branch, then Phase 5 proper (vault list, environments, generator, settings, `VaultEntryModal`).
+**Phase 5 (Nuxt vault UI) in progress** on `feature/phase-5-vault-ui`. Steps 0–2 complete (2026-06-03):
+- **Step 0** — auth-UI foundation + mockup retrofit of login/register/unlock: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default); `AuthShell`/`AuthCard`/`BrandLogo`/`PasswordInput`/`PasswordStrengthMeter`/`KeyDerivationStatus` + `usePasswordStrength`.
+- **Step 1** — vault data layer (`vault-crypto.ts`, `useVaultStore`), entry list (`/vault`), app shell (`vault` layout, sidebar/bottom-nav, `LockOverlay`, auto-lock).
+- **Step 2** — entry detail (`/vault/[id]`), `VaultEntryModal` (add/edit all 6 types, responsive **slideover**), version history + restore, per-LOGIN **TOTP** (RFC 6238 in `packages/shared/src/totp.ts`), reveal/copy (`useReveal` separate from clipboard clear), `.env` export. Plus: `fetchAll` loads the whole vault on unlock (client search is complete — server can't search ciphertext); `VaultFilters` slideover (type + environment; environment shown only for ENV_FILE/SECRET); dedicated `/environments` view **dropped** (folded into filters); nav now Vault/Generator/Settings.
 
-Integration contracts learned in Step 0 (do not regress): the API uses `setGlobalPrefix('api')`, so `NUXT_PUBLIC_API_BASE_URL` must end in `/api` and the refresh cookie path is `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client-bundled deps (hash-wasm, zxcvbn) and must be `COPY`d into the dev Dockerfiles. Editing `apps/api` source requires `docker compose restart api` (tsc watch misses Windows bind-mount changes).
+**Next (Phase 5):** Step 4 `/generator`, Step 5 `/settings` (+ localStorage prefs store, auto-lock mode/duration). The `/vault/[id]` page, `VaultEntryModal`, and version history all done.
+
+Integration contracts (do not regress): API uses `setGlobalPrefix('api')` → `NUXT_PUBLIC_API_BASE_URL` ends in `/api`, refresh cookie path `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client deps (hash-wasm, zxcvbn) and is `COPY`d into dev Dockerfiles. **Migrations:** auto-applied only when `RUN_MIGRATIONS=true` (dev: via container `dev:migrate` CLI on `src`; staging: built image on boot; prod: never — extract SQL with `pnpm --filter @adyton/api migration:sql` and apply manually). Editing `apps/api` source needs `docker compose restart api` (tsc watch misses Windows bind-mount changes).
 
 All implementation work follows the design documents in `analysis/`.
 
@@ -110,6 +115,8 @@ The mockup at `analysis/frontend/mockups/adyton.html` is the authoritative UI so
 6. **Self-hosted assets only (no CDN):** fonts via `@nuxt/fonts`, icons via `@iconify-json/lucide`. Consistent with zero-knowledge / CSP.
 
 7. **Dev runtime:** run ONE at a time. Native (`run.bat web-local`) OR Docker — never both, they share the bind-mounted `.nuxt` and corrupt each other.
+
+8. **Icon+label action buttons are icon-only on mobile.** Standard guideline: an action `UButton` that carries an icon hides its text label below `sm` and shows it from `sm` up — `icon="i-lucide-x"` + `aria-label="…"` (always, for a11y) + the label in a `<span class="hidden sm:inline">…</span>` default slot (not the `label` prop). Keeps mobile toolbars compact and one-row; labels return on larger screens. Applies to toolbar/inline actions (Add, Filters, Generate, detail action bar, etc.). Primary full-width form submit buttons (Save, Unlock) keep their label everywhere.
 
 ## Commit style
 

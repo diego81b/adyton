@@ -79,15 +79,18 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 **Step 0 — Auth UI foundation + retrofit (DONE 2026-06-02):** before the vault UI, the design system and existing auth pages were brought to mockup fidelity. Delivered: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default color mode); reusable components `AuthShell`, `AuthCard`, `BrandLogo`, `PasswordInput` (lock + eye toggle), `PasswordStrengthMeter`, `KeyDerivationStatus`; composable `usePasswordStrength`; login/register/unlock retrofitted (full-width `size=lg` inputs, confirm-password, client-side strength feedback, account email on unlock). Also fixed session persistence (refresh cookie path `/api/auth`, no-body POST content-type). Note: accent is **emerald** (mockup is authoritative), not violet; `PasswordInput` already exists from Step 0.
 
+**Step 1 — vault data layer + list + shell (DONE 2026-06-03):** `vault-crypto.ts` (encrypt/decrypt mapping, blob schema), `useVaultStore` (cursor pagination, no persistence plugin), `/vault/index.vue` (cards, client-side search, type filter), `vault` layout (sidebar + bottom nav + lock pill), `LockOverlay`, auto-lock composable.
+
+**Step 2 — entry detail, modal, history, TOTP (DONE 2026-06-03):** `/vault/[id].vue` (per-type view, reveal/copy with 30s clear via `useReveal` — separate from clipboard clear, `.env` export); `VaultEntryModal` (add/edit all 6 types, responsive **slideover**, type-scoped emission); version history list + restore (`decryptVersion` AAD uses the parent entry id); per-LOGIN **TOTP** (`packages/shared/src/totp.ts`, RFC 6238). Also: `useVaultStore.fetchAll()` loads the whole vault on unlock (client search must be complete — the server cannot search ciphertext); `VaultFilters` slideover (type + environment, environment shown only for ENV_FILE/SECRET).
+
+**Deviations from the original plan (decided during Step 2):**
+- **Dedicated `/environments` view DROPPED** — it was only a pre-filtered vault; folded into the `VaultFilters` slideover. Nav is now Vault / Generator / Settings.
+- **Settings is a single `/settings/index.vue`** (account + security + danger zone with in-page anchors), not separate `/settings/security.vue` + `/settings/danger.vue`.
+- Per-entry TOTP (vault entries storing a 2FA seed) is a Step 2 feature, distinct from account 2FA (Phase 6).
+
 **Deliverables (remaining):**
-- `/vault/index.vue`: entry table, type filter tabs, real-time label search (client-side), infinite scroll cursor pagination
-- `/vault/[id].vue`: entry detail, inline edit mode, field reveal, copy to clipboard with 30s clear
-- `/generator.vue`: standalone password generator with all `PasswordOptions` exposed
-- `/settings/security.vue`: session list with revoke buttons
-- `/settings/danger.vue`: account deletion with master password confirmation
-- `useVaultStore` with full encrypt/decrypt lifecycle; **no persistence plugin**
-- Auto-lock composable and lock screen overlay in `vault.vue` layout
-- NuxtUI theming (dark mode, emerald accent)
+- `/generator/index.vue`: standalone password/passphrase generator with all `PasswordOptions` exposed (`generatePassword` already in `packages/shared`)
+- `/settings/index.vue`: account + active-session revoke + auto-lock mode/duration (localStorage prefs store) + account deletion with master-password confirmation
 
 ---
 
