@@ -15,6 +15,7 @@ export interface DecryptedEntry {
   id: string;
   type: VaultEntryType;
   label: string;
+  createdAt: Date;
   updatedAt: Date;
   secretVersion: number;
   environment?: EnvironmentTag;
@@ -24,6 +25,7 @@ export interface DecryptedEntry {
   password?: string;
   url?: string;
   notes?: string;
+  totpSecret?: string; // base32 TOTP seed (RFC 6238) — rides the encrypted blob, never structural
 
   // CREDIT_CARD
   cardNumber?: string;
