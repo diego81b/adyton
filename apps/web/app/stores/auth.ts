@@ -98,6 +98,8 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       clear();
       const { useCryptoStore } = await import('./crypto');
+      const { useVaultStore } = await import('./vault');
+      useVaultStore().clear();
       useCryptoStore().lock();
     }
   }
@@ -109,5 +111,5 @@ export const useAuthStore = defineStore('auth', () => {
     return refresh();
   }
 
-  return { accessToken, user, isAuthenticated, login, register, refresh, logout, initialize };
+  return { accessToken, user, isAuthenticated, apiFetch, login, register, refresh, logout, initialize };
 });
