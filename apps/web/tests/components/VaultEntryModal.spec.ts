@@ -204,3 +204,23 @@ describe('VaultEntryModal', () => {
     expect(w.emitted('update:modelValue')?.at(-1)).toEqual([false]);
   });
 });
+
+describe('VaultEntryModal — dirty tracking (v-model:dirty)', () => {
+  it('emits dirty=true on first edit and dirty=false on close', async () => {
+    const w = mountModal();
+    // Pristine on open: no dirty emit yet (defineModel only emits on change).
+    expect(w.emitted('update:dirty')).toBeUndefined();
+
+    await w.find('.uinput').setValue('GitHub'); // label field is first input
+    expect(w.emitted('update:dirty')?.at(-1)).toEqual([true]);
+
+    await w.setProps({ modelValue: false }); // cancel/close clears dirty
+    expect(w.emitted('update:dirty')?.at(-1)).toEqual([false]);
+  });
+
+  it('switching the entry type alone marks the form dirty', async () => {
+    const w = mountModal();
+    await typeChip(w, 'Secret')!.trigger('click');
+    expect(w.emitted('update:dirty')?.at(-1)).toEqual([true]);
+  });
+});

@@ -3,6 +3,7 @@ import { ref, computed, watchEffect, onMounted, useTemplateRef } from 'vue';
 import { VaultEntryType, type DecryptedEntry } from '@adyton/shared';
 import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
+import { useLockDeferral } from '~/composables/useLockDeferral';
 import type { EntryDraft } from '~/utils/vault-crypto';
 import { TYPE_META, TILE_CLASS, ENVIRONMENT_META } from '~/utils/entry-display';
 
@@ -23,6 +24,10 @@ const editOpen = ref(false);
 const historyOpen = ref(false);
 const deleteOpen = ref(false);
 const deleting = ref(false);
+
+// In absolute lock mode, unsaved edits in the edit modal defer the auto-lock.
+const entryDirty = ref(false);
+useLockDeferral(entryDirty);
 const envTable = useTemplateRef<{ downloadEnv: () => void }>('envTable');
 
 const T = VaultEntryType;
@@ -266,7 +271,7 @@ async function confirmDelete() {
       </div>
 
       <!-- Edit modal -->
-      <VaultEntryModal v-model="editOpen" :entry="entry" @save="onSave" />
+      <VaultEntryModal v-model="editOpen" v-model:dirty="entryDirty" :entry="entry" @save="onSave" />
 
       <!-- Version history -->
       <VersionHistory v-model="historyOpen" :entry-id="entry.id" />

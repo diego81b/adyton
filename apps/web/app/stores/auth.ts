@@ -99,7 +99,9 @@ export const useAuthStore = defineStore('auth', () => {
       clear();
       const { useCryptoStore } = await import('./crypto');
       const { useVaultStore } = await import('./vault');
+      const { useSettingsStore } = await import('./settings');
       useVaultStore().clear();
+      useSettingsStore().clear();
       useCryptoStore().lock();
     }
   }

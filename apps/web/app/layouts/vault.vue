@@ -1,15 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useCryptoStore } from '../stores/crypto';
+import { useSettingsStore } from '../stores/settings';
 import { useAutoLock } from '../composables/useAutoLock';
 import { useAppChrome } from '../composables/useAppChrome';
 
 const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
+const settingsStore = useSettingsStore();
 const router = useRouter();
 const { countdown } = useAutoLock();
 const { title, subtitle } = useAppChrome();
+
+onMounted(() => {
+  // Authoritative settings from the server (boot used the localStorage cache).
+  // Re-arm the lock timer in case the synced duration differs from the cached one.
+  if (!settingsStore.loaded) {
+    settingsStore
+      .fetchSettings()
+      .then(() => {
+        if (cryptoStore.isUnlocked) cryptoStore.resetLockTimer();
+      })
+      .catch(reportError);
+  }
+});
 
 const avatarLetter = computed(() => (authStore.user?.email ?? '?').charAt(0).toUpperCase());
 

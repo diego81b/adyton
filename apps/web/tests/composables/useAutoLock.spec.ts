@@ -80,3 +80,35 @@ describe('useAutoLock', () => {
     scope.stop();
   });
 });
+
+describe('useAutoLock — lock modes and "never"', () => {
+  it('does NOT reset the timer on activity in absolute mode', async () => {
+    const { useSettingsStore } = await import('../../app/stores/settings');
+    useSettingsStore().settings.lockMode = 'absolute';
+
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = fakeKey();
+    crypto.lockAt = Date.now() + 10_000;
+    const spy = vi.spyOn(crypto, 'resetLockTimer');
+
+    const scope = effectScope();
+    scope.run(() => useAutoLock());
+    window.dispatchEvent(new Event('keydown'));
+    expect(spy).not.toHaveBeenCalled();
+    scope.stop();
+  });
+
+  it('shows "off" while unlocked with auto-lock disabled (lockAt null)', () => {
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = fakeKey();
+    crypto.lockAt = null; // duration 0 → no timer
+
+    const scope = effectScope();
+    let countdown!: { value: string };
+    scope.run(() => {
+      ({ countdown } = useAutoLock());
+    });
+    expect(countdown.value).toBe('off');
+    scope.stop();
+  });
+});

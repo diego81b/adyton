@@ -4,6 +4,7 @@ import { useInfiniteScroll } from '@vueuse/core';
 import { VaultEntryType, type DecryptedEntry, type EnvironmentTag } from '@adyton/shared';
 import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
+import { useLockDeferral } from '~/composables/useLockDeferral';
 import { useSecureClipboard } from '~/composables/useSecureClipboard';
 import type { EntryDraft } from '~/utils/vault-crypto';
 import { TYPE_FILTERS, ENVIRONMENT_META, searchHaystack } from '~/utils/entry-display';
@@ -21,6 +22,10 @@ const typeFilter = ref<VaultEntryType | 'all'>('all');
 const envFilter = ref<EnvironmentTag | 'all'>('all');
 const addOpen = ref(false);
 const filtersOpen = ref(false);
+
+// In absolute lock mode, unsaved edits in the add modal defer the auto-lock.
+const entryDirty = ref(false);
+useLockDeferral(entryDirty);
 
 const activeFilterCount = computed(
   () => (typeFilter.value !== 'all' ? 1 : 0) + (envFilter.value !== 'all' ? 1 : 0),
@@ -197,6 +202,6 @@ async function copyEntry(entry: DecryptedEntry) {
       </p>
     </div>
 
-    <VaultEntryModal v-model="addOpen" @save="onAdd" />
+    <VaultEntryModal v-model="addOpen" v-model:dirty="entryDirty" @save="onAdd" />
   </div>
 </template>

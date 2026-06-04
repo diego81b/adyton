@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { useEventListener, useIntervalFn, useThrottleFn } from '@vueuse/core';
 import { useCryptoStore } from '../stores/crypto';
+import { useSettingsStore } from '../stores/settings';
 
 const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'pointerdown', 'focus'] as const;
 // Reset the lock timer at most once per this window. Raw mousemove fires hundreds of
@@ -15,13 +16,15 @@ const RESET_THROTTLE_MS = 30_000;
  */
 export function useAutoLock() {
   const crypto = useCryptoStore();
+  const settings = useSettingsStore();
   const now = ref(Date.now());
 
   // throttle(fn, ms, trailing=false, leading=true): fire on first activity, then ignore
   // further activity for the window so the countdown can decrement between resets.
+  // In 'absolute' lock mode activity never resets the timer (per-user setting).
   const reset = useThrottleFn(
     () => {
-      if (crypto.isUnlocked) crypto.resetLockTimer();
+      if (crypto.isUnlocked && settings.lockMode === 'activity') crypto.resetLockTimer();
     },
     RESET_THROTTLE_MS,
     false,
@@ -43,6 +46,8 @@ export function useAutoLock() {
   });
 
   const countdown = computed(() => {
+    // Auto-lock set to "never": no timer while unlocked (pill still locks on click).
+    if (crypto.isUnlocked && crypto.lockAt === null) return 'off';
     const totalSec = Math.ceil(remainingMs.value / 1000);
     const mm = Math.floor(totalSec / 60);
     const ss = totalSec % 60;

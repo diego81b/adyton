@@ -19,6 +19,9 @@ import PasswordInput from './PasswordInput.vue';
 // types into the encrypted blob; see FIELDS_BY_TYPE + buildDraft).
 
 const open = defineModel<boolean>({ required: true });
+// True while the form differs from its initialized state. Parents feed this to
+// useLockDeferral so an absolute-mode auto-lock won't destroy unsaved edits.
+const dirty = defineModel<boolean>('dirty', { default: false });
 const props = withDefaults(
   defineProps<{
     /** When present → EDIT mode: prefill + lock the type selector. */
@@ -138,6 +141,12 @@ async function onFilePicked(event: Event) {
 }
 
 // --- Prefill / reset -------------------------------------------------------
+// Baseline snapshot for dirty tracking — set whenever the form (re)initializes.
+let baseline = '';
+function snapshot(): string {
+  return JSON.stringify({ ...form, _type: selectedType.value });
+}
+
 function initForm() {
   Object.assign(form, emptyForm());
   const e = props.entry;
@@ -165,6 +174,7 @@ function initForm() {
   } else {
     selectedType.value = VaultEntryType.LOGIN;
   }
+  baseline = snapshot();
 }
 
 // Initialize immediately (covers mounting already-open) and on every subsequent
@@ -175,6 +185,15 @@ watch(
   ([isOpen], prev) => {
     const wasOpen = prev?.[0];
     if (isOpen && !wasOpen) initForm();
+  },
+  { immediate: true },
+);
+
+// Dirty = open with edits. Closing (save or cancel) always clears it.
+watch(
+  () => [open.value, snapshot()] as const,
+  ([isOpen, current]) => {
+    dirty.value = isOpen && current !== baseline;
   },
   { immediate: true },
 );

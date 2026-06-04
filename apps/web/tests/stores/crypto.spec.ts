@@ -116,3 +116,84 @@ describe('useCryptoStore.resetLockTimer', () => {
     expect(store.isUnlocked).toBe(false);
   });
 });
+
+describe('useCryptoStore — settings-driven duration', () => {
+  it('uses the settings store duration for the timer', async () => {
+    const { useSettingsStore } = await import('../../app/stores/settings');
+    const settings = useSettingsStore();
+    settings.settings.lockDurationMs = 5 * 60 * 1000;
+
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'a'.repeat(64));
+    expect(store.lockAt).toBe(Date.now() + 5 * 60 * 1000);
+
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+    expect(store.isUnlocked).toBe(false);
+  });
+
+  it('never auto-locks when duration is 0 (Never)', async () => {
+    const { useSettingsStore } = await import('../../app/stores/settings');
+    useSettingsStore().settings.lockDurationMs = 0;
+
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'b'.repeat(64));
+    expect(store.lockAt).toBeNull();
+
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    expect(store.isUnlocked).toBe(true); // explicit lock still works
+    store.lock();
+    expect(store.isUnlocked).toBe(false);
+  });
+});
+
+describe('useCryptoStore — lock deferral (unsaved edits)', () => {
+  it('defers a timer-fired lock and locks on release', async () => {
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'c'.repeat(64));
+
+    store.deferLock();
+    vi.advanceTimersByTime(15 * 60 * 1000 + 1); // timer fires while deferred
+    expect(store.isUnlocked).toBe(true); // key survives — unsaved edits
+
+    store.releaseLockDeferral(); // form saved/closed → overdue lock fires now
+    expect(store.isUnlocked).toBe(false);
+  });
+
+  it('release without a pending lock does not lock', async () => {
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'd'.repeat(64));
+
+    store.deferLock();
+    store.releaseLockDeferral(); // timer never fired
+    expect(store.isUnlocked).toBe(true);
+  });
+
+  it('explicit lock ignores deferrals and clears them', async () => {
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'e'.repeat(64));
+
+    store.deferLock();
+    store.lock(); // user clicked the lock pill — always locks
+    expect(store.isUnlocked).toBe(false);
+    expect(store.deferrals).toBe(0);
+  });
+
+  it('nested deferrals only lock after the last release', async () => {
+    mockDeriveKey.mockResolvedValueOnce(fakeCryptoKey());
+    const store = useCryptoStore();
+    await store.deriveKey('pw', 'f'.repeat(64));
+
+    store.deferLock();
+    store.deferLock();
+    vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+    store.releaseLockDeferral();
+    expect(store.isUnlocked).toBe(true); // one deferral still active
+    store.releaseLockDeferral();
+    expect(store.isUnlocked).toBe(false);
+  });
+});
