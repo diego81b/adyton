@@ -43,17 +43,18 @@ export const TYPE_FILTERS: { type: VaultEntryType; label: string }[] = [
   { type: VaultEntryType.IDENTITY, label: 'Identity' },
 ];
 
-// Per-chip ACTIVE color (mockup screen-vault chip palette). Static strings — a dynamic
-// `bg-${c}-900/40` would be purged. Inactive chips share one muted style (see page).
+// Per-chip ACTIVE style — DERIVED from TILE_CLASS so filter chips and icon tiles can
+// never drift apart in tone (they used to: mockup chips were `*-900/40`, tiles
+// `*-400/10`). 'all' uses the emerald accent in the same tinted-tile shape.
 export type ChipKey = VaultEntryType | 'all';
 export const CHIP_ACTIVE_CLASS: Record<ChipKey, string> = {
-  all: 'bg-emerald-900/40 text-emerald-300',
-  [VaultEntryType.LOGIN]: 'bg-blue-900/40 text-blue-300',
-  [VaultEntryType.ENV_FILE]: 'bg-orange-900/40 text-orange-300',
-  [VaultEntryType.SECRET]: 'bg-red-900/40 text-red-300',
-  [VaultEntryType.SECURE_NOTE]: 'bg-yellow-900/40 text-yellow-300',
-  [VaultEntryType.CREDIT_CARD]: 'bg-purple-900/40 text-purple-300',
-  [VaultEntryType.IDENTITY]: 'bg-teal-900/40 text-teal-300',
+  all: 'border bg-primary/10 border-primary/20 text-primary',
+  [VaultEntryType.LOGIN]: `border ${TILE_CLASS[VaultEntryType.LOGIN]}`,
+  [VaultEntryType.ENV_FILE]: `border ${TILE_CLASS[VaultEntryType.ENV_FILE]}`,
+  [VaultEntryType.SECRET]: `border ${TILE_CLASS[VaultEntryType.SECRET]}`,
+  [VaultEntryType.SECURE_NOTE]: `border ${TILE_CLASS[VaultEntryType.SECURE_NOTE]}`,
+  [VaultEntryType.CREDIT_CARD]: `border ${TILE_CLASS[VaultEntryType.CREDIT_CARD]}`,
+  [VaultEntryType.IDENTITY]: `border ${TILE_CLASS[VaultEntryType.IDENTITY]}`,
 };
 const CHIP_INACTIVE_CLASS = 'bg-elevated border border-default text-muted hover:text-highlighted';
 

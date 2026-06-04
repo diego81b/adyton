@@ -34,7 +34,7 @@ describe('TYPE_META / TYPE_FILTERS', () => {
 
 describe('chipClass', () => {
   it('returns a per-type color when active', () => {
-    expect(chipClass('all', true)).toContain('emerald');
+    expect(chipClass('all', true)).toContain('primary');
     expect(chipClass(VaultEntryType.LOGIN, true)).toContain('blue');
     expect(chipClass(VaultEntryType.ENV_FILE, true)).toContain('orange');
   });
@@ -154,5 +154,14 @@ describe('entrySubtitle — JSON env file', () => {
         envParsed: { '{"Db":"Server': 'x;Password=y"}' }, // what parseEnv extracts from JSON
       }),
     ).toBe('JSON file');
+  });
+});
+
+describe('CHIP_ACTIVE_CLASS stays in sync with TILE_CLASS', () => {
+  it('every type chip embeds exactly its tile classes', async () => {
+    const { CHIP_ACTIVE_CLASS, TILE_CLASS } = await import('../../app/utils/entry-display');
+    for (const t of Object.values(VaultEntryType)) {
+      expect(CHIP_ACTIVE_CLASS[t]).toBe(`border ${TILE_CLASS[t]}`);
+    }
   });
 });
