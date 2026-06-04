@@ -60,8 +60,6 @@ app/pages/
 ├── vault/
 │   ├── index.vue                # All Items: type filter chips, real-time label search, cursor pagination, env dropdown
 │   └── [id].vue                 # Entry detail: view + inline edit, reveal, copy, TOTP countdown (LOGIN), version history button
-├── environments/
-│   └── index.vue                # ENV_FILE + SECRET grouped by environmentTag (Production/Staging/Development/Custom)
 ├── generator/
 │   └── index.vue                # Password/passphrase generator with entropy arc
 └── settings/
@@ -75,11 +73,11 @@ app/components/
 ├── PasswordInput.vue           # UInput + lock leading icon + eye show/hide toggle (v-model)
 ├── PasswordStrengthMeter.vue   # 4-segment bar + label + entropy bits (presentational; fed by usePasswordStrength)
 ├── KeyDerivationStatus.vue     # "Deriving encryption key…" spinner during Argon2id
-# To build in Phase 5 proper:
-├── VaultEntryModal.vue          # Add/Edit entry bottom-sheet (mobile) / centered modal (desktop) — unified for all types
+# Built in Phase 5 Steps 1–2 (app shell + vault UI):
+├── VaultEntryModal.vue          # Add/Edit entry — USlideover (right panel ≥lg, bottom sheet <lg), unified for all types
 ├── LockOverlay.vue              # In-place lock overlay (triggered by auto-lock timer or lock button)
-├── AppSidebar.vue               # Desktop left sidebar (4 nav items: Vault / Environments / Generator / Settings)
-└── AppBottomNav.vue             # Mobile bottom nav bar (same 4 items)
+├── AppSidebar.vue               # Desktop left sidebar (3 nav items: Vault / Generator / Settings)
+└── AppBottomNav.vue             # Mobile bottom nav bar (same 3 items)
 
 app/composables/
 └── usePasswordStrength.ts      # Debounced zxcvbn validation -> score/valid/feedback/segColor/label/bits (Step 0)
@@ -94,7 +92,7 @@ app/composables/
 | `/vault/secret/new.vue` dedicated page | **VaultEntryModal** (same modal, type = SECRET) |
 | `/vault/env/[id]/versions.vue` page | History accessed via button on `/vault/[id].vue` |
 | `/settings/security.vue` + `/settings/danger.vue` separate pages | **Single `/settings/index.vue`** with in-page anchors |
-| Environment filter as dropdown on vault index | **Dedicated `/environments/` page** in nav |
+| Environment filter as dropdown on vault index | ~~Dedicated `/environments/` page~~ — superseded again 2026-06-03: filters live in the `VaultFilters` slideover on `/vault` (see deviation note below) |
 | TOTP only in Phase 6 (2FA setup) | **Per-LOGIN-entry TOTP field** (secret + countdown + copy) |
 
 **Navigation (desktop sidebar + mobile bottom nav):**
@@ -121,7 +119,7 @@ app/composables/
 
 `/vault/[id].vue` handles view and edit mode in the same route. LOGIN entries display a live TOTP section (countdown ring + 6-digit code) if a TOTP secret is stored. Sensitive fields are masked by default; reveal auto-hides after 30s, clipboard auto-clears after 30s.
 
-`/environments/index.vue` fetches only `ENV_FILE` and `SECRET` entries, groups them client-side by `environmentTag` into sticky-header sections with colored dot indicators.
+`/generator/index.vue` is a standalone password/passphrase generator: mode toggle, length/word-count slider, character-class checkboxes, entropy arc computed from the real charset pool (shared entropy helpers), copy via `useSecureClipboard`. Generation uses `generatePassword`/`generatePassphrase` from `@adyton/shared` (CSPRNG + rejection sampling) — never `Math.random`.
 
 `/settings/index.vue` is a single page. Account section: display name, email, change-master-password (opens a modal with re-encryption warning). Security section: 2FA status + management, active sessions with per-session revoke, trusted devices, auto-lock timeout segmented control. Danger zone: account deletion with master password confirmation. Desktop shows an in-page anchor sidebar. The change-master-password and confirm-action flows use overlay modals — no separate routes.
 
