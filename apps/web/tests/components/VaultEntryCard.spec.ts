@@ -66,15 +66,29 @@ describe('VaultEntryCard', () => {
     expect(note.text()).toContain('v1');
   });
 
-  it('renders a desktop notes excerpt column (single truncated line)', () => {
+  it('shows the notes toggle only when the entry has notes', () => {
+    const withNotes = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'rotate quarterly' }));
+    expect(withNotes.find('[data-icon="i-lucide-sticky-note"]').exists()).toBe(true);
+    const without = mountCard(entry({ type: VaultEntryType.LOGIN }));
+    expect(without.find('[data-icon="i-lucide-sticky-note"]').exists()).toBe(false);
+  });
+
+  it('toggles the notes expansion without opening the detail', async () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'rotate quarterly' }));
-    const col = w.find('.hidden.lg\\:block');
-    expect(col.exists()).toBe(true);
-    expect(col.text()).toBe('rotate quarterly');
-    expect(col.classes()).toContain('truncate');
-    // Column exists (fixed width) even without notes — keeps card heights uniform.
-    const noNotes = mountCard(entry({ type: VaultEntryType.LOGIN }));
-    expect(noNotes.find('.hidden.lg\\:block').exists()).toBe(true);
+    expect(w.find('[data-testid="card-notes"]').exists()).toBe(false);
+
+    await w.find('[data-icon="i-lucide-sticky-note"]').trigger('click');
+    const notes = w.find('[data-testid="card-notes"]');
+    expect(notes.exists()).toBe(true);
+    expect(notes.text()).toContain('rotate quarterly');
+    expect(w.emitted('open')).toBeFalsy(); // toggle must not bubble to the card click
+
+    // Clicking inside the expanded notes (reading / selecting text) must not navigate.
+    await notes.trigger('click');
+    expect(w.emitted('open')).toBeFalsy();
+
+    await w.find('[data-icon="i-lucide-sticky-note"]').trigger('click');
+    expect(w.find('[data-testid="card-notes"]').exists()).toBe(false);
   });
 
   it('does NOT show a copy button for ENV_FILE (no full-file clipboard)', () => {
