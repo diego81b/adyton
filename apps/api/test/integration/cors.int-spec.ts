@@ -4,7 +4,7 @@ import { startContainers, stopContainers } from '../helpers/containers';
 import { createApp } from '../../src/create-app';
 
 /**
- * Regression: @fastify/cors v10 defaults to the CORS-safelisted methods
+ * Regression: @fastify/cors v11 defaults to the CORS-safelisted methods
  * (GET,HEAD,POST). Every browser PUT/PATCH/DELETE (settings update, vault entry
  * edit, session/device revoke, account deletion) failed its preflight with
  * net::ERR_FAILED until the methods list was set explicitly (found in the
