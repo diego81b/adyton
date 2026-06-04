@@ -63,6 +63,27 @@ export interface PassphraseOptions {
   separator?: string;  // default '-'
 }
 
+// Per-user settings — persisted server-side (users.settings JSONB) so they sync
+// across devices/browsers (extension Phase 7, mobile Phase 9). NON-SECRET behavioral
+// metadata only (like environmentTag): never store secrets or key material here.
+// Client keeps a localStorage boot cache; the DB is authoritative (last-write-wins).
+export type LockMode = 'activity' | 'absolute';
+
+export interface UserSettings {
+  displayName: string;
+  lockMode: LockMode;       // 'activity' resets the timer on user activity; 'absolute' never resets
+  lockDurationMs: number;   // 0 = never auto-lock, otherwise LOCK_DURATION_MIN_MS..LOCK_DURATION_MAX_MS
+}
+
+export const LOCK_DURATION_MIN_MS = 60_000;     // 1 min
+export const LOCK_DURATION_MAX_MS = 3_600_000;  // 60 min
+
+export const DEFAULT_USER_SETTINGS: Readonly<UserSettings> = Object.freeze({
+  displayName: '',
+  lockMode: 'activity',
+  lockDurationMs: 15 * 60_000,
+});
+
 // Aligned to actual API response (login/register/refresh).
 // Note: masterPassword is NOT transmitted to server for key derivation — kdfSalt
 // enables client-side Argon2id derivation of the vault key independently from auth.
