@@ -90,8 +90,7 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 **Step 4 — `/generator` (DONE 2026-06-04):** password + passphrase modes with live regenerate on option change. Passphrase generation added to `packages/shared` (`generator.ts` + `wordlist.ts`: EFF large wordlist, 7776 words ≈ 12.92 bits/word, CSPRNG + rejection sampling — never `Math.random`); entropy helpers (`passwordEntropyBits`/`passphraseEntropyBits`) compute from the real charset pool (`buildPasswordPool` exported) so the entropy arc cannot drift from the generator. Strength tiers (<45 Weak / 45–64 Fair / 65–99 Strong / ≥100 Excellent), copy with 30s clipboard auto-clear, `/generator` added to the auth middleware.
 
-**Deliverables (remaining):**
-- `/settings/index.vue`: account + active-session revoke + auto-lock mode/duration (localStorage prefs store) + account deletion with master-password confirmation
+**Step 5 — `/settings` (DONE 2026-06-04):** account (display name), active-session + trusted-device revoke, auto-lock timeout (5/15/30/60/never) and mode (activity/absolute), account deletion with master-password confirmation. **Deviation: settings are per-user DB-backed** (`users.settings` JSONB + `GET/PUT /settings`), not localStorage-only as originally planned — they must sync across devices for the extension (Phase 7) and mobile (Phase 9); localStorage is a boot cache only. Lock mode/duration are non-secret behavioral metadata (zero-knowledge unaffected). In absolute mode a timer-fired lock defers while an entry form has unsaved edits and fires as soon as the form closes. Email change and master-password change (vault re-encryption) are deferred past Phase 5.
 
 ---
 

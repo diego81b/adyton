@@ -123,6 +123,15 @@ app/composables/
 
 `/settings/index.vue` is a single page. Account section: display name, email, change-master-password (opens a modal with re-encryption warning). Security section: 2FA status + management, active sessions with per-session revoke, trusted devices, auto-lock timeout segmented control. Danger zone: account deletion with master password confirmation. Desktop shows an in-page anchor sidebar. The change-master-password and confirm-action flows use overlay modals — no separate routes.
 
+> **As built (Step 5, 2026-06-04):** settings persist **per-user in the DB** (`users.settings`
+> JSONB via `GET/PUT /settings`, `useSettingsStore` with a localStorage boot cache) so they
+> sync across devices. Auto-lock gained a **mode** control (`activity`/`absolute`) on top of
+> the timeout (incl. `never`); in absolute mode an expiring timer defers while an entry form
+> has unsaved edits (`useLockDeferral`). Email change and master-password change are
+> placeholders (deferred — changing the master password requires full vault re-encryption);
+> 2FA shows a not-configured placeholder until Phase 6. Sessions have no "this device" badge:
+> the refresh cookie is scoped to `/api/auth`, so `/sessions` cannot identify the caller.
+
 `/auth/setup-2fa.vue` (Phase 6) is a post-login flow for TOTP setup. Not in Phase 5 scope but shown in Settings security section as a placeholder state.
 
 ### 6.3 Pinia Stores
