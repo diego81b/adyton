@@ -119,6 +119,12 @@ app/composables/
 
 `/vault/[id].vue` handles view and edit mode in the same route. LOGIN entries display a live TOTP section (countdown ring + 6-digit code) if a TOTP secret is stored. Sensitive fields are masked by default; reveal auto-hides after 30s, clipboard auto-clears after 30s.
 
+> **ENV_FILE formats (2026-06-04):** the encrypted blob is format-agnostic, so it also holds
+> JSON env files (.NET `appsettings.json`). `detectEnvFormat` picks the view: dotenv →
+> key/value table; JSON (or anything `parseEnv` can't extract rows from) → masked raw viewer
+> with reveal + pretty-print. Download follows the format (`.json` extension + mime); the
+> whole file is still never copied to the clipboard (invariant #8).
+
 `/generator/index.vue` is a standalone password/passphrase generator: mode toggle, length/word-count slider, character-class checkboxes, entropy arc computed from the real charset pool (shared entropy helpers), copy via `useSecureClipboard`. Generation uses `generatePassword`/`generatePassphrase` from `@adyton/shared` (CSPRNG + rejection sampling) — never `Math.random`.
 
 `/settings/index.vue` is a single page. Account section: display name, email, change-master-password (opens a modal with re-encryption warning). Security section: 2FA status + management, active sessions with per-session revoke, trusted devices, auto-lock timeout segmented control. Danger zone: account deletion with master password confirmation. Desktop shows an in-page anchor sidebar. The change-master-password and confirm-action flows use overlay modals — no separate routes.
