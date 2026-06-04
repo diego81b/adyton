@@ -131,7 +131,9 @@ export async function hashLabel(label: string): Promise<string> {
     .join('');
 }
 
-export function generatePassword(options: PasswordOptions): string {
+// Exported so entropy displays compute from the SAME pool the generator draws from
+// (pool size changes with selected classes and excludeAmbiguous — approximating lies).
+export function buildPasswordPool(options: PasswordOptions): string {
   const charsets: Record<string, string> = {
     uppercase: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     lowercase: 'abcdefghijklmnopqrstuvwxyz',
@@ -144,6 +146,11 @@ export function generatePassword(options: PasswordOptions): string {
     .map(([, v]) => v)
     .join('');
   if (options.excludeAmbiguous) pool = pool.replace(ambiguous, '');
+  return pool;
+}
+
+export function generatePassword(options: PasswordOptions): string {
+  const pool = buildPasswordPool(options);
   if (pool.length === 0) throw new Error('No character classes selected');
 
   const bytes = crypto.getRandomValues(new Uint8Array(options.length * 4));

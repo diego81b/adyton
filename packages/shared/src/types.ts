@@ -58,6 +58,11 @@ export interface PasswordOptions {
   excludeAmbiguous: boolean;
 }
 
+export interface PassphraseOptions {
+  words: number;       // integer, 1–20
+  separator?: string;  // default '-'
+}
+
 // Aligned to actual API response (login/register/refresh).
 // Note: masterPassword is NOT transmitted to server for key derivation — kdfSalt
 // enables client-side Argon2id derivation of the vault key independently from auth.
