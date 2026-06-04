@@ -101,7 +101,7 @@ const FIELDS_BY_TYPE: Record<VaultEntryType, (keyof EntryDraft)[]> = {
 const ENV_TYPES = new Set<VaultEntryType>([VaultEntryType.ENV_FILE, VaultEntryType.SECRET]);
 
 const meta = computed(() => TYPE_META[selectedType.value]);
-const tileClass = computed(() => TILE_CLASS[meta.value.color]);
+const tileClass = computed(() => TILE_CLASS[selectedType.value]);
 const hasEnvironment = computed(() => ENV_TYPES.has(selectedType.value));
 
 // Slideover instead of a centered modal: it never re-centers/resizes when the entry

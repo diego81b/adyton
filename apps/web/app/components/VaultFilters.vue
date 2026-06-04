@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useMediaQuery } from '@vueuse/core';
 import { VaultEntryType, type EnvironmentTag } from '@adyton/shared';
 import { TYPE_FILTERS, chipClass } from '~/utils/entry-display';
@@ -15,6 +15,18 @@ const open = defineModel<boolean>('open', { required: true });
 const type = defineModel<VaultEntryType | 'all'>('type', { required: true });
 const environment = defineModel<EnvironmentTag | 'all'>('environment', { required: true });
 
+// DRAFT semantics: pills edit a local draft; the applied filters (the models) only
+// change on Done. Closing without Done (backdrop/X) discards the draft.
+const draftType = ref<VaultEntryType | 'all'>(type.value);
+const draftEnvironment = ref<EnvironmentTag | 'all'>(environment.value);
+
+watch(open, (isOpen) => {
+  if (isOpen) {
+    draftType.value = type.value;
+    draftEnvironment.value = environment.value;
+  }
+});
+
 // Same responsive pattern as VaultEntryModal: right on desktop, bottom sheet on mobile.
 const isDesktop = useMediaQuery('(min-width: 1024px)');
 const side = computed<'right' | 'bottom'>(() => (isDesktop.value ? 'right' : 'bottom'));
@@ -24,24 +36,30 @@ const side = computed<'right' | 'bottom'>(() => (isDesktop.value ? 'right' : 'bo
 // two types — hidden otherwise.
 const ENV_TYPES = new Set<VaultEntryType>([VaultEntryType.ENV_FILE, VaultEntryType.SECRET]);
 const showEnvironment = computed(
-  () => type.value === 'all' || ENV_TYPES.has(type.value as VaultEntryType),
+  () => draftType.value === 'all' || ENV_TYPES.has(draftType.value as VaultEntryType),
 );
 
-// Switching to a non-env type clears any active environment filter so it can't linger
+// Switching to a non-env type clears any draft environment so it can't linger
 // invisibly (and skew the active-count badge).
-watch(type, (t) => {
-  if (t !== 'all' && !ENV_TYPES.has(t as VaultEntryType) && environment.value !== 'all') {
-    environment.value = 'all';
+watch(draftType, (t) => {
+  if (t !== 'all' && !ENV_TYPES.has(t as VaultEntryType) && draftEnvironment.value !== 'all') {
+    draftEnvironment.value = 'all';
   }
 });
 
 const activeCount = computed(
-  () => (type.value !== 'all' ? 1 : 0) + (environment.value !== 'all' ? 1 : 0),
+  () => (draftType.value !== 'all' ? 1 : 0) + (draftEnvironment.value !== 'all' ? 1 : 0),
 );
 
 function reset() {
-  type.value = 'all';
-  environment.value = 'all';
+  draftType.value = 'all';
+  draftEnvironment.value = 'all';
+}
+
+function apply() {
+  type.value = draftType.value;
+  environment.value = draftEnvironment.value;
+  open.value = false;
 }
 </script>
 
@@ -62,8 +80,8 @@ function reset() {
             <button
               type="button"
               class="flex items-center justify-center px-3 py-2.5 rounded-full text-sm font-semibold transition"
-              :class="chipClass('all', type === 'all')"
-              @click="type = 'all'"
+              :class="chipClass('all', draftType === 'all')"
+              @click="draftType = 'all'"
             >
               All <span class="opacity-75 ml-1">{{ counts.all }}</span>
             </button>
@@ -72,8 +90,8 @@ function reset() {
               :key="f.type"
               type="button"
               class="flex items-center justify-center px-3 py-2.5 rounded-full text-sm font-semibold transition"
-              :class="chipClass(f.type, type === f.type)"
-              @click="type = f.type"
+              :class="chipClass(f.type, draftType === f.type)"
+              @click="draftType = f.type"
             >
               {{ f.label }} <span class="opacity-75 ml-1">{{ counts[f.type] }}</span>
             </button>
@@ -86,7 +104,7 @@ function reset() {
             Environment
           </div>
           <USelect
-            v-model="environment"
+            v-model="draftEnvironment"
             :items="envOptions"
             value-key="value"
             size="lg"
@@ -112,7 +130,7 @@ function reset() {
           size="lg"
           class="flex-1 justify-center"
           label="Done"
-          @click="open = false"
+          @click="apply"
         />
       </div>
     </template>

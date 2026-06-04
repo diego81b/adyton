@@ -19,18 +19,18 @@ export const TYPE_META: Record<VaultEntryType, TypeMeta> = {
   [VaultEntryType.IDENTITY]: { label: 'Identity', icon: 'i-lucide-user', color: 'neutral' },
 };
 
-// Static, purge-safe class strings per semantic color (dynamic `bg-${color}` would be
-// stripped by Tailwind — same trap that bit the step-0 strength meter). Used for the
-// colored icon tile on each card, mirroring the mockup's per-type tinting.
-export const TILE_CLASS: Record<TypeMeta['color'], string> = {
-  primary: 'bg-primary/10 border-primary/20 text-primary',
-  info: 'bg-info/10 border-info/20 text-info',
-  success: 'bg-success/10 border-success/20 text-success',
-  warning: 'bg-warning/10 border-warning/20 text-warning',
-  error: 'bg-error/10 border-error/20 text-error',
-  // 'neutral' is used only by IDENTITY — tinted teal (mockup palette) so its tile
-  // gets the same bg+border treatment as every other type instead of looking flat.
-  neutral: 'bg-teal-400/10 border-teal-400/20 text-teal-300',
+// Static, purge-safe class strings per ENTRY TYPE (dynamic `bg-${color}` would be
+// stripped by Tailwind — same trap that bit the step-0 strength meter). Keyed by type
+// and aligned with CHIP_ACTIVE_CLASS below so the icon tiles and the filter chips
+// share one well-separated palette (semantic tokens made SECRET/ENV/IDENTITY all
+// green-ish — too similar to tell apart at a glance).
+export const TILE_CLASS: Record<VaultEntryType, string> = {
+  [VaultEntryType.LOGIN]: 'bg-blue-400/10 border-blue-400/20 text-blue-300',
+  [VaultEntryType.ENV_FILE]: 'bg-orange-400/10 border-orange-400/20 text-orange-300',
+  [VaultEntryType.SECRET]: 'bg-red-400/10 border-red-400/20 text-red-300',
+  [VaultEntryType.SECURE_NOTE]: 'bg-yellow-400/10 border-yellow-400/20 text-yellow-300',
+  [VaultEntryType.CREDIT_CARD]: 'bg-purple-400/10 border-purple-400/20 text-purple-300',
+  [VaultEntryType.IDENTITY]: 'bg-teal-400/10 border-teal-400/20 text-teal-300',
 };
 
 // Filter chips, in display order (mockup order). 'all' is handled separately.

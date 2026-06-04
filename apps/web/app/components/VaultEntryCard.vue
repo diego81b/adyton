@@ -7,7 +7,7 @@ const props = defineProps<{ entry: DecryptedEntry }>();
 const emit = defineEmits<{ open: [id: string]; copy: [entry: DecryptedEntry] }>();
 
 const meta = computed(() => TYPE_META[props.entry.type]);
-const tileClass = computed(() => TILE_CLASS[meta.value.color]);
+const tileClass = computed(() => TILE_CLASS[props.entry.type]);
 const subtitle = computed(() => entrySubtitle(props.entry));
 const env = computed(() => (props.entry.environment ? ENVIRONMENT_META[props.entry.environment] : null));
 const monoLabel = computed(
@@ -39,24 +39,30 @@ const canCopy = computed(() =>
       <UIcon :name="meta.icon" class="size-5" />
     </div>
 
+    <!-- Fixed 3-row structure (badges / label / subtitle) so every card has the same
+         height regardless of type or content — no accordion effect in the list. -->
     <div class="min-w-0 flex-1">
-      <div v-if="env || entry.type === VaultEntryType.ENV_FILE" class="flex items-center gap-2 mb-0.5">
+      <div class="flex items-center gap-2 mb-0.5 h-[18px]">
+        <UBadge color="neutral" variant="soft" size="sm">v{{ entry.secretVersion }}</UBadge>
         <span
           v-if="env"
           class="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-elevated text-muted border border-default"
         >
           <span class="size-1.5 rounded-full" :class="env.dot" /> {{ env.label }}
         </span>
-        <UBadge v-if="entry.type === VaultEntryType.ENV_FILE" color="neutral" variant="soft" size="sm">
-          v{{ entry.secretVersion }}
-        </UBadge>
       </div>
       <div class="font-semibold text-sm truncate" :class="{ 'font-mono': monoLabel }">
         {{ entry.label }}
       </div>
-      <div v-if="subtitle" class="text-xs text-muted truncate" :class="{ 'font-mono': monoLabel }">
+      <div class="text-xs text-muted truncate min-h-[16px]" :class="{ 'font-mono': monoLabel }">
         {{ subtitle }}
       </div>
+    </div>
+
+    <!-- Desktop-only notes excerpt: fixed width + single truncated line, so it never
+         changes the card height. -->
+    <div class="hidden lg:block w-56 shrink-0 text-xs text-dimmed truncate text-right">
+      {{ entry.notes || '' }}
     </div>
 
     <!-- LOGIN/SECRET keep the one-tap copy; no chevron for the rest — the whole card opens detail. -->

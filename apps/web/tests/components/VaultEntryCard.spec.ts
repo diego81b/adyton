@@ -57,11 +57,24 @@ describe('VaultEntryCard', () => {
     expect(w.text()).toContain('Production');
   });
 
-  it('shows a version badge only for ENV_FILE', () => {
+  it('always shows the version badge, for every type, even at v1', () => {
     const env = mountCard(entry({ type: VaultEntryType.ENV_FILE, secretVersion: 3, envParsed: { A: '1' } }));
     expect(env.text()).toContain('v3');
-    const login = mountCard(entry({ type: VaultEntryType.LOGIN, secretVersion: 3 }));
-    expect(login.text()).not.toContain('v3');
+    const login = mountCard(entry({ type: VaultEntryType.LOGIN, secretVersion: 1 }));
+    expect(login.text()).toContain('v1');
+    const note = mountCard(entry({ type: VaultEntryType.SECURE_NOTE, secretVersion: 1 }));
+    expect(note.text()).toContain('v1');
+  });
+
+  it('renders a desktop notes excerpt column (single truncated line)', () => {
+    const w = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'rotate quarterly' }));
+    const col = w.find('.hidden.lg\\:block');
+    expect(col.exists()).toBe(true);
+    expect(col.text()).toBe('rotate quarterly');
+    expect(col.classes()).toContain('truncate');
+    // Column exists (fixed width) even without notes — keeps card heights uniform.
+    const noNotes = mountCard(entry({ type: VaultEntryType.LOGIN }));
+    expect(noNotes.find('.hidden.lg\\:block').exists()).toBe(true);
   });
 
   it('does NOT show a copy button for ENV_FILE (no full-file clipboard)', () => {

@@ -44,7 +44,14 @@ function mountFilters(props: Record<string, unknown> = {}) {
   });
 }
 
-describe('VaultFilters', () => {
+function chip(w: ReturnType<typeof mountFilters>, label: string) {
+  return w.findAll('button.rounded-full').find((b) => b.text().includes(label))!;
+}
+function footerBtn(w: ReturnType<typeof mountFilters>, label: string) {
+  return w.findAll('.ubtn').find((b) => b.text() === label)!;
+}
+
+describe('VaultFilters — draft semantics (apply on Done)', () => {
   it('renders the All chip plus one chip per entry type', () => {
     const w = mountFilters();
     const chips = w.findAll('button.rounded-full');
@@ -53,45 +60,65 @@ describe('VaultFilters', () => {
     expect(w.text()).toContain('Login');
   });
 
-  it('emits update:type when a type chip is clicked', async () => {
+  it('clicking a chip does NOT emit update:type until Done', async () => {
     const w = mountFilters();
-    await w.findAll('button.rounded-full').find((b) => b.text().includes('Login'))!.trigger('click');
+    await chip(w, 'Login').trigger('click');
+    expect(w.emitted('update:type')).toBeUndefined(); // draft only
+
+    await footerBtn(w, 'Done').trigger('click');
     expect(w.emitted('update:type')?.at(-1)).toEqual([VaultEntryType.LOGIN]);
-  });
-
-  it('Reset is disabled with no active filters and clears both when active', async () => {
-    const none = mountFilters();
-    const resetNone = none.findAll('.ubtn').find((b) => b.text() === 'Reset')!;
-    expect((resetNone.element as HTMLButtonElement).disabled).toBe(true);
-
-    const active = mountFilters({ type: VaultEntryType.LOGIN, environment: 'production' });
-    const reset = active.findAll('.ubtn').find((b) => b.text() === 'Reset')!;
-    expect((reset.element as HTMLButtonElement).disabled).toBe(false);
-    await reset.trigger('click');
-    expect(active.emitted('update:type')?.at(-1)).toEqual(['all']);
-    expect(active.emitted('update:environment')?.at(-1)).toEqual(['all']);
-  });
-
-  it('Done closes the slideover', async () => {
-    const w = mountFilters();
-    await w.findAll('.ubtn').find((b) => b.text() === 'Done')!.trigger('click');
     expect(w.emitted('update:open')?.at(-1)).toEqual([false]);
   });
 
-  it('shows the environment filter for all / ENV_FILE / SECRET', () => {
-    expect(mountFilters({ type: 'all' }).find('.uselect').exists()).toBe(true);
-    expect(mountFilters({ type: VaultEntryType.ENV_FILE }).find('.uselect').exists()).toBe(true);
-    expect(mountFilters({ type: VaultEntryType.SECRET }).find('.uselect').exists()).toBe(true);
+  it('closing without Done discards the draft (reopens from applied values)', async () => {
+    const w = mountFilters();
+    await chip(w, 'Secret').trigger('click');
+    // Close without Done (backdrop/X), then reopen.
+    await w.setProps({ open: false });
+    await w.setProps({ open: true });
+    await footerBtn(w, 'Done').trigger('click');
+    // Draft was re-seeded from the applied 'all', so applying changes nothing —
+    // defineModel emits no update for an unchanged value. The abandoned 'SECRET'
+    // draft never leaked out.
+    expect(w.emitted('update:type')).toBeUndefined();
+    expect(w.emitted('update:open')?.at(-1)).toEqual([false]);
   });
 
-  it('hides the environment filter for types that never carry an environment', () => {
-    expect(mountFilters({ type: VaultEntryType.LOGIN }).find('.uselect').exists()).toBe(false);
-    expect(mountFilters({ type: VaultEntryType.CREDIT_CARD }).find('.uselect').exists()).toBe(false);
+  it('Reset clears the draft; nothing applies until Done', async () => {
+    const w = mountFilters({ type: VaultEntryType.LOGIN, environment: 'all' });
+    const reset = footerBtn(w, 'Reset');
+    expect((reset.element as HTMLButtonElement).disabled).toBe(false);
+    await reset.trigger('click');
+    expect(w.emitted('update:type')).toBeUndefined();
+    await footerBtn(w, 'Done').trigger('click');
+    expect(w.emitted('update:type')?.at(-1)).toEqual(['all']);
   });
 
-  it('clears an active environment when switching to a non-env type', async () => {
+  it('Reset is disabled when the draft has no active filters', () => {
+    const w = mountFilters();
+    expect((footerBtn(w, 'Reset').element as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows the environment filter for all / ENV_FILE / SECRET drafts', async () => {
+    const w = mountFilters();
+    expect(w.find('.uselect').exists()).toBe(true);
+    await chip(w, 'Env File').trigger('click');
+    expect(w.find('.uselect').exists()).toBe(true);
+    await chip(w, 'Secret').trigger('click');
+    expect(w.find('.uselect').exists()).toBe(true);
+  });
+
+  it('hides the environment filter when the draft type never carries one', async () => {
+    const w = mountFilters();
+    await chip(w, 'Login').trigger('click');
+    expect(w.find('.uselect').exists()).toBe(false);
+  });
+
+  it('switching the draft to a non-env type clears the draft environment', async () => {
     const w = mountFilters({ type: VaultEntryType.ENV_FILE, environment: 'production' });
-    await w.setProps({ type: VaultEntryType.LOGIN });
+    await chip(w, 'Login').trigger('click');
+    await footerBtn(w, 'Done').trigger('click');
+    expect(w.emitted('update:type')?.at(-1)).toEqual([VaultEntryType.LOGIN]);
     expect(w.emitted('update:environment')?.at(-1)).toEqual(['all']);
   });
 });

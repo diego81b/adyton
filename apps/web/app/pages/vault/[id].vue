@@ -153,15 +153,17 @@ async function confirmDelete() {
     <template v-else>
       <!-- Title block -->
       <div class="flex items-start gap-4 mb-6">
+        <!-- Tile is the type indicator (tooltip), matching the list — no duplicate text badge. -->
         <div
           class="w-14 h-14 rounded-2xl border flex items-center justify-center shrink-0"
-          :class="typeMeta && TILE_CLASS[typeMeta.color]"
+          :class="TILE_CLASS[entry.type]"
+          :title="typeMeta?.label"
+          :aria-label="typeMeta?.label"
         >
           <UIcon v-if="typeMeta" :name="typeMeta.icon" class="size-6" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <UBadge v-if="typeMeta" :color="typeMeta.color" variant="soft" :label="typeMeta.label" />
             <UBadge
               v-if="envMeta"
               color="neutral"
