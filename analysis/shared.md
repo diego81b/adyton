@@ -108,6 +108,13 @@ AES-GCM with a 12-byte random IV provides 96-bit IV space. For a vault that migh
 
 The `generatePassword` function uses rejection sampling to eliminate modulo bias. The pool size rarely exceeds 90 characters, and 256 is not divisible by most pool sizes, so naive `byte % pool.length` over-represents low-index characters.
 
+**Passphrase generation (`src/generator.ts` + `src/wordlist.ts`, added Phase 5 Step 4):**
+
+- `generatePassphraseWords(words)` / `generatePassphrase({ words, separator = '-' })` pick diceware words from the **EFF large wordlist** (7776 words, log2(7776) ≈ 12.92 bits/word). The EFF short list (1296 words, 10.34 bits/word) was rejected: a 4-word passphrase would drop from ~51.7 to ~41.4 bits. This is a load-bearing security choice — changing the wordlist changes real entropy and requires the same review discipline as the Argon2id parameters.
+- Sampling is CSPRNG (`crypto.getRandomValues` on `Uint32Array`) + rejection sampling (2^32 is not divisible by 7776), mirroring `generatePassword`. Never `Math.random`.
+- The words-array variant exists because a few EFF words contain the default `-` separator (`t-shirt`, `drop-down`, `felt-tip`): UIs must never re-split the joined phrase.
+- **Entropy helpers** `passwordEntropyBits(options)` / `passphraseEntropyBits(words)` compute bits from the actual pool: `buildPasswordPool(options)` is exported from `crypto.ts` (86 chars with all classes; 81 when `excludeAmbiguous` strips `O0Il1`) so UI entropy displays use the same constants the generator draws from and cannot drift.
+
 ### 8.2 Type Definitions
 
 ```typescript

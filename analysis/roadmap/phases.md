@@ -88,8 +88,9 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 - **Settings is a single `/settings/index.vue`** (account + security + danger zone with in-page anchors), not separate `/settings/security.vue` + `/settings/danger.vue`.
 - Per-entry TOTP (vault entries storing a 2FA seed) is a Step 2 feature, distinct from account 2FA (Phase 6).
 
+**Step 4 — `/generator` (DONE 2026-06-04):** password + passphrase modes with live regenerate on option change. Passphrase generation added to `packages/shared` (`generator.ts` + `wordlist.ts`: EFF large wordlist, 7776 words ≈ 12.92 bits/word, CSPRNG + rejection sampling — never `Math.random`); entropy helpers (`passwordEntropyBits`/`passphraseEntropyBits`) compute from the real charset pool (`buildPasswordPool` exported) so the entropy arc cannot drift from the generator. Strength tiers (<45 Weak / 45–64 Fair / 65–99 Strong / ≥100 Excellent), copy with 30s clipboard auto-clear, `/generator` added to the auth middleware.
+
 **Deliverables (remaining):**
-- `/generator/index.vue`: standalone password/passphrase generator with all `PasswordOptions` exposed (`generatePassword` already in `packages/shared`)
 - `/settings/index.vue`: account + active-session revoke + auto-lock mode/duration (localStorage prefs store) + account deletion with master-password confirmation
 
 ---
