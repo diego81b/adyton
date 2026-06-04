@@ -49,18 +49,17 @@ async function onDeleted() {
   router.push('/login');
 }
 
-const ANCHORS = [
-  { id: 'settings-account', label: 'Account' },
-  { id: 'settings-security', label: 'Security' },
-  { id: 'settings-danger', label: 'Danger zone' },
-];
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-5xl lg:grid lg:grid-cols-[1fr_180px] lg:gap-8">
-    <div class="min-w-0 space-y-8">
-      <!-- ============== ACCOUNT ============== -->
-      <SettingsSection id="settings-account" title="Account" icon="i-lucide-user">
+  <!-- Two balanced columns on desktop (static account/vault prefs left, growing
+       security lists right), single column on mobile in the natural order; the
+       danger zone always spans full width at the bottom. -->
+  <div class="mx-auto w-full max-w-5xl">
+    <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-8 lg:space-y-0">
+      <div class="min-w-0 space-y-8">
+        <!-- ============== ACCOUNT ============== -->
+        <SettingsSection id="settings-account" title="Account" icon="i-lucide-user">
         <div class="divide-y divide-default rounded-2xl border border-default bg-elevated">
           <div class="p-4">
             <label class="block">
@@ -104,63 +103,56 @@ const ANCHORS = [
             <UButton color="neutral" variant="subtle" size="sm" disabled>Change</UButton>
           </div>
         </div>
-      </SettingsSection>
+        </SettingsSection>
 
-      <!-- ============== SECURITY ============== -->
-      <SettingsSection id="settings-security" title="Security" icon="i-lucide-shield">
-        <div class="space-y-4">
-          <!-- 2FA placeholder until Phase 6 -->
-          <div class="rounded-2xl border border-default bg-elevated p-4">
-            <div class="mb-0.5 flex items-center gap-2">
-              <h3 class="text-sm font-semibold">Two-factor authentication</h3>
-              <span
-                class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted"
-              >
-                Not configured
-              </span>
-            </div>
-            <p class="text-[11px] text-muted">
-              TOTP and hardware keys arrive with the 2FA release — coming next
-            </p>
-          </div>
-
-          <SessionsCard />
-          <TrustedDevicesCard />
+        <!-- ============== VAULT (auto-lock) ============== -->
+        <SettingsSection id="settings-vault" title="Vault" icon="i-lucide-lock">
           <AutoLockCard />
-        </div>
-      </SettingsSection>
+        </SettingsSection>
 
-      <!-- ============== DANGER ZONE ============== -->
-      <SettingsSection id="settings-danger" title="Danger zone" icon="i-lucide-triangle-alert" danger>
-        <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <h3 class="text-sm font-semibold text-rose-300">Delete account</h3>
-              <p class="mt-0.5 text-[11px] text-muted">
-                Permanently removes your account and every encrypted entry. Irreversible.
+        <!-- ============== DANGER ZONE ============== -->
+        <SettingsSection id="settings-danger" title="Danger zone" icon="i-lucide-triangle-alert" danger>
+          <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <h3 class="text-sm font-semibold text-rose-300">Delete account</h3>
+                <p class="mt-0.5 text-[11px] text-muted">
+                  Permanently removes your account and every encrypted entry. Irreversible.
+                </p>
+              </div>
+              <UButton color="error" variant="subtle" size="sm" @click="deleteOpen = true">
+                Delete account
+              </UButton>
+            </div>
+          </div>
+        </SettingsSection>
+      </div>
+
+      <div class="min-w-0 space-y-8">
+        <!-- ============== SECURITY ============== -->
+        <SettingsSection id="settings-security" title="Security" icon="i-lucide-shield">
+          <div class="space-y-4">
+            <!-- 2FA placeholder until Phase 6 -->
+            <div class="rounded-2xl border border-default bg-elevated p-4">
+              <div class="mb-0.5 flex items-center gap-2">
+                <h3 class="text-sm font-semibold">Two-factor authentication</h3>
+                <span
+                  class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted"
+                >
+                  Not configured
+                </span>
+              </div>
+              <p class="text-[11px] text-muted">
+                TOTP and hardware keys arrive with the 2FA release — coming next
               </p>
             </div>
-            <UButton color="error" variant="subtle" size="sm" @click="deleteOpen = true">
-              Delete account
-            </UButton>
-          </div>
-        </div>
-      </SettingsSection>
-    </div>
 
-    <!-- Desktop in-page anchor nav -->
-    <nav class="sticky top-20 hidden self-start lg:block" aria-label="Settings sections">
-      <ul class="space-y-1">
-        <li v-for="a in ANCHORS" :key="a.id">
-          <a
-            :href="`#${a.id}`"
-            class="block rounded-lg px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-elevated hover:text-highlighted"
-          >
-            {{ a.label }}
-          </a>
-        </li>
-      </ul>
-    </nav>
+            <SessionsCard />
+            <TrustedDevicesCard />
+          </div>
+        </SettingsSection>
+      </div>
+    </div>
 
     <DeleteAccountModal v-model="deleteOpen" @deleted="onDeleted" />
   </div>

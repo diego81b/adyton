@@ -127,7 +127,7 @@ async function copyEntry(entry: DecryptedEntry) {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="mx-auto w-full max-w-4xl space-y-4">
     <!-- Search + Filters + Add. Search stays inline (primary action); type + environment
          filters live in a slideover to keep the list clean. -->
     <div class="flex gap-2.5">

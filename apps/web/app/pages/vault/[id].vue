@@ -129,7 +129,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div>
+  <div class="mx-auto w-full max-w-4xl">
     <!-- Back link (layout already provides the header) -->
     <NuxtLink
       to="/vault"

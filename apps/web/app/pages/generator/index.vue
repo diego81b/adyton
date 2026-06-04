@@ -39,7 +39,9 @@ async function onCopy() {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl">
+  <!-- Same content width as the vault pages (the mockup's narrower 3xl made this
+       page look misaligned next to the others). -->
+  <div class="mx-auto w-full max-w-4xl">
     <!-- Mode toggle -->
     <div class="mb-5 inline-flex rounded-xl border border-default bg-elevated p-1">
       <button
