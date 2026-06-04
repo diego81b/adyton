@@ -4,7 +4,7 @@ import { VaultEntryType, type DecryptedEntry } from '@adyton/shared';
 import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
 import { useLockDeferral } from '~/composables/useLockDeferral';
-import type { EntryDraft } from '~/utils/vault-crypto';
+import { detectEnvFormat, type EntryDraft } from '~/utils/vault-crypto';
 import { TYPE_META, TILE_CLASS, ENVIRONMENT_META } from '~/utils/entry-display';
 
 definePageMeta({ ssr: false, layout: 'vault', middleware: 'auth' });
@@ -52,6 +52,12 @@ onMounted(async () => {
 const typeMeta = computed(() => (entry.value ? TYPE_META[entry.value.type] : null));
 const envMeta = computed(() =>
   entry.value?.environment ? ENVIRONMENT_META[entry.value.environment] : null,
+);
+
+// ENV_FILE blobs can hold dotenv or JSON (.NET appsettings) — the download button
+// label must match the extension EnvFileTable.downloadEnv() will actually use.
+const envDownloadLabel = computed(
+  () => `Download .${detectEnvFormat(entry.value?.envContent ?? '') === 'json' ? 'json' : 'env'}`,
 );
 
 const metaLine = computed(() => {
@@ -227,10 +233,10 @@ async function confirmDelete() {
           v-if="entry.type === T.ENV_FILE"
           class="flex-1 accent-glow text-white justify-center"
           icon="i-lucide-download"
-          aria-label="Download .env"
+          :aria-label="envDownloadLabel"
           @click="envTable?.downloadEnv()"
         >
-          <span class="hidden sm:inline">Download .env</span>
+          <span class="hidden sm:inline">{{ envDownloadLabel }}</span>
         </UButton>
         <UButton
           class="flex-1 justify-center"

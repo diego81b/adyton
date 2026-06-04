@@ -109,6 +109,14 @@ function buildBlobPayload(draft: EntryDraft): Record<string, unknown> {
   return payload;
 }
 
+// ENV_FILE content is an opaque encrypted string by design (invariant #8), so it can
+// hold any text format. The detail view adapts: dotenv → key/value table, JSON
+// (.NET appsettings.json etc.) → raw viewer. Detection is intentionally cheap.
+export function detectEnvFormat(content: string): 'dotenv' | 'json' {
+  const trimmed = content.trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('[') ? 'json' : 'dotenv';
+}
+
 /**
  * Parse raw `.env` text into key=value pairs. Client-side only — the server never
  * sees individual variables. Ignores blank lines and `#` comments; strips an optional

@@ -365,7 +365,7 @@ function close() {
                 <template #help>Read locally, never uploaded</template>
                 <input
                   type="file"
-                  accept=".env,.txt"
+                  accept=".env,.txt,.json"
                   class="block w-full text-sm text-muted file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border file:border-default file:bg-elevated file:text-highlighted file:text-xs file:font-semibold"
                   @change="onFilePicked"
                 />

@@ -266,3 +266,19 @@ describe('encryptEntryUpdate', () => {
     expect(payload.changeNote).toBeUndefined();
   });
 });
+
+describe('detectEnvFormat', () => {
+  it('detects JSON objects and arrays (leading whitespace tolerated)', async () => {
+    const { detectEnvFormat } = await import('../../app/utils/vault-crypto');
+    expect(detectEnvFormat('{"ConnectionStrings":{"Db":"x"}}')).toBe('json');
+    expect(detectEnvFormat('  \n {\n  "Logging": {}\n}')).toBe('json');
+    expect(detectEnvFormat('[{"k":"v"}]')).toBe('json');
+  });
+
+  it('treats dotenv and everything else as dotenv', async () => {
+    const { detectEnvFormat } = await import('../../app/utils/vault-crypto');
+    expect(detectEnvFormat('KEY=value\n# comment')).toBe('dotenv');
+    expect(detectEnvFormat('')).toBe('dotenv');
+    expect(detectEnvFormat('just some text')).toBe('dotenv');
+  });
+});
