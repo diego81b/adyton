@@ -257,4 +257,27 @@ export class AuthService {
     const user = await this.em.findOneOrFail(User, { id: userId });
     return { id: user.id, email: user.email, kdfSalt: user.kdfSalt, totpEnabled: user.totpEnabled };
   }
+
+  /**
+   * Permanently delete the authenticated user's account after re-verifying the
+   * password. DB-level ON DELETE CASCADE removes refresh tokens, trusted devices,
+   * WebAuthn credentials, and vault entries. Audit logs also cascade.
+   *
+   * No bespoke rate limiting here: the password check mirrors login, and the
+   * endpoint is covered by the global rate limiter / progressive-delay layer at
+   * the IP level. Wrong password yields the same generic message as login.
+   */
+  async deleteAccount(userId: string, password: string, ip: string, userAgent: string): Promise<void> {
+    const user = await this.em.findOneOrFail(User, { id: userId });
+
+    const valid = await this.cryptoService.verifyPassword(password, user.passwordHash);
+    if (!valid) {
+      await this.auditService.log(user.id, AuditAction.LOGIN_FAILURE, ip, userAgent, {
+        reason: 'account_deletion_wrong_password',
+      });
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    await this.em.removeAndFlush(user);
+  }
 }

@@ -12,6 +12,7 @@ const mockEm = {
   findOne: jest.fn(),
   findOneOrFail: jest.fn(),
   nativeUpdate: jest.fn(),
+  removeAndFlush: jest.fn(),
 };
 
 const mockJwtService = {
@@ -342,6 +343,37 @@ describe('AuthService', () => {
         kdfSalt: 'aabbccdd'.repeat(8),
         totpEnabled: false,
       });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('deleteAccount', () => {
+    it('wrong password: throws UnauthorizedException, does not remove the user', async () => {
+      const user = makeUser();
+      mockEm.findOneOrFail.mockResolvedValue(user);
+      mockCryptoService.verifyPassword.mockResolvedValue(false);
+
+      await expect(
+        service.deleteAccount('user-uuid-1', 'wrong', '127.0.0.1', 'agent'),
+      ).rejects.toThrow(UnauthorizedException);
+
+      await expect(
+        service.deleteAccount('user-uuid-1', 'wrong', '127.0.0.1', 'agent'),
+      ).rejects.toThrow('Invalid credentials');
+      expect(mockEm.removeAndFlush).not.toHaveBeenCalled();
+    });
+
+    it('success: verifies password then removes the user', async () => {
+      const user = makeUser();
+      mockEm.findOneOrFail.mockResolvedValue(user);
+      mockCryptoService.verifyPassword.mockResolvedValue(true);
+      mockEm.removeAndFlush.mockResolvedValue(undefined);
+
+      await service.deleteAccount('user-uuid-1', 'correct', '127.0.0.1', 'agent');
+
+      expect(mockCryptoService.verifyPassword).toHaveBeenCalledWith('correct', user.passwordHash);
+      expect(mockEm.removeAndFlush).toHaveBeenCalledTimes(1);
+      expect(mockEm.removeAndFlush).toHaveBeenCalledWith(user);
     });
   });
 
