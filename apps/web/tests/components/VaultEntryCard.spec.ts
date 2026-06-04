@@ -52,9 +52,21 @@ describe('VaultEntryCard', () => {
     expect(w.emitted('open')).toBeFalsy();
   });
 
-  it('shows an environment badge when set', () => {
+  it('shows the environment as a left color stripe instead of a pill', () => {
     const w = mountCard(entry({ type: VaultEntryType.SECRET, environment: 'production' }));
-    expect(w.text()).toContain('Production');
+    const stripe = w.find('[title="Production"]');
+    expect(stripe.exists()).toBe(true);
+    expect(stripe.classes()).toContain('bg-green-500');
+    expect(w.text()).not.toContain('Production'); // no text pill anymore
+
+    const noEnv = mountCard(entry({ type: VaultEntryType.LOGIN }));
+    expect(noEnv.find('.bg-green-500').exists()).toBe(false);
+  });
+
+  it('renders the version tag inline with the label in the fixed fuchsia style', () => {
+    const w = mountCard(entry({ type: VaultEntryType.LOGIN, secretVersion: 2 }));
+    const tag = w.findAll('span').find((s) => s.text() === 'v2')!;
+    expect(tag.classes().join(' ')).toContain('fuchsia');
   });
 
   it('always shows the version badge, for every type, even at v1', () => {

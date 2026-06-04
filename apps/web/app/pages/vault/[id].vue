@@ -5,7 +5,7 @@ import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
 import { useLockDeferral } from '~/composables/useLockDeferral';
 import { detectEnvFormat, type EntryDraft } from '~/utils/vault-crypto';
-import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, cardBrand } from '~/utils/entry-display';
+import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, VERSION_TAG_CLASS, cardBrand } from '~/utils/entry-display';
 
 definePageMeta({ ssr: false, layout: 'vault', middleware: 'auth' });
 
@@ -173,7 +173,7 @@ async function confirmDelete() {
               <span class="w-1.5 h-1.5 rounded-full mr-1" :class="envMeta.dot" />
               {{ envMeta.label }}
             </UBadge>
-            <UBadge color="neutral" variant="outline" size="sm" :label="`v${entry.secretVersion}`" />
+            <span :class="VERSION_TAG_CLASS">v{{ entry.secretVersion }}</span>
           </div>
           <h1 class="text-2xl font-bold tracking-tight mt-2 break-words">{{ entry.label }}</h1>
           <p class="text-xs text-dimmed mt-0.5">{{ metaLine }}</p>
@@ -227,11 +227,16 @@ async function confirmDelete() {
           <DetailField v-if="entry.phone" label="Phone" :value="entry.phone" :mono="false" />
         </template>
 
-        <!-- Notes (shared across types that carry them) -->
-        <div v-if="entry.notes" class="p-4">
-          <div class="text-[10px] font-mono uppercase tracking-wider text-dimmed mb-1.5">Notes</div>
-          <p class="text-sm text-default leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
-        </div>
+      </div>
+
+      <!-- Notes — standalone card so EVERY type shows them (the old block lived
+           inside the field card above, which ENV_FILE never renders). -->
+      <div
+        v-if="entry.notes"
+        class="mt-4 bg-elevated/40 border border-default rounded-2xl p-4"
+      >
+        <div class="text-[10px] font-mono uppercase tracking-wider text-dimmed mb-1.5">Notes</div>
+        <p class="text-sm text-default leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
       </div>
 
       <!-- Action bar. Icon-only on mobile (labels appear from sm up) so all actions fit

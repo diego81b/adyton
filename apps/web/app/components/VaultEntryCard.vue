@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { VaultEntryType, type DecryptedEntry } from '@adyton/shared';
-import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, entrySubtitle } from '../utils/entry-display';
+import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, VERSION_TAG_CLASS, entrySubtitle } from '../utils/entry-display';
 
 const props = defineProps<{ entry: DecryptedEntry }>();
 const emit = defineEmits<{ open: [id: string]; copy: [entry: DecryptedEntry] }>();
@@ -28,12 +28,23 @@ const notesOpen = ref(false);
 
 <template>
   <div
-    class="vault-card bg-elevated border border-default rounded-xl cursor-pointer hover:border-primary/40 transition"
+    class="vault-card relative overflow-hidden bg-elevated border border-default rounded-xl cursor-pointer hover:border-primary/40 transition"
     role="button"
     tabindex="0"
     @click="emit('open', entry.id)"
     @keydown.enter="emit('open', entry.id)"
   >
+    <!-- Environment as a left color stripe (saves the old pill's space). An inner
+         element, not the border itself, so the hover border highlight can't
+         override it. Colors mirror the env dots used in filters/detail. -->
+    <span
+      v-if="env"
+      class="absolute left-0 top-0 bottom-0 w-1"
+      :class="env.dot"
+      :title="env.label"
+      :aria-label="env.label"
+    />
+
     <div class="p-3.5 flex items-center gap-3">
       <!-- The tile is the type indicator (tooltip replaces the old redundant text badge). -->
       <div
@@ -45,20 +56,14 @@ const notesOpen = ref(false);
         <UIcon :name="meta.icon" class="size-5" />
       </div>
 
-      <!-- Fixed 3-row structure (badges / label / subtitle) so every card has the same
+      <!-- Fixed 2-row structure (label+version / subtitle) so every card has the same
            resting height regardless of type or content — no accordion effect at rest. -->
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2 mb-0.5 h-[18px]">
-          <UBadge color="neutral" variant="soft" size="sm">v{{ entry.secretVersion }}</UBadge>
-          <span
-            v-if="env"
-            class="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-elevated text-muted border border-default"
-          >
-            <span class="size-1.5 rounded-full" :class="env.dot" /> {{ env.label }}
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-sm truncate" :class="{ 'font-mono': monoLabel }">
+            {{ entry.label }}
           </span>
-        </div>
-        <div class="font-semibold text-sm truncate" :class="{ 'font-mono': monoLabel }">
-          {{ entry.label }}
+          <span :class="VERSION_TAG_CLASS" class="shrink-0">v{{ entry.secretVersion }}</span>
         </div>
         <div class="text-xs text-muted truncate min-h-[16px]" :class="{ 'font-mono': monoLabel }">
           {{ subtitle }}
