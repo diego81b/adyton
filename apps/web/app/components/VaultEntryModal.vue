@@ -9,7 +9,7 @@ import {
   type PasswordOptions,
 } from '@adyton/shared';
 import type { EntryDraft } from '../utils/vault-crypto';
-import { TYPE_META, TILE_CLASS, TYPE_FILTERS, ENVIRONMENT_META } from '../utils/entry-display';
+import { TYPE_META, TILE_CLASS, TYPE_FILTERS, ENVIRONMENT_META, cardBrand } from '../utils/entry-display';
 import PasswordInput from './PasswordInput.vue';
 
 // Unified add/edit modal for all 6 entry types. Presentational only: it builds an
@@ -91,7 +91,7 @@ const selectedType = ref<VaultEntryType>(VaultEntryType.LOGIN);
 const FIELDS_BY_TYPE: Record<VaultEntryType, (keyof EntryDraft)[]> = {
   [VaultEntryType.LOGIN]: ['url', 'username', 'password', 'totpSecret', 'notes'],
   [VaultEntryType.ENV_FILE]: ['envContent', 'notes'],
-  [VaultEntryType.SECRET]: ['secretKey', 'secretValue', 'secretDescription'],
+  [VaultEntryType.SECRET]: ['secretKey', 'secretValue', 'secretDescription', 'notes'],
   [VaultEntryType.SECURE_NOTE]: ['notes'],
   [VaultEntryType.CREDIT_CARD]: ['cardholderName', 'cardNumber', 'cardExpiry', 'cardCvv', 'notes'],
   [VaultEntryType.IDENTITY]: ['firstName', 'lastName', 'email', 'phone', 'notes'],
@@ -129,6 +129,17 @@ const generatorOptions: PasswordOptions = {
 
 function generate() {
   form.password = generatePassword(generatorOptions);
+}
+
+// --- CREDIT_CARD helpers -----------------------------------------------------
+// Brand deduced live from the leading digits (display hint, no validation).
+const detectedBrand = computed(() => cardBrand(form.cardNumber));
+
+// Auto-insert the MM/YY slash once the two month digits are typed. Digits-only,
+// capped at 4; deleting works naturally because we always reformat from digits.
+function onExpiryInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  form.cardExpiry = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
 }
 
 async function onFilePicked(event: Event) {
@@ -395,6 +406,9 @@ function close() {
                 <template #label>Description <span class="text-dimmed font-normal">— optional</span></template>
                 <UInput v-model="form.secretDescription" size="lg" class="w-full" placeholder="What is this for?" />
               </UFormField>
+              <UFormField label="Notes" name="notes">
+                <UTextarea v-model="form.notes" :rows="2" size="lg" class="w-full" />
+              </UFormField>
             </template>
 
             <!-- SECURE_NOTE -->
@@ -421,11 +435,27 @@ function close() {
                   size="lg"
                   class="w-full font-mono"
                   placeholder="4242 4242 4242 4242"
-                />
+                >
+                  <template v-if="detectedBrand" #trailing>
+                    <UIcon
+                      :name="detectedBrand.icon"
+                      class="size-5 text-muted"
+                      :title="detectedBrand.label"
+                      :aria-label="detectedBrand.label"
+                    />
+                  </template>
+                </UInput>
               </UFormField>
               <div class="grid grid-cols-2 gap-3">
                 <UFormField label="Expiry" name="cardExpiry">
-                  <UInput v-model="form.cardExpiry" size="lg" class="w-full font-mono" placeholder="MM/YY" />
+                  <UInput
+                    :model-value="form.cardExpiry"
+                    size="lg"
+                    class="w-full font-mono"
+                    placeholder="MM/YY"
+                    maxlength="5"
+                    @update:model-value="onExpiryInput(String($event))"
+                  />
                 </UFormField>
                 <UFormField label="CVV" name="cardCvv">
                   <PasswordInput v-model="form.cardCvv" class="w-full" placeholder="•••" autocomplete="off" />

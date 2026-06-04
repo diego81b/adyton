@@ -29,13 +29,18 @@ const canCopy = computed(() =>
     @click="emit('open', entry.id)"
     @keydown.enter="emit('open', entry.id)"
   >
-    <div class="size-10 rounded-lg flex items-center justify-center shrink-0 border" :class="tileClass">
+    <!-- The tile is the type indicator (tooltip replaces the old redundant text badge). -->
+    <div
+      class="size-10 rounded-lg flex items-center justify-center shrink-0 border"
+      :class="tileClass"
+      :title="meta.label"
+      :aria-label="meta.label"
+    >
       <UIcon :name="meta.icon" class="size-5" />
     </div>
 
     <div class="min-w-0 flex-1">
-      <div class="flex items-center gap-2 mb-0.5">
-        <UBadge :color="meta.color" variant="soft" size="sm">{{ meta.label }}</UBadge>
+      <div v-if="env || entry.type === VaultEntryType.ENV_FILE" class="flex items-center gap-2 mb-0.5">
         <span
           v-if="env"
           class="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-elevated text-muted border border-default"
@@ -54,6 +59,7 @@ const canCopy = computed(() =>
       </div>
     </div>
 
+    <!-- LOGIN/SECRET keep the one-tap copy; no chevron for the rest — the whole card opens detail. -->
     <UButton
       v-if="canCopy"
       color="neutral"
@@ -64,6 +70,5 @@ const canCopy = computed(() =>
       class="shrink-0"
       @click.stop="emit('copy', entry)"
     />
-    <UIcon v-else name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
   </div>
 </template>

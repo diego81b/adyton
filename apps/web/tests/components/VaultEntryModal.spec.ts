@@ -27,7 +27,7 @@ const UInputStub = {
   props: ['modelValue', 'type', 'placeholder'],
   emits: ['update:modelValue'],
   template:
-    '<input class="uinput" :data-placeholder="placeholder" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    '<span><input class="uinput" :data-placeholder="placeholder" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><slot name="trailing" /></span>',
 };
 const UTextareaStub = {
   name: 'UTextarea',
@@ -222,5 +222,41 @@ describe('VaultEntryModal — dirty tracking (v-model:dirty)', () => {
     const w = mountModal();
     await typeChip(w, 'Secret')!.trigger('click');
     expect(w.emitted('update:dirty')?.at(-1)).toEqual([true]);
+  });
+});
+
+describe('VaultEntryModal — Step 5 follow-up improvements', () => {
+  it('SECRET form includes the Notes field and emits it in the draft', async () => {
+    const w = mountModal();
+    await typeChip(w, 'Secret')!.trigger('click');
+    expect(hasField(w, 'notes')).toBe(true);
+
+    await w.find('.uinput').setValue('My secret');
+    await w.find('.utextarea').setValue('remember to rotate');
+    await buttonByText(w, 'Save Entry')!.trigger('click');
+    const draft = w.emitted('save')![0]![0] as Record<string, unknown>;
+    expect(draft.notes).toBe('remember to rotate');
+  });
+
+  it('auto-inserts the expiry slash after the month digits', async () => {
+    const w = mountModal();
+    await typeChip(w, 'Card')!.trigger('click');
+    const expiry = w.findAll('.uinput').find((i) => i.attributes('data-placeholder') === 'MM/YY')!;
+    await expiry.setValue('123');
+    expect((expiry.element as HTMLInputElement).value).toBe('12/3');
+    await expiry.setValue('1226');
+    expect((expiry.element as HTMLInputElement).value).toBe('12/26');
+    await expiry.setValue('12'); // deleting back past the slash works
+    expect((expiry.element as HTMLInputElement).value).toBe('12');
+  });
+
+  it('shows the detected card brand icon while typing the number', async () => {
+    const w = mountModal();
+    await typeChip(w, 'Card')!.trigger('click');
+    const number = w.findAll('.uinput').find((i) => i.attributes('data-placeholder') === '4242 4242 4242 4242')!;
+    await number.setValue('4242 4242');
+    expect(w.find('[data-icon="i-simple-icons-visa"]').exists()).toBe(true);
+    await number.setValue('5500 0000');
+    expect(w.find('[data-icon="i-simple-icons-mastercard"]').exists()).toBe(true);
   });
 });

@@ -80,9 +80,9 @@ describe('entrySubtitle', () => {
     );
     expect(entrySubtitle(entry({ type: VaultEntryType.SECRET, secretKey: 'KEY' }))).toBe('KEY');
   });
-  it('CREDIT_CARD shows last 4', () => {
+  it('CREDIT_CARD shows brand + last 4', () => {
     expect(entrySubtitle(entry({ type: VaultEntryType.CREDIT_CARD, cardNumber: '4111111111114242' }))).toBe(
-      '•••• 4242',
+      'Visa •••• 4242',
     );
   });
   it('IDENTITY shows full name', () => {
@@ -103,5 +103,56 @@ describe('searchHaystack', () => {
   });
   it('omits empty fields', () => {
     expect(searchHaystack(entry({ type: VaultEntryType.SECURE_NOTE, label: 'Note' }))).toBe('note');
+  });
+});
+
+describe('cardBrand', () => {
+  it.each([
+    ['4242424242424242', 'Visa'],
+    ['5555555555554444', 'Mastercard'],
+    ['2221000000000009', 'Mastercard'],
+    ['378282246310005', 'Amex'],
+    ['6011111111111117', 'Discover'],
+  ])('detects %s as %s', async (num, label) => {
+    const { cardBrand } = await import('../../app/utils/entry-display');
+    expect(cardBrand(num)?.label).toBe(label);
+  });
+
+  it('returns null for unknown prefixes, short input, and undefined', async () => {
+    const { cardBrand } = await import('../../app/utils/entry-display');
+    expect(cardBrand('9999999999999999')).toBeNull();
+    expect(cardBrand('4')).toBeNull();
+    expect(cardBrand(undefined)).toBeNull();
+  });
+
+  it('ignores spaces in the number', async () => {
+    const { cardBrand } = await import('../../app/utils/entry-display');
+    expect(cardBrand('4242 4242 4242 4242')?.id).toBe('visa');
+  });
+});
+
+describe('entrySubtitle — card brand', () => {
+  it('prefixes the masked number with the detected brand', async () => {
+    const { entrySubtitle } = await import('../../app/utils/entry-display');
+    const { VaultEntryType: T } = await import('@adyton/shared');
+    const base = { id: 'c1', label: 'Card', createdAt: new Date(), updatedAt: new Date(), secretVersion: 1 };
+    expect(entrySubtitle({ ...base, type: T.CREDIT_CARD, cardNumber: '4242 4242 4242 4242' })).toBe('Visa •••• 4242');
+    expect(entrySubtitle({ ...base, type: T.CREDIT_CARD, cardNumber: '9999000011112222' })).toBe('•••• 2222');
+  });
+});
+
+describe('entrySubtitle — JSON env file', () => {
+  it('labels JSON env files instead of counting bogus parsed keys', async () => {
+    const { entrySubtitle } = await import('../../app/utils/entry-display');
+    const { VaultEntryType: T } = await import('@adyton/shared');
+    const base = { id: 'j1', label: 'appsettings', createdAt: new Date(), updatedAt: new Date(), secretVersion: 1 };
+    expect(
+      entrySubtitle({
+        ...base,
+        type: T.ENV_FILE,
+        envContent: '{"Db":"Server=x;Password=y"}',
+        envParsed: { '{"Db":"Server': 'x;Password=y"}' }, // what parseEnv extracts from JSON
+      }),
+    ).toBe('JSON file');
   });
 });

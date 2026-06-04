@@ -5,7 +5,7 @@ import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
 import { useLockDeferral } from '~/composables/useLockDeferral';
 import { detectEnvFormat, type EntryDraft } from '~/utils/vault-crypto';
-import { TYPE_META, TILE_CLASS, ENVIRONMENT_META } from '~/utils/entry-display';
+import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, cardBrand } from '~/utils/entry-display';
 
 definePageMeta({ ssr: false, layout: 'vault', middleware: 'auth' });
 
@@ -56,6 +56,12 @@ const envMeta = computed(() =>
 
 // ENV_FILE blobs can hold dotenv or JSON (.NET appsettings) — the download button
 // label must match the extension EnvFileTable.downloadEnv() will actually use.
+// Card brand display hint (deduced client-side from the decrypted number).
+const cardNumberLabel = computed(() => {
+  const brand = cardBrand(entry.value?.cardNumber);
+  return brand ? `Card number · ${brand.label}` : 'Card number';
+});
+
 const envDownloadLabel = computed(
   () => `Download .${detectEnvFormat(entry.value?.envContent ?? '') === 'json' ? 'json' : 'env'}`,
 );
@@ -206,7 +212,7 @@ async function confirmDelete() {
             :value="entry.cardholderName"
             :mono="false"
           />
-          <DetailField v-if="entry.cardNumber" label="Card number" :value="entry.cardNumber" revealable />
+          <DetailField v-if="entry.cardNumber" :label="cardNumberLabel" :value="entry.cardNumber" revealable />
           <DetailField v-if="entry.cardExpiry" label="Expiry" :value="entry.cardExpiry" />
           <DetailField v-if="entry.cardCvv" label="CVV" :value="entry.cardCvv" revealable />
         </template>

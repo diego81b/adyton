@@ -24,11 +24,17 @@ function mountCard(e: DecryptedEntry) {
 }
 
 describe('VaultEntryCard', () => {
-  it('renders label, type badge, and subtitle', () => {
+  it('renders label and subtitle; type is the tile tooltip, not a text badge', () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, label: 'GitHub', username: 'octo' }));
     expect(w.text()).toContain('GitHub');
     expect(w.text()).toContain('octo');
-    expect(w.find('.ubadge').text()).toContain('Login');
+    expect(w.text()).not.toContain('Login'); // redundant text badge dropped
+    expect(w.find('[title="Login"]').exists()).toBe(true);
+  });
+
+  it('does not render a chevron for non-copy types (whole card opens detail)', () => {
+    const w = mountCard(entry({ type: VaultEntryType.SECURE_NOTE, notes: 'x' }));
+    expect(w.find('[data-icon="i-lucide-chevron-right"]').exists()).toBe(false);
   });
 
   it('emits open on click', async () => {
