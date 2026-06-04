@@ -45,7 +45,7 @@ describe('VaultEntryCard', () => {
 
   it('shows a copy button for LOGIN and emits copy without bubbling open', async () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, password: 'p' }));
-    const btn = w.find('.ucopy');
+    const btn = w.find('[data-testid="copy-action"]');
     expect(btn.exists()).toBe(true);
     await btn.trigger('click');
     expect(w.emitted('copy')).toBeTruthy();
@@ -80,16 +80,16 @@ describe('VaultEntryCard', () => {
 
   it('shows the notes toggle only when the entry has notes', () => {
     const withNotes = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'rotate quarterly' }));
-    expect(withNotes.find('[data-icon="i-lucide-sticky-note"]').exists()).toBe(true);
+    expect(withNotes.find('[data-testid="notes-toggle"]').exists()).toBe(true);
     const without = mountCard(entry({ type: VaultEntryType.LOGIN }));
-    expect(without.find('[data-icon="i-lucide-sticky-note"]').exists()).toBe(false);
+    expect(without.find('[data-testid="notes-toggle"]').exists()).toBe(false);
   });
 
   it('toggles the notes expansion without opening the detail', async () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'rotate quarterly' }));
     expect(w.find('[data-testid="card-notes"]').exists()).toBe(false);
 
-    await w.find('[data-icon="i-lucide-sticky-note"]').trigger('click');
+    await w.find('[data-testid="notes-toggle"]').trigger('click');
     const notes = w.find('[data-testid="card-notes"]');
     expect(notes.exists()).toBe(true);
     expect(notes.text()).toContain('rotate quarterly');
@@ -99,12 +99,42 @@ describe('VaultEntryCard', () => {
     await notes.trigger('click');
     expect(w.emitted('open')).toBeFalsy();
 
-    await w.find('[data-icon="i-lucide-sticky-note"]').trigger('click');
+    await w.find('[data-testid="notes-toggle"]').trigger('click');
     expect(w.find('[data-testid="card-notes"]').exists()).toBe(false);
   });
 
   it('does NOT show a copy button for ENV_FILE (no full-file clipboard)', () => {
     const w = mountCard(entry({ type: VaultEntryType.ENV_FILE, envParsed: {} }));
-    expect(w.find('.ucopy').exists()).toBe(false);
+    expect(w.find('[data-testid="copy-action"]').exists()).toBe(false);
+  });
+});
+
+describe('VaultEntryCard — fixed action columns', () => {
+  it('renders spacers so notes/copy always occupy the same columns', () => {
+    // No notes, no copy (ENV_FILE without notes) → two spacers.
+    const none = mountCard(entry({ type: VaultEntryType.ENV_FILE, envParsed: {} }));
+    expect(none.findAll('span[aria-hidden="true"].size-9')).toHaveLength(2);
+
+    // Notes but no copy (SECURE_NOTE) → copy slot is a spacer.
+    const noteOnly = mountCard(entry({ type: VaultEntryType.SECURE_NOTE, notes: 'x' }));
+    expect(noteOnly.find('[data-testid="notes-toggle"]').exists()).toBe(true);
+    expect(noteOnly.findAll('span[aria-hidden="true"].size-9')).toHaveLength(1);
+
+    // Copy but no notes (LOGIN) → notes slot is a spacer.
+    const copyOnly = mountCard(entry({ type: VaultEntryType.LOGIN }));
+    expect(copyOnly.find('[data-testid="copy-action"]').exists()).toBe(true);
+    expect(copyOnly.findAll('span[aria-hidden="true"].size-9')).toHaveLength(1);
+  });
+
+  it('action buttons are tinted tile-style (bg + border)', () => {
+    const w = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'x' }));
+    expect(w.find('[data-testid="notes-toggle"]').classes().join(' ')).toContain('yellow');
+    expect(w.find('[data-testid="copy-action"]').classes().join(' ')).toContain('primary');
+  });
+
+  it('version tag comes BEFORE the label', () => {
+    const w = mountCard(entry({ type: VaultEntryType.LOGIN, secretVersion: 2, label: 'GitHub' }));
+    const row = w.find('.font-semibold').element.parentElement!;
+    expect(row.textContent!.trim().startsWith('v2')).toBe(true);
   });
 });

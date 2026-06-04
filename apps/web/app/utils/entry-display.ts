@@ -71,8 +71,9 @@ export const ENVIRONMENT_META: Record<EnvironmentTag, { label: string; dot: stri
 
 // Version tag (vN) — one fixed color everywhere, deliberately OUTSIDE every palette
 // already in use (type tiles, env dots, emerald accent, rose danger): fuchsia.
+// Rounded corners (not a pill), shown BEFORE the title.
 export const VERSION_TAG_CLASS =
-  'text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-400/10 text-fuchsia-300 border border-fuchsia-400/20';
+  'text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-md bg-fuchsia-400/10 text-fuchsia-300 border border-fuchsia-400/20';
 
 export interface CardBrand {
   id: 'visa' | 'mastercard' | 'amex' | 'discover';

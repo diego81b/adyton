@@ -45,7 +45,9 @@ const notesOpen = ref(false);
       :aria-label="env.label"
     />
 
-    <div class="p-3.5 flex items-center gap-3">
+    <!-- py-3 (not p-3.5): the vertical padding shrinks by the same 4px the row gap
+         below adds, so the card height stays unchanged. -->
+    <div class="px-3.5 py-3 flex items-center gap-3">
       <!-- The tile is the type indicator (tooltip replaces the old redundant text badge). -->
       <div
         class="size-10 rounded-lg flex items-center justify-center shrink-0 border"
@@ -56,46 +58,54 @@ const notesOpen = ref(false);
         <UIcon :name="meta.icon" class="size-5" />
       </div>
 
-      <!-- Fixed 2-row structure (label+version / subtitle) so every card has the same
+      <!-- Fixed 2-row structure (version+label / subtitle) so every card has the same
            resting height regardless of type or content — no accordion effect at rest. -->
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
+          <span :class="VERSION_TAG_CLASS" class="shrink-0">v{{ entry.secretVersion }}</span>
           <span class="font-semibold text-sm truncate" :class="{ 'font-mono': monoLabel }">
             {{ entry.label }}
           </span>
-          <span :class="VERSION_TAG_CLASS" class="shrink-0">v{{ entry.secretVersion }}</span>
         </div>
-        <div class="text-xs text-muted truncate min-h-[16px]" :class="{ 'font-mono': monoLabel }">
+        <div class="mt-1 text-xs text-muted truncate min-h-[16px]" :class="{ 'font-mono': monoLabel }">
           {{ subtitle }}
         </div>
       </div>
 
-      <!-- Notes toggle — only when the entry carries notes. @click.stop: must NOT
-           bubble to the card's open-detail click. -->
-      <UButton
+      <!-- Action slots: ALWAYS two fixed columns (notes / copy) so the same action sits
+           in the same place on every card — a spacer fills the slot when the action
+           doesn't apply. Tinted tile-style buttons (bg+border like the type tiles) for
+           visual harmony and a comfortable mobile tap target. -->
+      <button
         v-if="entry.notes"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        icon="i-lucide-sticky-note"
+        type="button"
+        data-testid="notes-toggle"
+        class="size-9 rounded-lg border flex items-center justify-center shrink-0 transition"
+        :class="
+          notesOpen
+            ? 'bg-yellow-400/25 border-yellow-400/40 text-yellow-200'
+            : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-300 hover:bg-yellow-400/20'
+        "
         :aria-label="notesOpen ? `Hide notes for ${entry.label}` : `Show notes for ${entry.label}`"
         :aria-expanded="notesOpen"
-        class="shrink-0"
-        :class="notesOpen && 'text-primary'"
         @click.stop="notesOpen = !notesOpen"
-      />
+      >
+        <UIcon name="i-lucide-sticky-note" class="size-4" />
+      </button>
+      <span v-else class="size-9 shrink-0" aria-hidden="true" />
 
       <!-- LOGIN/SECRET keep the one-tap copy; no chevron — the whole card opens detail. -->
-      <UButton
+      <button
         v-if="canCopy"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        icon="i-lucide-copy"
+        type="button"
+        data-testid="copy-action"
+        class="size-9 rounded-lg border flex items-center justify-center shrink-0 transition bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
         :aria-label="`Copy from ${entry.label}`"
-        class="shrink-0"
         @click.stop="emit('copy', entry)"
-      />
+      >
+        <UIcon name="i-lucide-copy" class="size-4" />
+      </button>
+      <span v-else class="size-9 shrink-0" aria-hidden="true" />
     </div>
 
     <!-- Explicit expansion: opens only on user action. @click.stop so reading or
