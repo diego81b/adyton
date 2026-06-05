@@ -387,6 +387,24 @@ describe('TwoFactorService', () => {
       expect(result).toEqual({ accessToken: 'session-token' });
     });
 
+    it('stale TOTP code (120s old) is rejected — pins epochTolerance as SECONDS, not steps', async () => {
+      // Discriminating test: a ±30-STEP window (15 min) would accept this code and
+      // silently widen the replay window on a second factor. Locks the unit against
+      // future otplib upgrades.
+      const secret = generateSecret();
+      const user = makeUser({
+        totpEnabled: true,
+        totpSecretEncrypted: encryptTotpSecret(secret, KEY_BUFFER),
+      });
+      mockRedis.get.mockResolvedValue(user.id);
+      mockEm.findOne.mockResolvedValue(user);
+      const stale = await generate({ secret, epoch: Math.floor(Date.now() / 1000) - 120 });
+
+      await expect(service.authenticate(dto({ code: stale }), 'ip', 'ua')).rejects.toThrow(
+        'Invalid code',
+      );
+    });
+
     it('wrong TOTP code: throws Invalid code, audits TWO_FACTOR_FAILURE, does not delete token', async () => {
       const secret = generateSecret();
       const user = makeUser({
