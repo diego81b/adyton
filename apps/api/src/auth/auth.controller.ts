@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { setRefreshCookie, clearRefreshCookie } from './cookies';
 import { ChallengeService } from './challenge/challenge.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -35,24 +36,6 @@ import { UserProfileResponseDto } from './dto/user-profile.response.dto';
 
 type RequestWithRefreshToken = FastifyRequest & { refreshToken: RefreshToken };
 type RequestWithUser = FastifyRequest & { user: JwtUser };
-
-// Cookie path must include the global prefix (setGlobalPrefix('api')): the refresh
-// and logout routes live at /api/auth/*, so a '/auth' path would never be sent.
-const REFRESH_COOKIE_PATH = '/api/auth';
-
-function setRefreshCookie(res: FastifyReply, token: string): void {
-  res.setCookie('refreshToken', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: (process.env.COOKIE_SAMESITE ?? 'lax') as 'lax' | 'strict',
-    path: REFRESH_COOKIE_PATH,
-    maxAge: 7 * 24 * 60 * 60,
-  });
-}
-
-function clearRefreshCookie(res: FastifyReply): void {
-  res.setCookie('refreshToken', '', { httpOnly: true, path: REFRESH_COOKIE_PATH, maxAge: 0 });
-}
 
 
 @ApiTags('auth')
@@ -97,8 +80,8 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login' })
-  @ApiResponse({ status: 200, type: AuthTokensResponseDto })
+  @ApiOperation({ summary: 'Login (returns { requiresMfa, mfaToken } when 2FA is enabled)' })
+  @ApiResponse({ status: 200, type: AuthTokensResponseDto, description: 'Tokens issued, or MFA challenge { requiresMfa: true, mfaToken } for 2FA-enabled accounts' })
   @ApiResponse({ status: 401, description: 'Invalid credentials or rate-limited' })
   async login(
     @Body() dto: LoginDto,
@@ -108,6 +91,10 @@ export class AuthController {
   ) {
     const deviceIdCookie = req.cookies?.['deviceId'];
     const result = await this.authService.login(dto, req.ip, ua ?? '', deviceIdCookie);
+    if ('requiresMfa' in result) {
+      // No tokens, no cookie: the client must complete /auth/2fa/authenticate.
+      return { requiresMfa: true, mfaToken: result.mfaToken };
+    }
     setRefreshCookie(res, result.rawRefreshToken);
     const response: Record<string, unknown> = { accessToken: result.accessToken, user: result.user };
     if (result.newDeviceId) {

@@ -1,6 +1,7 @@
 # `secrets/`
 
-Holds the RS256 keypair that signs JWT access tokens.
+Holds the RS256 keypair that signs JWT access tokens, plus the AES-256-GCM key
+that encrypts account-2FA TOTP secrets at rest (`totp_enc.key`).
 
 **Never commit anything from this directory.** `.gitignore` enforces that only
 `.gitkeep` and this `README.md` are tracked.
@@ -23,9 +24,16 @@ Both scripts produce:
 
 - `secrets/jwt_private.pem` — 4096-bit RSA private key (signs access tokens)
 - `secrets/jwt_public.pem`  — public counterpart (verifies access tokens)
+- `secrets/totp_enc.key`    — 32-byte hex AES-256-GCM key (encrypts TOTP secrets
+  at rest; sanctioned zero-knowledge exception, see
+  `analysis/security/architecture.md` §3.5)
 
 The scripts refuse to overwrite existing files. Delete them manually if you
 need to rotate the keypair.
+
+**Rotating `totp_enc.key` is destructive:** every enrolled TOTP secret becomes
+unrecoverable and all users must re-enroll 2FA. Back it up with the same care
+as the database.
 
 ## How they are consumed
 
