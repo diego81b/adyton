@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 
-const props = defineProps<{
-  loading: boolean;
-  error: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    loading: boolean;
+    error: string | null;
+    // Available second factors for this account. WebAuthn is surfaced first (above the
+    // code form) when present, per the security design; the code form is the fallback.
+    methods?: Array<'totp' | 'webauthn'>;
+  }>(),
+  { methods: () => ['totp'] },
+);
 
 const emit = defineEmits<{
   submit: [payload: { code?: string; recoveryCode?: string }];
+  passkey: [];
   back: [];
 }>();
+
+const hasPasskey = computed(() => props.methods.includes('webauthn'));
 
 const CODE_RE = /^\d{6}$/;
 const RECOVERY_RE = /^[0-9a-f]{5}(-[0-9a-f]{5}){3}$/;
@@ -47,6 +56,26 @@ function onSubmit() {
         ? 'Enter one of your recovery codes.'
         : 'Enter the 6-digit code from your authenticator app.' }}
     </p>
+
+    <template v-if="hasPasskey">
+      <UButton
+        type="button"
+        block
+        size="lg"
+        color="primary"
+        variant="subtle"
+        icon="i-lucide-key-round"
+        :disabled="loading"
+        @click="emit('passkey')"
+      >
+        Use a passkey
+      </UButton>
+      <div class="my-5 flex items-center gap-3 text-[11px] uppercase tracking-wider text-dimmed">
+        <span class="h-px flex-1 bg-default" />
+        or enter a code
+        <span class="h-px flex-1 bg-default" />
+      </div>
+    </template>
 
     <UForm :state="{ code, recoveryCode }" class="space-y-5" @submit="onSubmit">
       <UFormField

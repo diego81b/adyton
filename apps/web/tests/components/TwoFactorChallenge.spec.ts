@@ -23,8 +23,10 @@ const UInputStub = {
 };
 const UButtonStub = {
   name: 'UButton',
-  props: ['disabled', 'loading'],
-  template: '<button type="submit" :disabled="disabled || undefined"><slot /></button>',
+  props: ['disabled', 'loading', 'type'],
+  emits: ['click'],
+  template:
+    '<button :type="type || \'submit\'" :disabled="disabled || undefined" @click="$emit(\'click\')"><slot /></button>',
 };
 const UAlertStub = {
   name: 'UAlert',
@@ -32,7 +34,9 @@ const UAlertStub = {
   template: '<div class="ualert">{{ description }}</div>',
 };
 
-function mountChallenge(props: { loading?: boolean; error?: string | null } = {}) {
+function mountChallenge(
+  props: { loading?: boolean; error?: string | null; methods?: Array<'totp' | 'webauthn'> } = {},
+) {
   return mount(TwoFactorChallenge, {
     props: { loading: false, error: null, ...props },
     global: {
@@ -113,5 +117,25 @@ describe('TwoFactorChallenge', () => {
     const back = w.findAll('button').find((b) => b.text().includes('Back to sign in'))!;
     await back.trigger('click');
     expect(w.emitted('back')).toHaveLength(1);
+  });
+
+  it('does not render the passkey button when methods is the default (totp only)', () => {
+    const w = mountChallenge();
+    expect(w.findAll('button').some((b) => b.text().includes('Use a passkey'))).toBe(false);
+  });
+
+  it('renders the passkey button when methods includes webauthn and emits passkey', async () => {
+    const w = mountChallenge({ methods: ['webauthn', 'totp'] });
+    const passkeyBtn = w.findAll('button').find((b) => b.text().includes('Use a passkey'))!;
+    expect(passkeyBtn).toBeDefined();
+    expect(passkeyBtn.attributes('type')).toBe('button'); // must not submit the code form
+
+    await passkeyBtn.trigger('click');
+    expect(w.emitted('passkey')).toHaveLength(1);
+  });
+
+  it('still exposes the code form as a fallback when a passkey is available', () => {
+    const w = mountChallenge({ methods: ['webauthn', 'totp'] });
+    expect(w.find('[data-name="code"]').exists()).toBe(true);
   });
 });

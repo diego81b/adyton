@@ -144,6 +144,36 @@ describe('useAuthStore.authenticateTwoFactor', () => {
   });
 });
 
+describe('useAuthStore.authenticateWebAuthnVerify', () => {
+  it('posts mfaToken + assertion to the verify endpoint and stores the tokens', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    const assertion = { id: 'cred-1', response: {} };
+    const result = await store.authenticateWebAuthnVerify({
+      mfaToken: 'mfa-123',
+      response: assertion,
+    });
+
+    const callArgs = mockFetch.mock.calls[0];
+    expect(callArgs[0]).toContain('/auth/webauthn/authenticate/verify');
+    expect(callArgs[1].method).toBe('POST');
+    expect(JSON.parse(callArgs[1].body)).toEqual({ mfaToken: 'mfa-123', response: assertion });
+
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.accessToken).toBe('test-access-token');
+    expect(result.accessToken).toBe('test-access-token');
+  });
+
+  it('throws and leaves the store unauthenticated on an invalid passkey', async () => {
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Invalid passkey'));
+    const store = useAuthStore();
+    await expect(
+      store.authenticateWebAuthnVerify({ mfaToken: 'mfa-123', response: {} }),
+    ).rejects.toThrow('Invalid passkey');
+    expect(store.isAuthenticated).toBe(false);
+  });
+});
+
 describe('useAuthStore.register', () => {
   it('sets tokens on successful registration', async () => {
     mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
@@ -215,7 +245,10 @@ describe('useAuthStore.initialize', () => {
 });
 
 describe('useAuthStore.logout', () => {
-  it('clears store after logout', async () => {
+  // 15s timeout: logout() dynamically imports the vault/settings stores (and their
+  // shared-crypto dependency chain) to clear them — the one-time import takes ~2s
+  // cold and can exceed the default 5s under concurrent pre-commit load.
+  it('clears store after logout', { timeout: 15_000 }, async () => {
     // Login first
     mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
     const store = useAuthStore();

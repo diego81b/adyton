@@ -133,6 +133,7 @@ async function onDeleted() {
         <SettingsSection id="settings-security" title="Security" icon="i-lucide-shield">
           <div class="space-y-4">
             <TwoFactorCard />
+            <PasskeysCard />
 
             <SessionsCard />
             <TrustedDevicesCard />

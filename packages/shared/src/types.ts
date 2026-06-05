@@ -103,6 +103,8 @@ export interface AuthTokens {
 export interface MfaRequired {
   requiresMfa: true;
   mfaToken: string;
+  // Available second factors; 'webauthn' present when the account has passkeys.
+  methods: Array<'totp' | 'webauthn'>;
 }
 
 export type LoginResponse = AuthTokens | MfaRequired;

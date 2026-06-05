@@ -119,6 +119,21 @@ export const useAuthStore = defineStore('auth', () => {
     return data;
   }
 
+  // WebAuthn second login stage: exchange the single-use mfaToken plus a signed
+  // assertion (from the navigator.credentials.get ceremony) for real tokens and the
+  // refresh cookie. Mirrors authenticateTwoFactor — the verify endpoint is public.
+  async function authenticateWebAuthnVerify(payload: {
+    mfaToken: string;
+    response: unknown;
+  }): Promise<AuthTokens> {
+    const data = await apiFetch<AuthTokens>('/auth/webauthn/authenticate/verify', {
+      method: 'POST',
+      body: payload,
+    });
+    setAuthResult(data);
+    return data;
+  }
+
   async function register(email: string, password: string) {
     const data = await apiFetch<AuthTokens>('/auth/register', {
       method: 'POST',
@@ -160,5 +175,5 @@ export const useAuthStore = defineStore('auth', () => {
     return refresh();
   }
 
-  return { accessToken, user, isAuthenticated, apiFetch, login, authenticateTwoFactor, register, refresh, logout, initialize };
+  return { accessToken, user, isAuthenticated, apiFetch, login, authenticateTwoFactor, authenticateWebAuthnVerify, register, refresh, logout, initialize };
 });

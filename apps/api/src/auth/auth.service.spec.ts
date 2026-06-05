@@ -14,6 +14,7 @@ const mockEm = {
   findOneOrFail: jest.fn(),
   nativeUpdate: jest.fn(),
   removeAndFlush: jest.fn(),
+  count: jest.fn().mockResolvedValue(0),
 };
 
 const mockJwtService = {
@@ -302,7 +303,7 @@ describe('AuthService', () => {
       const result = await service.login(dto, '127.0.0.1', 'agent');
 
       const rawMfa = '0123456789abcdef'.repeat(4);
-      expect(result).toEqual({ requiresMfa: true, mfaToken: rawMfa });
+      expect(result).toEqual({ requiresMfa: true, mfaToken: rawMfa, methods: ['totp'] });
 
       // mfaToken stored hashed in Redis with a 5-minute TTL, value = user.id
       expect(mockRedis.setex).toHaveBeenCalledWith(
@@ -314,6 +315,17 @@ describe('AuthService', () => {
       // No session issued: no refresh token persisted, no access token signed
       expect(mockEm.persist).not.toHaveBeenCalled();
       expect(mockJwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('totpEnabled user with passkeys: methods lists webauthn first', async () => {
+      const totpUser = makeUser({ totpEnabled: true });
+      mockEm.findOne.mockResolvedValue(totpUser);
+      mockEm.count.mockResolvedValueOnce(2);
+      mockCryptoService.verifyPassword.mockResolvedValue(true);
+
+      const result = await service.login(dto, '127.0.0.1', 'agent');
+
+      expect(result).toMatchObject({ requiresMfa: true, methods: ['webauthn', 'totp'] });
     });
   });
 

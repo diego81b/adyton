@@ -3,11 +3,13 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 import { useCryptoStore } from '~/stores/crypto';
+import { useWebAuthn } from '~/composables/useWebAuthn';
 
 definePageMeta({ ssr: false });
 
 const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
+const { authenticateWithPasskey } = useWebAuthn();
 const router = useRouter();
 
 const email = ref('');
@@ -18,6 +20,7 @@ const error = ref<string | null>(null);
 // Login is a two-stage flow for 2FA accounts: credentials → mfa challenge.
 const phase = ref<'credentials' | 'mfa'>('credentials');
 const mfaToken = ref<string | null>(null);
+const mfaMethods = ref<Array<'totp' | 'webauthn'>>(['totp']);
 
 function toErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'data' in err) {
@@ -44,6 +47,7 @@ async function onSubmit() {
       // Keep the password in its ref — still needed to derive the vault key AFTER the
       // second factor succeeds (memory-only, same exposure as while the user typed it).
       mfaToken.value = result.mfaToken;
+      mfaMethods.value = result.methods ?? ['totp'];
       phase.value = 'mfa';
       return;
     }
@@ -59,6 +63,7 @@ async function onSubmit() {
 function resetToCredentials() {
   phase.value = 'credentials';
   mfaToken.value = null;
+  mfaMethods.value = ['totp'];
   password.value = '';
 }
 
@@ -79,6 +84,29 @@ async function onMfaSubmit(payload: { code?: string; recoveryCode?: string }) {
     } else {
       error.value = message;
     }
+  } finally {
+    loading.value = false;
+  }
+}
+
+// WebAuthn login path. Both the ceremony (cancel/unsupported) and the server (invalid
+// passkey / expired token) surface as Error.message — toErrorMessage would miss the
+// ceremony ones (no `.data`), so read the message directly. Expired token / too many
+// attempts can't be retried from the challenge → reset to credentials (mint a fresh
+// mfaToken); everything else (cancel, unsupported, invalid passkey) stays in-phase.
+async function onMfaPasskey() {
+  if (!mfaToken.value) return;
+  loading.value = true;
+  error.value = null;
+  try {
+    const result = await authenticateWithPasskey(mfaToken.value);
+    await completeLogin(result.user.kdfSalt);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Passkey sign-in failed. Try again.';
+    if (/expired|too many attempts/i.test(message)) {
+      resetToCredentials();
+    }
+    error.value = message;
   } finally {
     loading.value = false;
   }
@@ -157,7 +185,9 @@ function onMfaBack() {
         v-else
         :loading="loading"
         :error="error"
+        :methods="mfaMethods"
         @submit="onMfaSubmit"
+        @passkey="onMfaPasskey"
         @back="onMfaBack"
       />
     </AuthCard>

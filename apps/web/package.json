@@ -21,6 +21,7 @@
     "@adyton/shared": "workspace:*",
     "@nuxt/ui": "^4.0.0",
     "@pinia/nuxt": "^0.11.0",
+    "@simplewebauthn/browser": "^13.3.0",
     "@vueuse/core": "^12.0.0",
     "nuxt": "^4.0.0",
     "pinia": "^3.0.0",

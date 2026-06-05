@@ -12,6 +12,7 @@ import { Redis } from 'ioredis';
 import { User } from '../entities/user.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { TrustedDevice } from '../entities/trusted-device.entity';
+import { WebAuthnCredential } from '../entities/webauthn-credential.entity';
 import { CryptoService } from '../crypto/crypto.service';
 import { ProgressiveDelayService } from './progressive-delay/progressive-delay.service';
 import { RegisterDto } from './dto/register.dto';
@@ -43,6 +44,9 @@ export interface AuthResult {
 export interface MfaRequiredResult {
   requiresMfa: true;
   mfaToken: string;
+  // Second factors the account can complete: TOTP is always available once 2FA
+  // is enabled; 'webauthn' appears when at least one passkey is registered.
+  methods: Array<'totp' | 'webauthn'>;
 }
 
 export type LoginOutcome = AuthResult | MfaRequiredResult;
@@ -253,9 +257,11 @@ export class AuthService {
 
     if (user.totpEnabled) {
       // Password verified but a second factor is required: issue NO tokens.
-      // LOGIN_SUCCESS is audited only after /auth/2fa/authenticate completes.
+      // LOGIN_SUCCESS is audited only after the second factor completes.
       const mfaToken = await this.createMfaToken(user);
-      return { requiresMfa: true, mfaToken };
+      const passkeys = await this.em.count(WebAuthnCredential, { user });
+      const methods: Array<'totp' | 'webauthn'> = passkeys > 0 ? ['webauthn', 'totp'] : ['totp'];
+      return { requiresMfa: true, mfaToken, methods };
     }
 
     return this.completeLogin(user, ip, userAgent, deviceIdCookie);
