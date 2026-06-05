@@ -132,20 +132,7 @@ async function onDeleted() {
         <!-- ============== SECURITY ============== -->
         <SettingsSection id="settings-security" title="Security" icon="i-lucide-shield">
           <div class="space-y-4">
-            <!-- 2FA placeholder until Phase 6 -->
-            <div class="rounded-2xl border border-default bg-elevated p-4">
-              <div class="mb-0.5 flex items-center gap-2">
-                <h3 class="text-sm font-semibold">Two-factor authentication</h3>
-                <span
-                  class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted"
-                >
-                  Not configured
-                </span>
-              </div>
-              <p class="text-[11px] text-muted">
-                TOTP and hardware keys arrive with the 2FA release — coming next
-              </p>
-            </div>
+            <TwoFactorCard />
 
             <SessionsCard />
             <TrustedDevicesCard />

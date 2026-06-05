@@ -1,0 +1,141 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+
+const mockApiFetch = vi.fn();
+vi.mock('../../app/stores/auth', () => ({
+  useAuthStore: () => ({ apiFetch: mockApiFetch }),
+}));
+
+import TwoFactorSetupModal from '../../app/components/TwoFactorSetupModal.vue';
+
+const SETUP = { secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://x', qrDataUri: 'data:image/png;base64,xxx' };
+const RECOVERY = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];
+
+const UModalStub = {
+  name: 'UModal',
+  props: ['open', 'title', 'dismissible', 'close'],
+  template: '<div class="umodal" :data-dismissible="dismissible" :data-close="close"><slot name="content" /></div>',
+};
+const UButtonStub = {
+  name: 'UButton',
+  props: ['disabled', 'loading'],
+  emits: ['click'],
+  template: '<button :disabled="disabled || undefined" @click="$emit(\'click\')"><slot /></button>',
+};
+const UInputStub = {
+  name: 'UInput',
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  template:
+    '<input class="uinput" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+};
+const UFormFieldStub = {
+  name: 'UFormField',
+  props: ['label', 'name'],
+  template: '<div><slot /></div>',
+};
+const UCheckboxStub = {
+  name: 'UCheckbox',
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  template:
+    '<input type="checkbox" class="ack" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+};
+const RecoveryCodesListStub = {
+  name: 'RecoveryCodesList',
+  props: ['codes'],
+  template: '<div class="codes">{{ codes.length }}</div>',
+};
+
+function mountModal() {
+  return mount(TwoFactorSetupModal, {
+    props: { open: true },
+    global: {
+      stubs: {
+        UModal: UModalStub,
+        UButton: UButtonStub,
+        UInput: UInputStub,
+        UFormField: UFormFieldStub,
+        UCheckbox: UCheckboxStub,
+        UAlert: { props: ['title'], template: '<div class="ualert">{{ title }}</div>' },
+        UIcon: true,
+        RecoveryCodesList: RecoveryCodesListStub,
+      },
+    },
+  });
+}
+
+beforeEach(() => {
+  mockApiFetch.mockReset();
+  vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+});
+
+describe('TwoFactorSetupModal', () => {
+  it('calls setup on open and shows the QR + secret', async () => {
+    mockApiFetch.mockResolvedValueOnce(SETUP);
+    const w = mountModal();
+    await flushPromises();
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/setup', { method: 'POST' });
+    expect(w.find('img').attributes('src')).toBe(SETUP.qrDataUri);
+    expect(w.text()).toContain(SETUP.secret);
+  });
+
+  it('verifies the code, advances to recovery, and locks the modal', async () => {
+    mockApiFetch.mockResolvedValueOnce(SETUP); // setup
+    mockApiFetch.mockResolvedValueOnce({ recoveryCodes: RECOVERY }); // enable
+    const w = mountModal();
+    await flushPromises();
+
+    await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
+    await w.find('.uinput').setValue('123456');
+    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    await flushPromises();
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/enable', {
+      method: 'POST',
+      body: { code: '123456' },
+    });
+    expect(w.find('.codes').text()).toBe('8');
+    // step c locks: not dismissible, no close button
+    expect(w.find('.umodal').attributes('data-dismissible')).toBe('false');
+    expect(w.find('.umodal').attributes('data-close')).toBe('false');
+  });
+
+  it('shows an inline error on 401 and stays on verify', async () => {
+    mockApiFetch.mockResolvedValueOnce(SETUP);
+    mockApiFetch.mockRejectedValueOnce({ statusCode: 401 });
+    const w = mountModal();
+    await flushPromises();
+
+    await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
+    await w.find('.uinput').setValue('000000');
+    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    await flushPromises();
+
+    expect(w.text()).toContain('Invalid code');
+    expect(w.find('.codes').exists()).toBe(false);
+  });
+
+  it('gates Done behind the acknowledgment checkbox and emits enabled', async () => {
+    mockApiFetch.mockResolvedValueOnce(SETUP);
+    mockApiFetch.mockResolvedValueOnce({ recoveryCodes: RECOVERY });
+    const w = mountModal();
+    await flushPromises();
+
+    await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
+    await w.find('.uinput').setValue('123456');
+    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    await flushPromises();
+
+    const done = w.findAll('button').find((b) => b.text() === 'Done')!;
+    expect(done.attributes('disabled')).toBeDefined();
+
+    await w.find('.ack').setValue(true);
+    expect(done.attributes('disabled')).toBeUndefined();
+
+    await done.trigger('click');
+    expect(w.emitted('enabled')).toHaveLength(1);
+    expect(w.emitted('update:open')?.at(-1)).toEqual([false]);
+  });
+});

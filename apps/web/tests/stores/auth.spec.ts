@@ -96,6 +96,52 @@ describe('useAuthStore.login', () => {
     await expect(store.login('bad@user.com', 'wrong')).rejects.toThrow();
     expect(store.isAuthenticated).toBe(false);
   });
+
+  it('returns MfaRequired without setting tokens when 2FA is required', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse({ requiresMfa: true, mfaToken: 'mfa-123' }));
+    const store = useAuthStore();
+    const result = await store.login('2fa@user.com', 'password');
+
+    expect(result).toEqual({ requiresMfa: true, mfaToken: 'mfa-123' });
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.accessToken).toBeNull();
+    expect(store.user).toBeNull();
+  });
+});
+
+describe('useAuthStore.authenticateTwoFactor', () => {
+  it('posts the payload to /auth/2fa/authenticate and stores the tokens', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    const result = await store.authenticateTwoFactor({ mfaToken: 'mfa-123', code: '123456' });
+
+    const callArgs = mockFetch.mock.calls[0];
+    expect(callArgs[0]).toContain('/auth/2fa/authenticate');
+    expect(callArgs[1].method).toBe('POST');
+    expect(JSON.parse(callArgs[1].body)).toEqual({ mfaToken: 'mfa-123', code: '123456' });
+
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.accessToken).toBe('test-access-token');
+    expect(result.accessToken).toBe('test-access-token');
+  });
+
+  it('forwards a recovery code in the body', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    await store.authenticateTwoFactor({ mfaToken: 'mfa-123', recoveryCode: 'aaaaa-bbbbb-ccccc-ddddd' });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body).toEqual({ mfaToken: 'mfa-123', recoveryCode: 'aaaaa-bbbbb-ccccc-ddddd' });
+  });
+
+  it('throws and leaves store unauthenticated on an invalid code', async () => {
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Invalid code'));
+    const store = useAuthStore();
+    await expect(
+      store.authenticateTwoFactor({ mfaToken: 'mfa-123', code: '000000' }),
+    ).rejects.toThrow('Invalid code');
+    expect(store.isAuthenticated).toBe(false);
+  });
 });
 
 describe('useAuthStore.register', () => {

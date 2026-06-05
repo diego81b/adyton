@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 import { useCryptoStore } from '~/stores/crypto';
 
@@ -13,28 +15,78 @@ const password = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
+// Login is a two-stage flow for 2FA accounts: credentials → mfa challenge.
+const phase = ref<'credentials' | 'mfa'>('credentials');
+const mfaToken = ref<string | null>(null);
+
+function toErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'data' in err) {
+    const e = err as { data?: { message?: string } };
+    return e.data?.message ?? fallback;
+  }
+  return fallback;
+}
+
+// Derive the vault key from the (still in-memory) password, clear it, and enter the vault.
+async function completeLogin(kdfSalt: string) {
+  await cryptoStore.deriveKey(password.value, kdfSalt);
+  password.value = '';
+  await router.push('/vault');
+}
+
 async function onSubmit() {
   if (!email.value || !password.value) return;
   loading.value = true;
   error.value = null;
   try {
     const result = await authStore.login(email.value, password.value);
-    // One-capture flow: derive vault key immediately after auth succeeds.
-    // kdfSalt is in the auth response — same password, different salt, different derivation.
-    await cryptoStore.deriveKey(password.value, result.user.kdfSalt);
-    password.value = ''; // clear from memory
-    await router.push('/vault');
+    if ('requiresMfa' in result) {
+      // Keep the password in its ref — still needed to derive the vault key AFTER the
+      // second factor succeeds (memory-only, same exposure as while the user typed it).
+      mfaToken.value = result.mfaToken;
+      phase.value = 'mfa';
+      return;
+    }
+    await completeLogin(result.user.kdfSalt);
   } catch (err: unknown) {
     password.value = '';
-    if (err && typeof err === 'object' && 'data' in err) {
-      const e = err as { data: { message?: string } };
-      error.value = e.data?.message ?? 'Login failed.';
+    error.value = toErrorMessage(err, 'Login failed. Check credentials and try again.');
+  } finally {
+    loading.value = false;
+  }
+}
+
+function resetToCredentials() {
+  phase.value = 'credentials';
+  mfaToken.value = null;
+  password.value = '';
+}
+
+async function onMfaSubmit(payload: { code?: string; recoveryCode?: string }) {
+  if (!mfaToken.value) return;
+  loading.value = true;
+  error.value = null;
+  try {
+    const result = await authStore.authenticateTwoFactor({ mfaToken: mfaToken.value, ...payload });
+    await completeLogin(result.user.kdfSalt);
+  } catch (err: unknown) {
+    const message = toErrorMessage(err, 'Verification failed. Try again.');
+    // An expired token or exhausted attempts can't be recovered from the challenge —
+    // send the user back to re-enter credentials (which mints a fresh mfaToken).
+    if (/expired|too many attempts/i.test(message)) {
+      resetToCredentials();
+      error.value = message;
     } else {
-      error.value = 'Login failed. Check credentials and try again.';
+      error.value = message;
     }
   } finally {
     loading.value = false;
   }
+}
+
+function onMfaBack() {
+  error.value = null;
+  resetToCredentials();
 }
 </script>
 
@@ -45,59 +97,69 @@ async function onSubmit() {
     </template>
 
     <AuthCard>
-      <h2 class="mb-5 text-lg font-semibold">Welcome back</h2>
+      <template v-if="phase === 'credentials'">
+        <h2 class="mb-5 text-lg font-semibold">Welcome back</h2>
 
-      <UForm :state="{ email, password }" class="space-y-5" @submit.prevent="onSubmit">
-        <UFormField
-          name="email"
-          label="Email"
-          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
-        >
-          <UInput
-            v-model="email"
-            type="email"
-            icon="i-lucide-mail"
+        <UForm :state="{ email, password }" class="space-y-5" @submit.prevent="onSubmit">
+          <UFormField
+            name="email"
+            label="Email"
+            :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+          >
+            <UInput
+              v-model="email"
+              type="email"
+              icon="i-lucide-mail"
+              size="lg"
+              class="w-full"
+              placeholder="you@example.com"
+              autocomplete="email"
+              required
+            />
+          </UFormField>
+
+          <UFormField
+            name="password"
+            label="Master Password"
+            :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
+          >
+            <PasswordInput
+              v-model="password"
+              placeholder="••••••••••••"
+              autocomplete="current-password"
+            />
+          </UFormField>
+
+          <UAlert v-if="error" color="error" variant="soft" :description="error" />
+
+          <UButton
+            type="submit"
+            block
             size="lg"
-            class="w-full"
-            placeholder="you@example.com"
-            autocomplete="email"
-            required
-          />
-        </UFormField>
+            trailing-icon="i-lucide-arrow-right"
+            class="accent-glow text-white"
+            :loading="loading"
+            :disabled="!email || !password"
+          >
+            {{ loading ? 'Unlocking vault…' : 'Sign in' }}
+          </UButton>
+        </UForm>
 
-        <UFormField
-          name="password"
-          label="Master Password"
-          :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
-        >
-          <PasswordInput
-            v-model="password"
-            placeholder="••••••••••••"
-            autocomplete="current-password"
-          />
-        </UFormField>
+        <p class="mt-5 text-center text-xs text-muted">
+          New here?
+          <NuxtLink to="/register" class="ml-1 font-medium text-primary hover:underline">
+            Create an account →
+          </NuxtLink>
+        </p>
+      </template>
 
-        <UAlert v-if="error" color="error" variant="soft" :description="error" />
-
-        <UButton
-          type="submit"
-          block
-          size="lg"
-          trailing-icon="i-lucide-arrow-right"
-          class="accent-glow text-white"
-          :loading="loading"
-          :disabled="!email || !password"
-        >
-          {{ loading ? 'Unlocking vault…' : 'Sign in' }}
-        </UButton>
-      </UForm>
-
-      <p class="mt-5 text-center text-xs text-muted">
-        New here?
-        <NuxtLink to="/register" class="ml-1 font-medium text-primary hover:underline">
-          Create an account →
-        </NuxtLink>
-      </p>
+      <TwoFactorChallenge
+        v-else
+        :loading="loading"
+        :error="error"
+        @submit="onMfaSubmit"
+        @back="onMfaBack"
+      />
     </AuthCard>
 
     <template #footer>

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import type { AuthTokens } from '@adyton/shared';
+import type { AuthTokens, LoginResponse } from '@adyton/shared';
 
 interface AuthUser {
   id: string;
@@ -92,10 +92,28 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.assign('/login');
   }
 
-  async function login(email: string, password: string) {
-    const data = await apiFetch<AuthTokens>('/auth/login', {
+  async function login(email: string, password: string): Promise<LoginResponse> {
+    const data = await apiFetch<LoginResponse>('/auth/login', {
       method: 'POST',
       body: { email, password },
+    });
+    // A 2FA-enabled account returns no tokens — the caller must complete the second
+    // factor via authenticateTwoFactor. Only set auth state on a full token response.
+    if (!('requiresMfa' in data)) setAuthResult(data);
+    return data;
+  }
+
+  // Second login stage for 2FA accounts: exchange the single-use mfaToken plus a TOTP
+  // code OR a recovery code for real tokens (and the refresh cookie). Exactly one of
+  // code/recoveryCode is provided by the caller.
+  async function authenticateTwoFactor(payload: {
+    mfaToken: string;
+    code?: string;
+    recoveryCode?: string;
+  }): Promise<AuthTokens> {
+    const data = await apiFetch<AuthTokens>('/auth/2fa/authenticate', {
+      method: 'POST',
+      body: payload,
     });
     setAuthResult(data);
     return data;
@@ -142,5 +160,5 @@ export const useAuthStore = defineStore('auth', () => {
     return refresh();
   }
 
-  return { accessToken, user, isAuthenticated, apiFetch, login, register, refresh, logout, initialize };
+  return { accessToken, user, isAuthenticated, apiFetch, login, authenticateTwoFactor, register, refresh, logout, initialize };
 });
