@@ -7,17 +7,25 @@ The server stores opaque ciphertext only. Encryption and decryption happen exclu
 
 ## How it works
 
-You have one master password. You never type it anywhere except the unlock screen — it never leaves your device.
+Adyton is a vault. Like a physical safe, only you can open it — not the server it runs on, not anyone who breaks into that server.
 
-When you unlock the vault, your browser takes that password and runs it through a slow, expensive algorithm (Argon2id) to produce a secret key. It uses that key to encrypt your passwords before sending them to the server, and to decrypt them when you need to read one. The server only ever sees scrambled data — even if someone broke into the server, they could not read a single password.
+**The master password is your combination.** You type it once to unlock. It never leaves your device — not over the network, not to the server, not in any log. Your browser uses it to derive a cryptographic key (Argon2id, a deliberately slow algorithm designed to resist brute force). That key scrambles every secret before it touches the network, and unscrambles it after it comes back. The server holds encrypted blobs it cannot read.
 
-When you close the browser or the vault locks automatically, the key is wiped from memory. To read anything again, you need to type the master password and derive the key again. This is by design.
+**What you can store:** passwords and usernames (with per-entry TOTP codes for sites that require them), secure notes, credit cards, identities, `.env` files, and arbitrary secrets. Each entry is encrypted individually with a different nonce.
 
-**Two-factor authentication** adds a second check at login time (a 6-digit code from an authenticator app, a hardware key, or your phone's fingerprint). Once you are logged in, unlocking the vault only needs the master password — 2FA is a login gate, not a key-derivation step.
+**The server is blind.** It stores your email, a hashed password (for login), and encrypted blobs. It cannot read them, search inside them, or hand them to anyone in useful form — even under a court order, even if it gets compromised. This is the zero-knowledge property.
 
-**What the server knows:** your email address, a scrambled version of your master password (for login verification), and encrypted blobs it cannot read. Nothing else.
+**When you close the tab or walk away**, the key is wiped from memory. Re-opening the vault means re-typing the master password. There is no copy of the key on disk, in the database, or on the server. This is by design.
 
-**What the server does not know:** your master password, the key derived from it, or any plaintext secret.
+**Two-factor authentication** adds a second check at login — a one-time code from an authenticator app, or a passkey. It protects your account if someone steals your password. It does not affect vault decryption; that is still the master password's job. Unlocking an already-open session only requires the master password.
+
+**Passkeys** are a modern, phishing-resistant alternative to one-time codes. Your phone or laptop holds a private key; the server stores only the public half. Even a perfect copy of the login page cannot steal a passkey because it is cryptographically bound to this exact domain.
+
+**Recovery codes** are eight single-use emergency tickets generated when you enable 2FA. If you lose your phone, one code gets you in. The server stores only their hashes — never the codes themselves. Each works exactly once.
+
+**What the server knows:** your email, a hashed password, and ciphertext it cannot read. Nothing else.
+
+**What the server will never know:** your master password, the key derived from it, or any plaintext secret.
 
 ## Security model
 

@@ -162,6 +162,21 @@ Branches are per **phase** (and, in future, per issue) — NOT per step.
 - No step→phase merge step exists anymore; a "step" is a logical grouping of commits, not a branch.
 - (Historical note: Step 0 used a `feature/phase-5-step-0-foundation` branch; that per-step-branch convention is retired as of 2026-06-03.)
 
+## README maintenance — MANDATORY
+
+`README.md` is the public face of the project. Keep it current whenever you change something user-visible.
+
+**On every phase completion**, update `README.md` if any of these changed:
+- Roadmap table (`| N | … | Status |`) — flip to `Done` when the phase lands
+- Stack table — new technology added or removed
+- Setup instructions — new prerequisites, new scripts, changed ports
+- Project structure — new top-level directories or workspaces
+- The **"How it works"** section — if a new security mechanism was added (new 2FA method, new encryption scope, new entry type, new lock behaviour). This section must stay accurate for a non-technical reader. Do not add jargon; explain the mechanism in plain terms and note what the server can and cannot see.
+
+The "How it works" section is **not a marketing blurb** — it is a plain-language description of the actual security model. If the model changes, the section changes too. If a feature is added that changes what the server knows or does not know, update the "What the server knows / will never know" lists.
+
+Do not rewrite sections unrelated to the current change.
+
 ## Step / phase completion checklist — MANDATORY, no exceptions
 
 Before declaring any step or phase done, always do **all three** of these in order:
