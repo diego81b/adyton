@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -23,6 +24,7 @@ import { AuthService } from './auth.service';
 import { ChallengeService } from './challenge/challenge.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshGuard } from './guards/refresh.guard';
 import { RefreshToken } from '../entities/refresh-token.entity';
@@ -154,5 +156,22 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMe(@Req() req: RequestWithUser) {
     return this.authService.getMe(req.user.userId);
+  }
+
+  @Delete('account')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Permanently delete the authenticated account (password required)' })
+  @ApiResponse({ status: 204, description: 'Account deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized or wrong password' })
+  async deleteAccount(
+    @Body() dto: DeleteAccountDto,
+    @Req() req: RequestWithUser,
+    @Headers('user-agent') ua: string,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    await this.authService.deleteAccount(req.user.userId, dto.password, req.ip, ua ?? '');
+    clearRefreshCookie(res);
   }
 }

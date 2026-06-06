@@ -6,9 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Phases 1–4 + 4.1 complete** (2026-06-01). Monorepo scaffold, Docker dev stack, NestJS auth, vault API, shared crypto, and Nuxt auth flows are implemented and tested.
 
-**Phase 5 Step 0 complete** (2026-06-02) on `feature/phase-5-step-0-foundation` (off `feature/phase-5-vault-ui`), not yet merged. Step 0 delivered the auth-UI foundation + a mockup-faithful retrofit of login/register/unlock: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default color mode); reusable components `AuthShell`/`AuthCard`/`BrandLogo`/`PasswordInput`/`PasswordStrengthMeter`/`KeyDerivationStatus` + `usePasswordStrength` composable; and fixes to session persistence (see below). **Next:** merge Step 0 → phase branch, then Phase 5 proper (vault list, environments, generator, settings, `VaultEntryModal`).
+**Phase 5 (Nuxt vault UI) in progress** on `feature/phase-5-vault-ui`. Steps 0–2 complete (2026-06-03):
+- **Step 0** — auth-UI foundation + mockup retrofit of login/register/unlock: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default); `AuthShell`/`AuthCard`/`BrandLogo`/`PasswordInput`/`PasswordStrengthMeter`/`KeyDerivationStatus` + `usePasswordStrength`.
+- **Step 1** — vault data layer (`vault-crypto.ts`, `useVaultStore`), entry list (`/vault`), app shell (`vault` layout, sidebar/bottom-nav, `LockOverlay`, auto-lock).
+- **Step 2** — entry detail (`/vault/[id]`), `VaultEntryModal` (add/edit all 6 types, responsive **slideover**), version history + restore, per-LOGIN **TOTP** (RFC 6238 in `packages/shared/src/totp.ts`), reveal/copy (`useReveal` separate from clipboard clear), `.env` export. Plus: `fetchAll` loads the whole vault on unlock (client search is complete — server can't search ciphertext); `VaultFilters` slideover (type + environment; environment shown only for ENV_FILE/SECRET); dedicated `/environments` view **dropped** (folded into filters); nav now Vault/Generator/Settings.
 
-Integration contracts learned in Step 0 (do not regress): the API uses `setGlobalPrefix('api')`, so `NUXT_PUBLIC_API_BASE_URL` must end in `/api` and the refresh cookie path is `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client-bundled deps (hash-wasm, zxcvbn) and must be `COPY`d into the dev Dockerfiles. Editing `apps/api` source requires `docker compose restart api` (tsc watch misses Windows bind-mount changes).
+- **Step 4** — `/generator` (2026-06-04): password/passphrase modes, shared `generator.ts` (`generatePassphrase` on the **EFF large wordlist** 7776 words ≈ 12.92 bits/word, CSPRNG + rejection sampling) + entropy helpers (`passwordEntropyBits`/`passphraseEntropyBits` compute from the real pool via exported `buildPasswordPool` — UI never approximates); `useGenerator` + `GeneratedSecret`/`EntropyMeter`; `/generator` added to auth middleware.
+- **Step 5** — `/settings` (2026-06-04): **settings are per-user DB-backed** (`users.settings` JSONB, `GET/PUT /api/settings`, merge-patch) with localStorage as boot cache only — they sync across devices for the extension/mobile phases; shared `UserSettings` (`displayName`, `lockMode: activity|absolute`, `lockDurationMs` 0=never or 1–60 min). Auto-lock: duration from settings, `absolute` mode skips activity resets, timer-fired lock **defers while an entry modal is dirty** (`useLockDeferral` + `VaultEntryModal` `v-model:dirty`; explicit lock always wins). `DELETE /api/auth/account` (password re-verify → cascade). Settings page: account / 2FA placeholder / sessions + trusted devices revoke / auto-lock / delete account. No "this device" badge on sessions (refresh cookie is `/api/auth`-scoped — API can't identify the caller's session).
+
+**Phase 5 COMPLETE + verified (2026-06-04).** Int tests run (settings/account-deletion/cors pass; only failures = 2 pre-existing 429 rate-limit ones), snapshots regenerated, full browser smoke of `/generator` + `/settings` done. **CORS fix landed:** `@fastify/cors` v11 defaults to GET,HEAD,POST — explicit `methods` list in `create-app.ts` now allows PUT/PATCH/DELETE (regression test `cors.int-spec.ts`); without it every browser mutation except POST failed preflight.
+
+**Post-Phase-5 UI polish (2026-06-04, browser-verified):** JSON env files (`detectEnvFormat` → raw viewer + `.json` download; dotenv table otherwise); card brand detection (`cardBrand`, simple-icons) + expiry auto-slash; vault cards: type tooltip on tile (no text badge), fixed fuchsia `vN` tag before the title, env as left color stripe, expandable notes section (`@click.stop` everywhere — card click opens detail), two fixed action columns (notes yellow / copy emerald, tile-style); filters apply on Done (draft semantics); chips derive tones from `TILE_CLASS` (sync pinned by test); `apiFetch` non-auth 401 → silent refresh+retry once, dead session → hard redirect `/login`; settings two-column desktop (Account/Vault/Danger left, Security right); width system: layout `max-w-6xl`, pages pin 4xl (vault/detail/generator) or 5xl (settings). Backlog: type/env color legend. Next: **Phase 6 (2FA: TOTP + WebAuthn)** — branch NOT yet pushed to origin.
+
+Integration contracts (do not regress): API uses `setGlobalPrefix('api')` → `NUXT_PUBLIC_API_BASE_URL` ends in `/api`, refresh cookie path `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client deps (hash-wasm, zxcvbn) and is `COPY`d into dev Dockerfiles. **Migrations:** auto-applied only when `RUN_MIGRATIONS=true` (dev: via container `dev:migrate` CLI on `src`; staging: built image on boot; prod: never — extract SQL with `pnpm --filter @adyton/api migration:sql` and apply manually). Editing `apps/api` source needs `docker compose restart api` (tsc watch misses Windows bind-mount changes).
 
 All implementation work follows the design documents in `analysis/`.
 
@@ -111,6 +121,8 @@ The mockup at `analysis/frontend/mockups/adyton.html` is the authoritative UI so
 
 7. **Dev runtime:** run ONE at a time. Native (`run.bat web-local`) OR Docker — never both, they share the bind-mounted `.nuxt` and corrupt each other.
 
+8. **Icon+label action buttons are icon-only on mobile.** Standard guideline: an action `UButton` that carries an icon hides its text label below `sm` and shows it from `sm` up — `icon="i-lucide-x"` + `aria-label="…"` (always, for a11y) + the label in a `<span class="hidden sm:inline">…</span>` default slot (not the `label` prop). Keeps mobile toolbars compact and one-row; labels return on larger screens. Applies to toolbar/inline actions (Add, Filters, Generate, detail action bar, etc.). Primary full-width form submit buttons (Save, Unlock) keep their label everywhere.
+
 ## Commit style
 
 After every code change, propose a commit message. Format:
@@ -134,12 +146,12 @@ All project output must be in English: commit messages, code comments, documenta
 
 ## Branch workflow — MANDATORY
 
-Each phase and each numbered step within a phase gets its own branch:
+Branches are per **phase** (and, in future, per issue) — NOT per step.
 
 - Phase branch: `feature/phase-N-<short-name>` (e.g. `feature/phase-5-vault-ui`)
-- Step branch off the phase branch: `feature/phase-N-step-M-<short-name>` (e.g. `feature/phase-5-step-0-foundation`)
-- When step is verified, merge step branch into phase branch, then delete step branch
-- Never commit step work directly to a phase branch — always via step branch
+- Numbered steps within a phase are committed **directly to the phase branch** as separate commits (one or more `feat`/`fix`/`test` commits per step). Do NOT create a branch per step.
+- No step→phase merge step exists anymore; a "step" is a logical grouping of commits, not a branch.
+- (Historical note: Step 0 used a `feature/phase-5-step-0-foundation` branch; that per-step-branch convention is retired as of 2026-06-03.)
 
 ## Step / phase completion checklist — MANDATORY, no exceptions
 
@@ -162,7 +174,7 @@ Before declaring any step or phase done, always do **all three** of these in ord
 - Security invariants (ciphertext not readable, cookie httpOnly, AAD rejection)
 - Anything automated tests don't cover (real browser behavior, DB state checks, cookie handling)
 
-These are not optional steps. Do not output "Step N complete" or "Phase N complete" or suggest a merge without completing all three.
+These are not optional steps. Do not output "Step N complete" or "Phase N complete" without completing all three.
 
 ## When in doubt
 

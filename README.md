@@ -84,9 +84,9 @@ pnpm lint                             # ESLint flat config
 |---|---|---|
 | 1 | Monorepo scaffold, Docker, test harness | Done |
 | 2 | NestJS auth (JWT, sessions, devices, PoW) | Done |
-| 3 | MikroORM vault entities + migrations + vault API | Next |
-| 4 | `packages/shared` crypto + Nuxt auth flows | — |
-| 5 | Nuxt vault UI | — |
+| 3 | MikroORM vault entities + migrations + vault API | Done |
+| 4 | `packages/shared` crypto + Nuxt auth flows | Done |
+| 5 | Nuxt vault UI | In progress — list, entry detail/edit, version history, per-entry TOTP, generator + settings pending |
 | 6 | 2FA (TOTP + WebAuthn) | — |
 | 7 | Browser extension (MV3) | — |
 | 8 | Production hardening | — |

@@ -5,6 +5,7 @@ import { HealthController } from './health/health.controller';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { SettingsModule } from './settings/settings.module';
 import { DevicesModule } from './devices/devices.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { VaultModule } from './vault/vault.module';
@@ -27,6 +28,7 @@ import mikroOrmBaseConfig from './mikro-orm.config';
     RedisModule,
     AuthModule,
     SessionsModule,
+    SettingsModule,
     DevicesModule,
     NotificationsModule,
     AuditModule,

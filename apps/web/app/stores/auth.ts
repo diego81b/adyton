@@ -39,7 +39,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
   }
 
-  async function apiFetch<T>(path: string, options?: Omit<RequestInit, 'body'> & { body?: unknown }): Promise<T> {
+  async function apiFetch<T>(
+    path: string,
+    options?: Omit<RequestInit, 'body'> & { body?: unknown },
+    retried = false,
+  ): Promise<T> {
     const baseUrl = getBaseUrl();
     const hasBody = options?.body !== undefined;
     const res = await fetch(`${baseUrl}${path}`, {
@@ -56,11 +60,36 @@ export const useAuthStore = defineStore('auth', () => {
       credentials: 'include',
     });
     if (!res.ok) {
+      // Expired access token on a non-auth route: silent-refresh once and retry.
+      // Still 401 (or refresh failed) → the session is dead; never leave the user on a
+      // half-rendered page — clear client state and send them to /login. Auth routes
+      // are excluded: their 401s are real credential errors (and /auth/refresh going
+      // through here would recurse).
+      if (res.status === 401 && !path.startsWith('/auth/') && !retried) {
+        if (await refresh()) return apiFetch<T>(path, options, true);
+        await redirectToLogin();
+      } else if (res.status === 401 && !path.startsWith('/auth/')) {
+        await redirectToLogin();
+      }
       const data = await res.json().catch(() => ({})) as { message?: string };
       throw Object.assign(new Error(data.message ?? res.statusText), { status: res.status, data });
     }
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
+  }
+
+  // Session is unrecoverable: wipe all client state and hard-redirect to /login.
+  // window.location (not router) on purpose — the reload also clears the in-memory
+  // vault key and any per-page state, leaving a clean slate for the next sign-in.
+  async function redirectToLogin() {
+    clear();
+    const { useCryptoStore } = await import('./crypto');
+    const { useVaultStore } = await import('./vault');
+    const { useSettingsStore } = await import('./settings');
+    useVaultStore().clear();
+    useSettingsStore().clear();
+    useCryptoStore().lock();
+    window.location.assign('/login');
   }
 
   async function login(email: string, password: string) {
@@ -98,6 +127,10 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       clear();
       const { useCryptoStore } = await import('./crypto');
+      const { useVaultStore } = await import('./vault');
+      const { useSettingsStore } = await import('./settings');
+      useVaultStore().clear();
+      useSettingsStore().clear();
       useCryptoStore().lock();
     }
   }
@@ -109,5 +142,5 @@ export const useAuthStore = defineStore('auth', () => {
     return refresh();
   }
 
-  return { accessToken, user, isAuthenticated, login, register, refresh, logout, initialize };
+  return { accessToken, user, isAuthenticated, apiFetch, login, register, refresh, logout, initialize };
 });

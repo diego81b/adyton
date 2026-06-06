@@ -184,3 +184,54 @@ describe('useAuthStore.logout', () => {
     expect(store.user).toBeNull();
   });
 });
+
+describe('useAuthStore.apiFetch — 401 handling (session-dead redirect)', () => {
+  it('silently refreshes and retries once on a non-auth 401', async () => {
+    const store = useAuthStore();
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Unauthorized')); // GET /vault
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));    // POST /auth/refresh
+    mockFetch.mockResolvedValueOnce(okResponse({ ok: 1 }));              // retried GET /vault
+
+    const result = await store.apiFetch('/vault');
+    expect(result).toEqual({ ok: 1 });
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(String(mockFetch.mock.calls[1]![0])).toContain('/auth/refresh');
+  });
+
+  it('redirects to /login when the silent refresh fails', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
+    const store = useAuthStore();
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Unauthorized'));
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Unauthorized')); // refresh fails
+
+    await expect(store.apiFetch('/vault')).rejects.toThrow();
+    expect(assign).toHaveBeenCalledWith('/login');
+    expect(store.isAuthenticated).toBe(false);
+    assign.mockRestore();
+  });
+
+  it('redirects to /login when the retry is still 401 (revoked session)', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
+    const store = useAuthStore();
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Unauthorized'));
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse())); // refresh ok
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Unauthorized')); // retry still 401
+
+    await expect(store.apiFetch('/vault')).rejects.toThrow();
+    expect(assign).toHaveBeenCalledWith('/login');
+    assign.mockRestore();
+  });
+
+  it('does NOT redirect on auth-route 401s (credential errors handled by forms)', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
+    const store = useAuthStore();
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Invalid credentials'));
+
+    await expect(
+      store.apiFetch('/auth/login', { method: 'POST', body: { email: 'x', password: 'y' } }),
+    ).rejects.toThrow('Invalid credentials');
+    expect(assign).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1); // no silent refresh attempt
+    assign.mockRestore();
+  });
+});

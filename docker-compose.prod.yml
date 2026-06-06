@@ -15,6 +15,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
+      # Migrations: STAGING sets RUN_MIGRATIONS=true (built image has a clean dist →
+      # main.ts applies pending migrations on boot). PRODUCTION leaves it false/unset and
+      # applies SQL manually: `pnpm --filter @adyton/api migration:sql` dumps the pending
+      # statements for review, then a DBA runs them in a controlled maintenance window.
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
       COOKIE_SAMESITE: strict
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       DATABASE_URL: ${DATABASE_URL}

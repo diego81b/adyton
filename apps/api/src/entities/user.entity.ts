@@ -6,6 +6,7 @@ import {
   Collection,
   Cascade,
 } from '@mikro-orm/core';
+import type { UserSettings } from '../settings/user-settings.contract';
 import { RefreshToken } from './refresh-token.entity';
 import { TrustedDevice } from './trusted-device.entity';
 import { WebAuthnCredential } from './webauthn-credential.entity';
@@ -30,6 +31,11 @@ export class User {
 
   @Property({ default: false })
   totpEnabled: boolean = false;
+
+  // Plaintext non-secret UI preferences (display name, auto-lock mode/duration).
+  // null = use DEFAULT_USER_SETTINGS; stored as a partial so new fields default cleanly.
+  @Property({ type: 'json', nullable: true })
+  settings: Partial<UserSettings> | null = null;
 
   @OneToMany(() => RefreshToken, (t) => t.user, { cascade: [Cascade.REMOVE] })
   refreshTokens = new Collection<RefreshToken>(this);

@@ -32,6 +32,9 @@ services:
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       NODE_ENV: development
       PORT: "3001"
+      # Dev migrates via the container command (dev:migrate → mikro-orm CLI on src), so
+      # main.ts must NOT also try (it reads the watch-compiled dist, which can be stale).
+      RUN_MIGRATIONS: "false"
       ALLOWED_ORIGINS: http://localhost:30000
       COOKIE_SAMESITE: lax
       CHOKIDAR_USEPOLLING: "true"

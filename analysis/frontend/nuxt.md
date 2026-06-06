@@ -60,8 +60,6 @@ app/pages/
 ├── vault/
 │   ├── index.vue                # All Items: type filter chips, real-time label search, cursor pagination, env dropdown
 │   └── [id].vue                 # Entry detail: view + inline edit, reveal, copy, TOTP countdown (LOGIN), version history button
-├── environments/
-│   └── index.vue                # ENV_FILE + SECRET grouped by environmentTag (Production/Staging/Development/Custom)
 ├── generator/
 │   └── index.vue                # Password/passphrase generator with entropy arc
 └── settings/
@@ -75,11 +73,11 @@ app/components/
 ├── PasswordInput.vue           # UInput + lock leading icon + eye show/hide toggle (v-model)
 ├── PasswordStrengthMeter.vue   # 4-segment bar + label + entropy bits (presentational; fed by usePasswordStrength)
 ├── KeyDerivationStatus.vue     # "Deriving encryption key…" spinner during Argon2id
-# To build in Phase 5 proper:
-├── VaultEntryModal.vue          # Add/Edit entry bottom-sheet (mobile) / centered modal (desktop) — unified for all types
+# Built in Phase 5 Steps 1–2 (app shell + vault UI):
+├── VaultEntryModal.vue          # Add/Edit entry — USlideover (right panel ≥lg, bottom sheet <lg), unified for all types
 ├── LockOverlay.vue              # In-place lock overlay (triggered by auto-lock timer or lock button)
-├── AppSidebar.vue               # Desktop left sidebar (4 nav items: Vault / Environments / Generator / Settings)
-└── AppBottomNav.vue             # Mobile bottom nav bar (same 4 items)
+├── AppSidebar.vue               # Desktop left sidebar (3 nav items: Vault / Generator / Settings)
+└── AppBottomNav.vue             # Mobile bottom nav bar (same 3 items)
 
 app/composables/
 └── usePasswordStrength.ts      # Debounced zxcvbn validation -> score/valid/feedback/segColor/label/bits (Step 0)
@@ -94,14 +92,19 @@ app/composables/
 | `/vault/secret/new.vue` dedicated page | **VaultEntryModal** (same modal, type = SECRET) |
 | `/vault/env/[id]/versions.vue` page | History accessed via button on `/vault/[id].vue` |
 | `/settings/security.vue` + `/settings/danger.vue` separate pages | **Single `/settings/index.vue`** with in-page anchors |
-| Environment filter as dropdown on vault index | **Dedicated `/environments/` page** in nav |
+| Environment filter as dropdown on vault index | ~~Dedicated `/environments/` page~~ — superseded again 2026-06-03: filters live in the `VaultFilters` slideover on `/vault` (see deviation note below) |
 | TOTP only in Phase 6 (2FA setup) | **Per-LOGIN-entry TOTP field** (secret + countdown + copy) |
 
-**Navigation (4 items, desktop sidebar + mobile bottom nav):**
+**Navigation (desktop sidebar + mobile bottom nav):**
 1. Vault — `/vault` — all entry types, type-filter chips
-2. Environments — `/environments` — ENV_FILE + SECRET grouped by tag
-3. Generator — `/generator` — password/passphrase
-4. Settings — `/settings` — account + security + danger
+2. Generator — `/generator` — password/passphrase
+3. Settings — `/settings` — account + security + danger
+
+> **Deviation (2026-06-03): the dedicated `/environments` view was dropped.** It was only a
+> pre-filtered vault (ENV_FILE + SECRET by `environmentTag`) rendering the same cards — not
+> worth a dedicated route. The type + environment filters now live in an in-list `VaultFilters`
+> slideover on `/vault`. The nav item was removed. Re-introduce a dedicated view only if a
+> genuinely distinct grouped UX is justified later.
 
 **Accent:** `app.config.ts` uses `primary: 'emerald'`. The mockup aliases emerald onto the `violet` Tailwind key for inline CSS, but NuxtUI uses the `primary` token directly — no aliasing needed. Solid emerald buttons need an explicit `text-white` (NuxtUI's solid variant uses inverted = dark label text in dark mode).
 
@@ -109,16 +112,31 @@ app/composables/
 - The API uses `setGlobalPrefix('api')`, so every route is `/api/...`. `NUXT_PUBLIC_API_BASE_URL` must end in `/api`; the refresh cookie `path` must be `/api/auth` (otherwise the browser never sends it and the session is lost on reload).
 - `useAuthStore().apiFetch` must NOT set `Content-Type: application/json` on no-body POSTs (`/auth/refresh`, `/auth/logout`) — Fastify rejects an empty JSON body with 400.
 - Master-password strength (zxcvbn score ≥ 4, char classes, weak patterns, HIBP breach) is enforced **client-side only**; the backend checks length ≥ 12. Register must surface `usePasswordStrength` feedback so a disabled submit has a visible reason.
-- `/unlock` is reached after reload/auto-lock (session cookie valid, in-memory `CryptoKey` gone). It re-hydrates via `authStore.initialize()`, redirects to `/login` when there's no session, and shows the account email.
+- **`/unlock` redirect (BY DESIGN, not a bug — invariant #3):** the vault `CryptoKey` lives only in memory (`useCryptoStore`, never persisted). Any **full page reload** — typing a URL in the address bar, F5, opening a deep link, or returning from the browser error page — reboots the SPA and wipes the key. The `auth` middleware (on `/vault**`, `/settings**`) then sees a valid session (refresh cookie) but a locked vault and redirects to `/unlock`; the user re-enters the master password to re-derive the key and is returned to the target page. It redirects to `/login` only when there is no valid session. **In-app SPA navigation (clicking nav links) does NOT reload**, so the key survives and there is no unlock bounce. Consequence: navigating between real pages stays unlocked; reloads always require unlock. The custom `app/error.vue` "Back to vault" button uses `clearError({ redirect: '/vault' })` (in-SPA nav, not a reload) precisely so it preserves the key when it is still alive.
 - Recovery: V1 has **no master-password recovery** (intentional — zero-knowledge). The "unrecoverable / no reset" copy on register is correct until the Phase-10 Recovery Kit (`roadmap/device-as-key.md §16.9`); a `TODO(phase-10)` marks where to soften it.
 
 `/vault/index.vue` fetches the entry list (encrypted blobs from server), decrypts labels client-side, supports real-time label search and type-chip filtering without round-trips because all decrypted entries are held in `useVaultStore`.
 
 `/vault/[id].vue` handles view and edit mode in the same route. LOGIN entries display a live TOTP section (countdown ring + 6-digit code) if a TOTP secret is stored. Sensitive fields are masked by default; reveal auto-hides after 30s, clipboard auto-clears after 30s.
 
-`/environments/index.vue` fetches only `ENV_FILE` and `SECRET` entries, groups them client-side by `environmentTag` into sticky-header sections with colored dot indicators.
+> **ENV_FILE formats (2026-06-04):** the encrypted blob is format-agnostic, so it also holds
+> JSON env files (.NET `appsettings.json`). `detectEnvFormat` picks the view: dotenv →
+> key/value table; JSON (or anything `parseEnv` can't extract rows from) → masked raw viewer
+> with reveal + pretty-print. Download follows the format (`.json` extension + mime); the
+> whole file is still never copied to the clipboard (invariant #8).
+
+`/generator/index.vue` is a standalone password/passphrase generator: mode toggle, length/word-count slider, character-class checkboxes, entropy arc computed from the real charset pool (shared entropy helpers), copy via `useSecureClipboard`. Generation uses `generatePassword`/`generatePassphrase` from `@adyton/shared` (CSPRNG + rejection sampling) — never `Math.random`.
 
 `/settings/index.vue` is a single page. Account section: display name, email, change-master-password (opens a modal with re-encryption warning). Security section: 2FA status + management, active sessions with per-session revoke, trusted devices, auto-lock timeout segmented control. Danger zone: account deletion with master password confirmation. Desktop shows an in-page anchor sidebar. The change-master-password and confirm-action flows use overlay modals — no separate routes.
+
+> **As built (Step 5, 2026-06-04):** settings persist **per-user in the DB** (`users.settings`
+> JSONB via `GET/PUT /settings`, `useSettingsStore` with a localStorage boot cache) so they
+> sync across devices. Auto-lock gained a **mode** control (`activity`/`absolute`) on top of
+> the timeout (incl. `never`); in absolute mode an expiring timer defers while an entry form
+> has unsaved edits (`useLockDeferral`). Email change and master-password change are
+> placeholders (deferred — changing the master password requires full vault re-encryption);
+> 2FA shows a not-configured placeholder until Phase 6. Sessions have no "this device" badge:
+> the refresh cookie is scoped to `/api/auth`, so `/sessions` cannot identify the caller.
 
 `/auth/setup-2fa.vue` (Phase 6) is a post-login flow for TOTP setup. Not in Phase 5 scope but shown in Settings security section as a placeholder state.
 
@@ -306,7 +324,13 @@ export function useAutoLock() {
 }
 ```
 
-This composable is called once in `app/layouts/vault.vue`. When the timer fires, `lock()` sets `cryptoKey` to null and a watcher in `vault.vue` renders a full-screen `UModal` lock overlay. The overlay contains only a master password input — submitting re-derives the key and closes the overlay without a network round-trip.
+This composable is called once in `app/layouts/vault.vue`. When the timer fires, `lock()` sets `cryptoKey` to null and the `LockOverlay` (`UModal`, non-dismissible) renders over the current page. The overlay re-derives the key from the entered master password and verifies it by re-fetching the vault (a wrong password yields a key that fails AES-GCM decryption → re-lock + error); it never navigates away, so the user stays in place.
+
+**Implemented refinements (Phase 5 Step 1):**
+- **Throttled reset.** Raw `mousemove` fires hundreds of times a second; resetting `resetLockTimer` on every event rewrites the lock deadline constantly and the countdown never visibly ticks. `useAutoLock` wraps `reset` in a 30s **leading-edge** throttle (`@vueuse/core` `useThrottleFn`): the first activity resets immediately, then further activity is ignored for the window, so the countdown decrements between resets.
+- **Countdown pill.** `useCryptoStore` exposes `lockAt` (epoch ms of the next auto-lock) set in `resetLockTimer`, cleared in `lock`. `useAutoLock` ticks a 1s interval and derives an `mm:ss` `countdown` shown in the layout header lock pill. `lockAt` is display-only, not a security control — the real lock is the `setTimeout` clearing `cryptoKey`.
+
+**DEFERRED — configurable lock policy (user decision 2026-06-03; Steps 5 + 2):** the lock mode must become a user setting — `activity` (current: reset on use) vs `absolute` (count down regardless of activity) — plus a configurable duration. These are **non-secret** preferences → persist in a dedicated prefs store backed by `localStorage` (NEVER in the crypto/vault stores, which must stay non-persisted). Build the prefs store + segmented control in **Step 5 (Settings)**; `resetLockTimer`/`autoLockMs` then read mode + duration from prefs, and `useAutoLock` skips the activity-reset when mode is `absolute`. In `absolute` mode the **Step 2** detail page may DEFER the lock **only while the form has unsaved edits** — never suspend auto-lock indefinitely while a detail is open (an idle open detail must still lock on schedule).
 
 ### 6.7 Environment Secrets Management
 

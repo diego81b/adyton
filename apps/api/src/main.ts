@@ -5,10 +5,19 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap(): Promise<void> {
   const app = await createApp();
 
-  if (process.env.NODE_ENV !== 'production') {
+  // Auto-apply migrations only when explicitly opted in via RUN_MIGRATIONS=true.
+  // - DEV: handled by the container command (`dev:migrate` runs the mikro-orm CLI under
+  //   ts-node, reading src/migrations directly — immune to the dist-staleness that the
+  //   watch-compiler hits on the Windows bind-mount), so RUN_MIGRATIONS stays false here.
+  // - STAGING: built image with a clean dist → set RUN_MIGRATIONS=true to migrate on boot.
+  // - PROD: never set → extract SQL with `pnpm --filter @adyton/api migration:sql` and
+  //   apply it manually in a controlled window.
+  // Gated on a dedicated flag, NOT NODE_ENV, because staging runs NODE_ENV=production
+  // for parity yet must still migrate.
+  if (process.env.RUN_MIGRATIONS === 'true') {
     const orm = app.get(MikroORM);
-    await orm.getMigrator().up();
-    console.info('[adyton-api] migrations applied');
+    const applied = await orm.getMigrator().up();
+    console.info(`[adyton-api] migrations applied (${applied.length} run)`);
   }
 
   if (process.env.NODE_ENV !== 'production') {

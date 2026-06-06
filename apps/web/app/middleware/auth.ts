@@ -2,8 +2,8 @@ import { useAuthStore } from '~/stores/auth';
 import { useCryptoStore } from '~/stores/crypto';
 
 export default defineNuxtRouteMiddleware(async (to) => {
-  // Only protect vault and settings routes
-  const protectedPrefixes = ['/vault', '/settings'];
+  // Only protect vault, generator, and settings routes
+  const protectedPrefixes = ['/vault', '/generator', '/settings'];
   const isProtected = protectedPrefixes.some(prefix => to.path.startsWith(prefix));
   if (!isProtected) return;
 

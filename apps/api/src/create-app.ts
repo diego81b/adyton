@@ -20,6 +20,10 @@ export async function createApp(): Promise<NestFastifyApplication> {
   await app.register(cors as never, {
     origin: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:30000').split(',').map((o) => o.trim()),
     credentials: true,
+    // @fastify/cors v11 defaults to the CORS-safelisted methods (GET,HEAD,POST) only:
+    // without this, every browser PUT/PATCH/DELETE (settings update, entry edit,
+    // session/device revoke, account deletion) fails its preflight with ERR_FAILED.
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
 
   // Redis-backed rate limiting (falls back to in-memory if REDIS_URL not set)

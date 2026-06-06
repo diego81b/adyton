@@ -24,8 +24,21 @@ export default defineNuxtConfig({
       title: 'Adyton',
       meta: [
         { charset: 'utf-8' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        // viewport-fit=cover so env(safe-area-inset-*) works in PWA standalone mode.
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'description', content: 'Adyton — zero-knowledge password manager' },
+        { name: 'theme-color', content: '#0a0e0f' },
+        // Installed/standalone display → no browser chrome, no pull-to-refresh on mobile.
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        { name: 'apple-mobile-web-app-title', content: 'Adyton' },
+      ],
+      link: [
+        { rel: 'manifest', href: '/manifest.json' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
       ],
     },
   },
