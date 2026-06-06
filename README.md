@@ -5,6 +5,20 @@
 Self-hosted, zero-knowledge password manager and `.env` / production secrets vault.
 The server stores opaque ciphertext only. Encryption and decryption happen exclusively in the browser.
 
+## How it works
+
+You have one master password. You never type it anywhere except the unlock screen — it never leaves your device.
+
+When you unlock the vault, your browser takes that password and runs it through a slow, expensive algorithm (Argon2id) to produce a secret key. It uses that key to encrypt your passwords before sending them to the server, and to decrypt them when you need to read one. The server only ever sees scrambled data — even if someone broke into the server, they could not read a single password.
+
+When you close the browser or the vault locks automatically, the key is wiped from memory. To read anything again, you need to type the master password and derive the key again. This is by design.
+
+**Two-factor authentication** adds a second check at login time (a 6-digit code from an authenticator app, a hardware key, or your phone's fingerprint). Once you are logged in, unlocking the vault only needs the master password — 2FA is a login gate, not a key-derivation step.
+
+**What the server knows:** your email address, a scrambled version of your master password (for login verification), and encrypted blobs it cannot read. Nothing else.
+
+**What the server does not know:** your master password, the key derived from it, or any plaintext secret.
+
 ## Security model
 
 Encryption and decryption happen exclusively in the browser. The server never sees:
@@ -86,8 +100,8 @@ pnpm lint                             # ESLint flat config
 | 2 | NestJS auth (JWT, sessions, devices, PoW) | Done |
 | 3 | MikroORM vault entities + migrations + vault API | Done |
 | 4 | `packages/shared` crypto + Nuxt auth flows | Done |
-| 5 | Nuxt vault UI | In progress — list, entry detail/edit, version history, per-entry TOTP, generator + settings pending |
-| 6 | 2FA (TOTP + WebAuthn) | — |
+| 5 | Nuxt vault UI | Done |
+| 6 | 2FA (TOTP + WebAuthn passkeys) | Done |
 | 7 | Browser extension (MV3) | — |
 | 8 | Production hardening | — |
 | 9 | Capacitor mobile (iOS + Android) | — |
