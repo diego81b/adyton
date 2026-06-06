@@ -7,10 +7,11 @@
     "^.+\\.(t|j)s$": [
       "ts-jest",
       {
-        "tsconfig": "tsconfig.json"
+        "tsconfig": { "allowJs": true, "isolatedModules": true }
       }
     ]
   },
+  "transformIgnorePatterns": ["node_modules[/\\\\](?!\\.pnpm|otplib|@otplib|@scure|@noble)"],
   "testTimeout": 60000,
   "maxWorkers": 1,
   "moduleNameMapper": {

@@ -93,7 +93,7 @@ export class AuthController {
     const result = await this.authService.login(dto, req.ip, ua ?? '', deviceIdCookie);
     if ('requiresMfa' in result) {
       // No tokens, no cookie: the client must complete /auth/2fa/authenticate.
-      return { requiresMfa: true, mfaToken: result.mfaToken };
+      return { requiresMfa: true, mfaToken: result.mfaToken, methods: result.methods };
     }
     setRefreshCookie(res, result.rawRefreshToken);
     const response: Record<string, unknown> = { accessToken: result.accessToken, user: result.user };
