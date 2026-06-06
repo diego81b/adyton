@@ -12,6 +12,7 @@ import { Redis } from 'ioredis';
 import { User } from '../entities/user.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { TrustedDevice } from '../entities/trusted-device.entity';
+import { WebAuthnCredential } from '../entities/webauthn-credential.entity';
 import { CryptoService } from '../crypto/crypto.service';
 import { ProgressiveDelayService } from './progressive-delay/progressive-delay.service';
 import { RegisterDto } from './dto/register.dto';
@@ -35,7 +36,28 @@ export interface AuthResult {
   rawRefreshToken: string;
 }
 
+/**
+ * First login stage outcome for a 2FA-enabled user: NO tokens are issued.
+ * mfaToken is an opaque random value held hashed in Redis — it is not a JWT
+ * and cannot pass JwtAuthGuard, so no partially-authenticated session exists.
+ */
+export interface MfaRequiredResult {
+  requiresMfa: true;
+  mfaToken: string;
+  // Second factors the account can complete: TOTP is always available once 2FA
+  // is enabled; 'webauthn' appears when at least one passkey is registered.
+  methods: Array<'totp' | 'webauthn'>;
+}
+
+export type LoginOutcome = AuthResult | MfaRequiredResult;
+
 const REFRESH_TOKEN_TTL_DAYS = 7;
+
+// Pending-MFA login state: short window to enter the second factor.
+export const MFA_TOKEN_PREFIX = 'mfa_token:';
+export const MFA_ATTEMPTS_PREFIX = 'mfa_attempts:';
+export const MFA_TOKEN_TTL_SECONDS = 300;
+export const MFA_MAX_ATTEMPTS = 5;
 
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -81,7 +103,11 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      twoFactorPassed: false,
+      // Semantics: "all factors required at issuance were satisfied". Always true
+      // on issued tokens by construction — a 2FA-enabled login never reaches token
+      // issuance before /auth/2fa/authenticate succeeds (it only gets an opaque
+      // Redis mfaToken). Kept in the payload for future step-up auth checks.
+      twoFactorPassed: true,
     };
     return this.jwtService.sign(payload, { algorithm: 'RS256', expiresIn: '15m' });
   }
@@ -140,6 +166,45 @@ export class AuthService {
     return otp;
   }
 
+  /**
+   * Issue the full session (refresh token family + device handling + access token).
+   * Reached only when every required factor is satisfied: directly from login for
+   * users without 2FA, or from TwoFactorService.authenticate after code verification.
+   */
+  async completeLogin(
+    user: User,
+    ip: string,
+    userAgent: string,
+    deviceIdCookie: string | undefined,
+    auditAction: AuditAction = AuditAction.LOGIN_SUCCESS,
+  ): Promise<AuthResult> {
+    const familyId = randomUUID();
+    const rawRefreshToken = await this.issueRefreshToken(user, familyId, ip, userAgent);
+    const newDeviceId = await this.handleNewDevice(user, deviceIdCookie, ip, userAgent);
+    this.auditService.persistLog(user.id, auditAction, ip, userAgent);
+    await this.em.flush();
+
+    const accessToken = this.signAccessToken(user);
+
+    return {
+      accessToken,
+      user: { id: user.id, email: user.email, kdfSalt: user.kdfSalt, totpEnabled: user.totpEnabled },
+      newDeviceId,
+      rawRefreshToken,
+    };
+  }
+
+  /**
+   * Create the opaque pending-MFA token for a password-verified, 2FA-enabled user.
+   * Stored hashed in Redis (same hygiene as refresh tokens) with a 5-minute TTL.
+   */
+  private async createMfaToken(user: User): Promise<string> {
+    const raw = this.cryptoService.generateMfaToken();
+    const tokenHash = this.cryptoService.hashToken(raw);
+    await this.redis.setex(`${MFA_TOKEN_PREFIX}${tokenHash}`, MFA_TOKEN_TTL_SECONDS, user.id);
+    return raw;
+  }
+
   async register(dto: RegisterDto, ip: string, userAgent: string): Promise<AuthResult> {
     await this.checkPoW(dto.powChallenge, dto.powNonce);
     const email = dto.email.toLowerCase();
@@ -165,23 +230,10 @@ export class AuthService {
       throw err;
     }
 
-    const familyId = randomUUID();
-    const rawRefreshToken = await this.issueRefreshToken(user, familyId, ip, userAgent);
-    const newDeviceId = await this.handleNewDevice(user, undefined, ip, userAgent);
-    this.auditService.persistLog(user.id, AuditAction.REGISTER, ip, userAgent);
-    await this.em.flush();
-
-    const accessToken = this.signAccessToken(user);
-
-    return {
-      accessToken,
-      user: { id: user.id, email: user.email, kdfSalt: user.kdfSalt, totpEnabled: user.totpEnabled },
-      newDeviceId,
-      rawRefreshToken,
-    };
+    return this.completeLogin(user, ip, userAgent, undefined, AuditAction.REGISTER);
   }
 
-  async login(dto: LoginDto, ip: string, userAgent: string, deviceIdCookie?: string): Promise<AuthResult> {
+  async login(dto: LoginDto, ip: string, userAgent: string, deviceIdCookie?: string): Promise<LoginOutcome> {
     await this.checkPoW(dto.powChallenge, dto.powNonce);
     const email = dto.email.toLowerCase();
 
@@ -203,20 +255,16 @@ export class AuthService {
 
     await this.progressiveDelay.clearFailures(ip, email);
 
-    const familyId = randomUUID();
-    const rawRefreshToken = await this.issueRefreshToken(user, familyId, ip, userAgent);
-    const newDeviceId = await this.handleNewDevice(user, deviceIdCookie, ip, userAgent);
-    this.auditService.persistLog(user.id, AuditAction.LOGIN_SUCCESS, ip, userAgent);
-    await this.em.flush();
+    if (user.totpEnabled) {
+      // Password verified but a second factor is required: issue NO tokens.
+      // LOGIN_SUCCESS is audited only after the second factor completes.
+      const mfaToken = await this.createMfaToken(user);
+      const passkeys = await this.em.count(WebAuthnCredential, { user });
+      const methods: Array<'totp' | 'webauthn'> = passkeys > 0 ? ['webauthn', 'totp'] : ['totp'];
+      return { requiresMfa: true, mfaToken, methods };
+    }
 
-    const accessToken = this.signAccessToken(user);
-
-    return {
-      accessToken,
-      user: { id: user.id, email: user.email, kdfSalt: user.kdfSalt, totpEnabled: user.totpEnabled },
-      newDeviceId,
-      rawRefreshToken,
-    };
+    return this.completeLogin(user, ip, userAgent, deviceIdCookie);
   }
 
   async refresh(oldToken: RefreshToken, ip: string, userAgent: string): Promise<AuthResult> {

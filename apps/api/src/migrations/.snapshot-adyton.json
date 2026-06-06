@@ -66,7 +66,14 @@
             "VAULT_READ",
             "VAULT_UPDATE",
             "VAULT_DELETE",
-            "VAULT_VERSION_RESTORE"
+            "VAULT_VERSION_RESTORE",
+            "TWO_FACTOR_ENABLED",
+            "TWO_FACTOR_DISABLED",
+            "TWO_FACTOR_FAILURE",
+            "RECOVERY_CODE_USED",
+            "RECOVERY_CODES_REGENERATED",
+            "WEBAUTHN_REGISTERED",
+            "WEBAUTHN_REMOVED"
           ],
           "mappedType": "enum"
         },
@@ -168,6 +175,116 @@
           ],
           "constraintName": "audit_logs_user_id_foreign",
           "localTableName": "public.audit_logs",
+          "referencedTableName": "public.users",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "updateRule": "cascade",
+          "deleteRule": "cascade"
+        }
+      },
+      "nativeEnums": {},
+      "comment": null
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "gen_random_uuid()",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "uuid"
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "varchar(255)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 255,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "string"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz(6)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
+        }
+      },
+      "name": "recovery_codes",
+      "schema": "public",
+      "indexes": [
+        {
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "recovery_codes_pkey",
+          "unique": true,
+          "primary": true
+        },
+        {
+          "columnNames": [
+            "user_id"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "recovery_codes_user_id_index",
+          "unique": false,
+          "primary": false
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {
+        "recovery_codes_user_id_foreign": {
+          "columnNames": [
+            "user_id"
+          ],
+          "constraintName": "recovery_codes_user_id_foreign",
+          "localTableName": "public.recovery_codes",
           "referencedTableName": "public.users",
           "referencedColumnNames": [
             "id"
@@ -1343,6 +1460,22 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "datetime"
+        },
+        "transports": {
+          "name": "transports",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
         }
       },
       "name": "webauthn_credentials",

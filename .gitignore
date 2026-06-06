@@ -85,6 +85,9 @@ desktop.ini
 *.user
 .history/
 
+# ── Playwright MCP artifacts ──────────────────────────────────────────────────
+.playwright-mcp/
+
 # ── Temporary / stale files ───────────────────────────────────────────────────
 *.tmp
 *.temp

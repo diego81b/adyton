@@ -11,6 +11,7 @@ import { RefreshToken } from './refresh-token.entity';
 import { TrustedDevice } from './trusted-device.entity';
 import { WebAuthnCredential } from './webauthn-credential.entity';
 import { VaultEntry } from './vault-entry.entity';
+import { RecoveryCode } from './recovery-code.entity';
 
 @Entity({ tableName: 'users' })
 export class User {
@@ -48,6 +49,9 @@ export class User {
 
   @OneToMany(() => VaultEntry, (e) => e.user, { cascade: [Cascade.REMOVE] })
   vaultEntries = new Collection<VaultEntry>(this);
+
+  @OneToMany(() => RecoveryCode, (c) => c.user, { cascade: [Cascade.REMOVE] })
+  recoveryCodes = new Collection<RecoveryCode>(this);
 
   @Property()
   createdAt: Date = new Date();

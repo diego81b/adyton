@@ -74,4 +74,60 @@ describe('CryptoService', () => {
       expect(id).toMatch(/^[0-9a-f]{64}$/);
     });
   });
+
+  describe('generateMfaToken', () => {
+    it('returns a 64-character hex string', () => {
+      const token = service.generateMfaToken();
+      expect(token).toHaveLength(64);
+      expect(token).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('two calls return different values', () => {
+      expect(service.generateMfaToken()).not.toBe(service.generateMfaToken());
+    });
+  });
+
+  describe('generateRecoveryCodes', () => {
+    const CODE_RE = /^[0-9a-f]{5}(-[0-9a-f]{5}){3}$/;
+
+    it('returns 8 codes by default', () => {
+      expect(service.generateRecoveryCodes()).toHaveLength(8);
+    });
+
+    it('every code matches the xxxxx-xxxxx-xxxxx-xxxxx hex format', () => {
+      for (const code of service.generateRecoveryCodes()) {
+        expect(code).toMatch(CODE_RE);
+      }
+    });
+
+    it('all generated codes are distinct', () => {
+      const codes = service.generateRecoveryCodes();
+      expect(new Set(codes).size).toBe(codes.length);
+    });
+
+    it('respects the count parameter', () => {
+      expect(service.generateRecoveryCodes(3)).toHaveLength(3);
+    });
+  });
+
+  describe('hashRecoveryCode / verifyRecoveryCode', () => {
+    it('verifyRecoveryCode returns true for the matching code', async () => {
+      const code = service.generateRecoveryCodes(1)[0];
+      const hash = await service.hashRecoveryCode(code);
+      expect(await service.verifyRecoveryCode(code, hash)).toBe(true);
+    });
+
+    it('verifyRecoveryCode returns false for a different code', async () => {
+      const [code, other] = service.generateRecoveryCodes(2);
+      const hash = await service.hashRecoveryCode(code);
+      expect(await service.verifyRecoveryCode(other, hash)).toBe(false);
+    });
+
+    it('uses the reduced-cost argon2id parameters (m=19456, t=2)', async () => {
+      const hash = await service.hashRecoveryCode(service.generateRecoveryCodes(1)[0]);
+      expect(hash).toMatch(/^\$argon2id/);
+      expect(hash).toContain('m=19456');
+      expect(hash).toContain('t=2');
+    });
+  });
 });

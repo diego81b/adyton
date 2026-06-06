@@ -4,6 +4,8 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { HealthController } from './health/health.controller';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
+import { TwoFactorModule } from './two-factor/two-factor.module';
+import { WebauthnModule } from './webauthn/webauthn.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { SettingsModule } from './settings/settings.module';
 import { DevicesModule } from './devices/devices.module';
@@ -27,6 +29,8 @@ import mikroOrmBaseConfig from './mikro-orm.config';
     }),
     RedisModule,
     AuthModule,
+    TwoFactorModule,
+    WebauthnModule,
     SessionsModule,
     SettingsModule,
     DevicesModule,

@@ -21,6 +21,11 @@ export class WebAuthnCredential {
   @Property({ length: 64 })
   aaguid!: string;
 
+  // JSON array of WebAuthn transport hints (e.g. ["internal","hybrid"]) — passed
+  // back in allowCredentials so browsers pick the right authenticator faster.
+  @Property({ type: 'text', nullable: true })
+  transports: string | null = null;
+
   @Property({ length: 255 })
   friendlyName!: string;
 

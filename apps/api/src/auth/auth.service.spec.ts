@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { AuthService, MFA_TOKEN_PREFIX, MFA_TOKEN_TTL_SECONDS } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { AuditAction } from '../entities/audit-log.entity';
 
 // ---- Mocks ----------------------------------------------------------------
 
@@ -13,6 +14,7 @@ const mockEm = {
   findOneOrFail: jest.fn(),
   nativeUpdate: jest.fn(),
   removeAndFlush: jest.fn(),
+  count: jest.fn().mockResolvedValue(0),
 };
 
 const mockJwtService = {
@@ -26,6 +28,7 @@ const mockCryptoService = {
   generateKdfSalt: jest.fn().mockReturnValue('aabbccdd'.repeat(8)),
   generateRefreshToken: jest.fn().mockReturnValue('raw-refresh-token'),
   generateDeviceId: jest.fn().mockReturnValue('raw-device-otp'),
+  generateMfaToken: jest.fn().mockReturnValue('0123456789abcdef'.repeat(4)),
 };
 
 const mockProgressiveDelay = {
@@ -233,6 +236,7 @@ describe('AuthService', () => {
       mockCryptoService.verifyPassword.mockResolvedValue(true);
 
       const result = await service.login(dto, '127.0.0.1', 'agent');
+      if ('requiresMfa' in result) throw new Error('expected tokens');
 
       expect(result.accessToken).toBe('mock-access-token');
       expect(result.user.email).toBe('test@example.com');
@@ -273,6 +277,7 @@ describe('AuthService', () => {
       mockCryptoService.verifyPassword.mockResolvedValue(true);
 
       const result = await service.login(dto, '127.0.0.1', 'agent', 'raw-device-cookie');
+      if ('requiresMfa' in result) throw new Error('expected tokens');
 
       expect(result.newDeviceId).toBeUndefined();
       expect(existingDevice.lastSeenAt).toBeInstanceOf(Date);
@@ -288,6 +293,89 @@ describe('AuthService', () => {
 
       const result = await service.register({ email: 'UPPER@EXAMPLE.COM', password: 'pass' }, '127.0.0.1', 'ua');
       expect(result.user.email).toBe('upper@example.com');
+    });
+
+    it('totpEnabled user: returns requiresMfa + mfaToken, issues no tokens', async () => {
+      const totpUser = makeUser({ totpEnabled: true });
+      mockEm.findOne.mockResolvedValue(totpUser);
+      mockCryptoService.verifyPassword.mockResolvedValue(true);
+
+      const result = await service.login(dto, '127.0.0.1', 'agent');
+
+      const rawMfa = '0123456789abcdef'.repeat(4);
+      expect(result).toEqual({ requiresMfa: true, mfaToken: rawMfa, methods: ['totp'] });
+
+      // mfaToken stored hashed in Redis with a 5-minute TTL, value = user.id
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `${MFA_TOKEN_PREFIX}hash-of-${rawMfa}`,
+        MFA_TOKEN_TTL_SECONDS,
+        totpUser.id,
+      );
+
+      // No session issued: no refresh token persisted, no access token signed
+      expect(mockEm.persist).not.toHaveBeenCalled();
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('totpEnabled user with passkeys: methods lists webauthn first', async () => {
+      const totpUser = makeUser({ totpEnabled: true });
+      mockEm.findOne.mockResolvedValue(totpUser);
+      mockEm.count.mockResolvedValueOnce(2);
+      mockCryptoService.verifyPassword.mockResolvedValue(true);
+
+      const result = await service.login(dto, '127.0.0.1', 'agent');
+
+      expect(result).toMatchObject({ requiresMfa: true, methods: ['webauthn', 'totp'] });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('completeLogin', () => {
+    it('returns accessToken + user + rawRefreshToken, signs twoFactorPassed: true', async () => {
+      const user = makeUser();
+      mockEm.create.mockImplementation((_entity: unknown, data: Record<string, unknown>) => ({
+        id: 'new-id',
+        ...data,
+      }));
+      mockEm.findOne.mockResolvedValue(null); // TrustedDevice lookup — no cookie passed
+
+      const result = await service.completeLogin(user as never, '127.0.0.1', 'agent', undefined);
+
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(result.user.email).toBe('test@example.com');
+      expect(result.rawRefreshToken).toBe('raw-refresh-token');
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ twoFactorPassed: true }),
+        expect.anything(),
+      );
+    });
+
+    it('audits LOGIN_SUCCESS by default', async () => {
+      const user = makeUser();
+      mockEm.findOne.mockResolvedValue(null);
+
+      await service.completeLogin(user as never, '127.0.0.1', 'agent', undefined);
+
+      expect(mockAuditService.persistLog).toHaveBeenCalledWith(
+        user.id,
+        AuditAction.LOGIN_SUCCESS,
+        '127.0.0.1',
+        'agent',
+      );
+    });
+
+    it('audits the explicit action argument when provided', async () => {
+      const user = makeUser();
+      mockEm.findOne.mockResolvedValue(null);
+
+      await service.completeLogin(user as never, '127.0.0.1', 'agent', undefined, AuditAction.REGISTER);
+
+      expect(mockAuditService.persistLog).toHaveBeenCalledWith(
+        user.id,
+        AuditAction.REGISTER,
+        '127.0.0.1',
+        'agent',
+      );
     });
   });
 

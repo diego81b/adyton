@@ -8,10 +8,16 @@ const config: Config = {
     '^.+\\.(t|j)s$': [
       'ts-jest',
       {
-        tsconfig: 'tsconfig.json',
+        // allowJs: ts-jest must down-compile the ESM-only otplib dep chain (below)
+        tsconfig: { allowJs: true, isolatedModules: true },
       },
     ],
   },
+  // otplib v13 pulls ESM-only deps (@scure/base, @noble/hashes). Node's runtime
+  // require(esm) handles them, but jest's CJS module registry does not — let
+  // ts-jest transform those packages instead of ignoring node_modules.
+  // ([\\/\\\\] handles both separators — jest matches raw Windows paths.)
+  transformIgnorePatterns: ['node_modules[/\\\\](?!\\.pnpm|otplib|@otplib|@scure|@noble)'],
   collectCoverageFrom: [
     'src/**/*.(t|j)s',
     // Exclude spec files and pure-wiring infrastructure (no logic to unit-test)
@@ -26,6 +32,8 @@ const config: Config = {
     '!src/**/*.entity.ts',
     // Controllers are integration-tested; exclude to avoid skewing global threshold
     '!src/**/*.controller.ts',
+    // Controller-layer cookie helpers — exercised by integration tests only
+    '!src/auth/cookies.ts',
     '!src/redis/redis.provider.ts',
     // Pure delegation wrappers — no unit-testable logic
     '!src/**/*.guard.ts',

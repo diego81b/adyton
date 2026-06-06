@@ -80,9 +80,24 @@ fs.writeFileSync(process.env.JWT_PUB_OUT,  publicKey);
     }
 }
 
+# Server-held AES-256-GCM key encrypting account-2FA TOTP secrets at rest
+# (sanctioned ZK exception, analysis/security/architecture.md §3.5).
+$totpKey = Join-Path $secretsDir 'totp_enc.key'
+if (Test-Path $totpKey) {
+    Write-Host "[gen-keys] $totpKey already exists - leaving it untouched." -ForegroundColor Yellow
+}
+else {
+    Write-Host "[gen-keys] Generating 32-byte TOTP encryption key..."
+    $bytes = [byte[]]::new(32)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $hex = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
+    Set-Content -LiteralPath $totpKey -Value $hex -Encoding ascii -NoNewline
+}
+
 Write-Host ""
 Write-Host "[gen-keys] Done." -ForegroundColor Green
 Write-Host "  private: $privateKey"
 Write-Host "  public:  $publicKey"
+Write-Host "  totp:    $totpKey"
 Write-Host ""
 Write-Host "Next: cp .env.example .env ; docker compose up -d"

@@ -35,9 +35,21 @@ openssl rsa -in "${PRIVATE_KEY}" -pubout -out "${PUBLIC_KEY}"
 chmod 600 "${PRIVATE_KEY}" 2>/dev/null || true
 chmod 644 "${PUBLIC_KEY}"  2>/dev/null || true
 
+# Server-held AES-256-GCM key encrypting account-2FA TOTP secrets at rest
+# (sanctioned ZK exception, analysis/security/architecture.md §3.5).
+TOTP_KEY="${SECRETS_DIR}/totp_enc.key"
+if [[ -f "${TOTP_KEY}" ]]; then
+    echo "[gen-keys] ${TOTP_KEY} already exists — leaving it untouched."
+else
+    echo "[gen-keys] Generating 32-byte TOTP encryption key…"
+    openssl rand -hex 32 > "${TOTP_KEY}"
+    chmod 600 "${TOTP_KEY}" 2>/dev/null || true
+fi
+
 echo ""
 echo "[gen-keys] Done."
 echo "  private: ${PRIVATE_KEY}"
 echo "  public:  ${PUBLIC_KEY}"
+echo "  totp:    ${TOTP_KEY}"
 echo ""
 echo "Next: cp .env.example .env && docker compose up -d"

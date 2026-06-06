@@ -5,6 +5,28 @@
 Self-hosted, zero-knowledge password manager and `.env` / production secrets vault.
 The server stores opaque ciphertext only. Encryption and decryption happen exclusively in the browser.
 
+## How it works
+
+Adyton is a vault. Like a physical safe, only you can open it — not the server it runs on, not anyone who breaks into that server.
+
+**The master password is your combination.** You type it once to unlock. It never leaves your device — not over the network, not to the server, not in any log. Your browser uses it to derive a cryptographic key (Argon2id, a deliberately slow algorithm designed to resist brute force). That key scrambles every secret before it touches the network, and unscrambles it after it comes back. The server holds encrypted blobs it cannot read.
+
+**What you can store:** passwords and usernames (with per-entry TOTP codes for sites that require them), secure notes, credit cards, identities, `.env` files, and arbitrary secrets. Each entry is encrypted individually with a different nonce.
+
+**The server is blind.** It stores your email, a hashed password (for login), and encrypted blobs. It cannot read them, search inside them, or hand them to anyone in useful form — even under a court order, even if it gets compromised. This is the zero-knowledge property.
+
+**When you close the tab or walk away**, the key is wiped from memory. Re-opening the vault means re-typing the master password. There is no copy of the key on disk, in the database, or on the server. This is by design.
+
+**Two-factor authentication** adds a second check at login — a one-time code from an authenticator app, or a passkey. It protects your account if someone steals your password. It does not affect vault decryption; that is still the master password's job. Unlocking an already-open session only requires the master password.
+
+**Passkeys** are a modern, phishing-resistant alternative to one-time codes. Your phone or laptop holds a private key; the server stores only the public half. Even a perfect copy of the login page cannot steal a passkey because it is cryptographically bound to this exact domain.
+
+**Recovery codes** are eight single-use emergency tickets generated when you enable 2FA. If you lose your phone, one code gets you in. The server stores only their hashes — never the codes themselves. Each works exactly once.
+
+**What the server knows:** your email, a hashed password, and ciphertext it cannot read. Nothing else.
+
+**What the server will never know:** your master password, the key derived from it, or any plaintext secret.
+
 ## Security model
 
 Encryption and decryption happen exclusively in the browser. The server never sees:
@@ -86,8 +108,8 @@ pnpm lint                             # ESLint flat config
 | 2 | NestJS auth (JWT, sessions, devices, PoW) | Done |
 | 3 | MikroORM vault entities + migrations + vault API | Done |
 | 4 | `packages/shared` crypto + Nuxt auth flows | Done |
-| 5 | Nuxt vault UI | In progress — list, entry detail/edit, version history, per-entry TOTP, generator + settings pending |
-| 6 | 2FA (TOTP + WebAuthn) | — |
+| 5 | Nuxt vault UI | Done |
+| 6 | 2FA (TOTP + WebAuthn passkeys) | Done |
 | 7 | Browser extension (MV3) | — |
 | 8 | Production hardening | — |
 | 9 | Capacitor mobile (iOS + Android) | — |

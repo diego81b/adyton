@@ -16,7 +16,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Phase 5 COMPLETE + verified (2026-06-04).** Int tests run (settings/account-deletion/cors pass; only failures = 2 pre-existing 429 rate-limit ones), snapshots regenerated, full browser smoke of `/generator` + `/settings` done. **CORS fix landed:** `@fastify/cors` v11 defaults to GET,HEAD,POST — explicit `methods` list in `create-app.ts` now allows PUT/PATCH/DELETE (regression test `cors.int-spec.ts`); without it every browser mutation except POST failed preflight.
 
-**Post-Phase-5 UI polish (2026-06-04, browser-verified):** JSON env files (`detectEnvFormat` → raw viewer + `.json` download; dotenv table otherwise); card brand detection (`cardBrand`, simple-icons) + expiry auto-slash; vault cards: type tooltip on tile (no text badge), fixed fuchsia `vN` tag before the title, env as left color stripe, expandable notes section (`@click.stop` everywhere — card click opens detail), two fixed action columns (notes yellow / copy emerald, tile-style); filters apply on Done (draft semantics); chips derive tones from `TILE_CLASS` (sync pinned by test); `apiFetch` non-auth 401 → silent refresh+retry once, dead session → hard redirect `/login`; settings two-column desktop (Account/Vault/Danger left, Security right); width system: layout `max-w-6xl`, pages pin 4xl (vault/detail/generator) or 5xl (settings). Backlog: type/env color legend. Next: **Phase 6 (2FA: TOTP + WebAuthn)** — branch NOT yet pushed to origin.
+**Post-Phase-5 UI polish (2026-06-04, browser-verified):** JSON env files (`detectEnvFormat` → raw viewer + `.json` download; dotenv table otherwise); card brand detection (`cardBrand`, simple-icons) + expiry auto-slash; vault cards: type tooltip on tile (no text badge), fixed fuchsia `vN` tag before the title, env as left color stripe, expandable notes section (`@click.stop` everywhere — card click opens detail), two fixed action columns (notes yellow / copy emerald, tile-style); filters apply on Done (draft semantics); chips derive tones from `TILE_CLASS` (sync pinned by test); `apiFetch` non-auth 401 → silent refresh+retry once, dead session → hard redirect `/login`; settings two-column desktop (Account/Vault/Danger left, Security right); width system: layout `max-w-6xl`, pages pin 4xl (vault/detail/generator) or 5xl (settings). Backlog: type/env color legend.
+
+**Phase 6 (2FA) COMPLETE** on `feature/phase-6-2fa` (off the phase-5 tip; phase-5 pushed to origin, phase-6 NOT pushed yet). All 4 steps done (2026-06-06):
+- **Step 0 — backend TOTP:** `TwoFactorModule` (`/auth/2fa/setup|enable|disable|recovery-codes|authenticate`). 2FA login issues an **opaque Redis `mfaToken`** (SHA-256-hashed key, TTL 300s, 5-attempt budget) and NO JWT — nothing partial can pass `JwtAuthGuard`; tokens only from `authenticate` via `AuthService.completeLogin()` (extracted, public). TOTP secret AES-256-GCM at rest, key `secrets/totp_enc.key` (gitignored; gen-keys scripts produce it; compose secret `totp_enc_key`, env `TOTP_ENC_KEY_PATH`) — sanctioned ZK exception (architecture.md §3.5); losing the key forces global 2FA re-enrollment. 8 recovery codes Argon2id `m=19456,t=2,p=1`, row deleted on use. `RecoveryCode` entity + migration. otplib v13 functional API; `epochTolerance:30` is SECONDS (pinned by stale-code regression test). jest transforms otplib's ESM-only deps (`transformIgnorePatterns` + `allowJs` — keep).
+- **Step 1 — frontend TOTP:** two-phase login (password kept in memory until second factor — needed for vault-key derivation; expired/exhausted token resets to credentials), `TwoFactorChallenge`, settings `TwoFactorCard` + `TwoFactorSetupModal` (QR → verify → recovery codes w/ mandatory ack, modal locked at step c) + `RecoveryCodesList/Modal` + `PasswordPromptModal`. 'View recovery codes' deliberately omitted (server stores hashes only).
+- **Step 2 — WebAuthn passkeys:** `WebauthnModule` (`/auth/webauthn/register/*`, `/credentials`, `/authenticate/*`), same mfaToken flow + shared attempt budget, Redis in-flight challenges keyed by user (reg) / token hash (auth). **Passkey registration requires TOTP enabled first** (recovery-code story; V1 constraint). `MfaRequired.methods[]` (webauthn first). Frontend: `useWebAuthn` composable (@simplewebauthn/browser), `PasskeysCard`, passkey button in challenge. rpID/origin: `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` env (dev defaults localhost/30000).
+- **Step 3 — int tests + WebAuthn browser smoke + docs:** `test/integration/two-factor.int-spec.ts` (17 tests: setup/enable/disable/recovery-codes/authenticate happy+error paths, 5-attempt exhaustion, single-use recovery, security invariant mfaToken≠JWT, rate-limit headers) + `test/integration/webauthn.int-spec.ts` (17 tests: register options/verify, credentials GET/DELETE RBAC, authenticate options/verify, rate-limit). ESM transform added to `jest-integration.json` (`transformIgnorePatterns` + `allowJs` — matches unit config). Bug fix: `auth.controller.ts` login was dropping `methods` from `MfaRequired` response, preventing passkey button from rendering in `TwoFactorChallenge`; fixed by adding `methods: result.methods`. WebAuthn browser-smoked end-to-end via Playwright CDP virtual authenticator: register passkey → logout → login → passkey MFA → vault.
+- **Verified:** unit suites green (api 204, web 310, shared 71), int tests green (34 new tests), TOTP + WebAuthn flows browser-smoked end-to-end incl. recovery single-use, mfaToken rejected on vault routes, rate-limit headers confirmed.
+- **Post-closure bug fix (2026-06-06):** `TwoFactorService.disable` was not deleting `WebAuthnCredential` rows — disabling then re-enabling 2FA left old passkeys active. Fix: `nativeDelete(WebAuthnCredential, { user })` added alongside the existing `RecoveryCode` delete. Regression test in `two-factor.service.spec.ts`.
+- **CI landmine:** `secrets/totp_enc.key` is gitignored — int tests will fail on CI until key is provisioned (see `secrets/README.md` + gen-keys scripts).
+- **Gotchas:** new api deps need `up -d --build --force-recreate --renew-anon-volumes api` (anonymous node_modules volume survives plain `--build`); pre-commit web test `clears store after logout` is slow under load (15s timeout set — if hook fails at test, re-run `node scripts/precommit-affected.mjs` and retry).
+- **WebAuthn rpID display:** passkey label on device shows `rpID` (domain), not `rpName`. In dev always shows "localhost" — correct, unchangeable (rpID is bound to hostname by the WebAuthn spec). In prod set `WEBAUTHN_RP_ID` + `WEBAUTHN_ORIGIN` to the real domain.
 
 Integration contracts (do not regress): API uses `setGlobalPrefix('api')` → `NUXT_PUBLIC_API_BASE_URL` ends in `/api`, refresh cookie path `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client deps (hash-wasm, zxcvbn) and is `COPY`d into dev Dockerfiles. **Migrations:** auto-applied only when `RUN_MIGRATIONS=true` (dev: via container `dev:migrate` CLI on `src`; staging: built image on boot; prod: never — extract SQL with `pnpm --filter @adyton/api migration:sql` and apply manually). Editing `apps/api` source needs `docker compose restart api` (tsc watch misses Windows bind-mount changes).
 
@@ -153,6 +164,21 @@ Branches are per **phase** (and, in future, per issue) — NOT per step.
 - No step→phase merge step exists anymore; a "step" is a logical grouping of commits, not a branch.
 - (Historical note: Step 0 used a `feature/phase-5-step-0-foundation` branch; that per-step-branch convention is retired as of 2026-06-03.)
 
+## README maintenance — MANDATORY
+
+`README.md` is the public face of the project. Keep it current whenever you change something user-visible.
+
+**On every phase completion**, update `README.md` if any of these changed:
+- Roadmap table (`| N | … | Status |`) — flip to `Done` when the phase lands
+- Stack table — new technology added or removed
+- Setup instructions — new prerequisites, new scripts, changed ports
+- Project structure — new top-level directories or workspaces
+- The **"How it works"** section — if a new security mechanism was added (new 2FA method, new encryption scope, new entry type, new lock behaviour). This section must stay accurate for a non-technical reader. Do not add jargon; explain the mechanism in plain terms and note what the server can and cannot see.
+
+The "How it works" section is **not a marketing blurb** — it is a plain-language description of the actual security model. If the model changes, the section changes too. If a feature is added that changes what the server knows or does not know, update the "What the server knows / will never know" lists.
+
+Do not rewrite sections unrelated to the current change.
+
 ## Step / phase completion checklist — MANDATORY, no exceptions
 
 Before declaring any step or phase done, always do **all three** of these in order:
@@ -175,6 +201,26 @@ Before declaring any step or phase done, always do **all three** of these in ord
 - Anything automated tests don't cover (real browser behavior, DB state checks, cookie handling)
 
 These are not optional steps. Do not output "Step N complete" or "Phase N complete" without completing all three.
+
+## Step / phase as issue — MANDATORY workflow
+
+Every step and every phase is treated as an **issue** (a discrete, trackable unit of work).
+
+**Before writing any code**, for each step or phase:
+
+1. **Analyze** — read the relevant `analysis/*.md`, CLAUDE.md status, and memory. Understand scope, dependencies, risks.
+2. **Declare tools** — explicitly state which agents, plugins, or skills will be used and why:
+   - `feature-dev:code-explorer` or `caveman:cavecrew-investigator` — codebase exploration / locating symbols
+   - `feature-dev:code-architect` — design / blueprint before implementation
+   - `kairos:implementer-tdd-agent` / `kairos:implementer-coder-agent` — implementation with or without TDD
+   - `feature-dev:code-reviewer` or `caveman:cavecrew-reviewer` — diff review after changes
+   - `Workflow` — parallel fan-out across independent tracks (backend + frontend + tests)
+   - `mcp__plugin_playwright_playwright__*` / `mcp__plugin_chrome-devtools-mcp_chrome-devtools__*` — browser smoke / WebAuthn virtual-authenticator
+   - `advisor` — second opinion before committing to approach or declaring done
+3. **Confirm** — get user go-ahead on the plan and tool selection before starting.
+4. **Execute** — implement, then run the Step / phase completion checklist.
+
+This workflow applies even for "small" steps. Skipping the declare step is not allowed.
 
 ## When in doubt
 

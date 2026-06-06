@@ -98,6 +98,17 @@ export interface AuthTokens {
   newDeviceOtp?: string; // present only on new-device login/register
 }
 
+// First-stage login outcome for a 2FA-enabled account: no tokens are issued.
+// mfaToken is an opaque single-use value (5 min TTL) consumed by POST /auth/2fa/authenticate.
+export interface MfaRequired {
+  requiresMfa: true;
+  mfaToken: string;
+  // Available second factors; 'webauthn' present when the account has passkeys.
+  methods: Array<'totp' | 'webauthn'>;
+}
+
+export type LoginResponse = AuthTokens | MfaRequired;
+
 export interface ApiError {
   statusCode: number;
   error: string;

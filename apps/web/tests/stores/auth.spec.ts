@@ -96,6 +96,82 @@ describe('useAuthStore.login', () => {
     await expect(store.login('bad@user.com', 'wrong')).rejects.toThrow();
     expect(store.isAuthenticated).toBe(false);
   });
+
+  it('returns MfaRequired without setting tokens when 2FA is required', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse({ requiresMfa: true, mfaToken: 'mfa-123' }));
+    const store = useAuthStore();
+    const result = await store.login('2fa@user.com', 'password');
+
+    expect(result).toEqual({ requiresMfa: true, mfaToken: 'mfa-123' });
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.accessToken).toBeNull();
+    expect(store.user).toBeNull();
+  });
+});
+
+describe('useAuthStore.authenticateTwoFactor', () => {
+  it('posts the payload to /auth/2fa/authenticate and stores the tokens', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    const result = await store.authenticateTwoFactor({ mfaToken: 'mfa-123', code: '123456' });
+
+    const callArgs = mockFetch.mock.calls[0];
+    expect(callArgs[0]).toContain('/auth/2fa/authenticate');
+    expect(callArgs[1].method).toBe('POST');
+    expect(JSON.parse(callArgs[1].body)).toEqual({ mfaToken: 'mfa-123', code: '123456' });
+
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.accessToken).toBe('test-access-token');
+    expect(result.accessToken).toBe('test-access-token');
+  });
+
+  it('forwards a recovery code in the body', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    await store.authenticateTwoFactor({ mfaToken: 'mfa-123', recoveryCode: 'aaaaa-bbbbb-ccccc-ddddd' });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body).toEqual({ mfaToken: 'mfa-123', recoveryCode: 'aaaaa-bbbbb-ccccc-ddddd' });
+  });
+
+  it('throws and leaves store unauthenticated on an invalid code', async () => {
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Invalid code'));
+    const store = useAuthStore();
+    await expect(
+      store.authenticateTwoFactor({ mfaToken: 'mfa-123', code: '000000' }),
+    ).rejects.toThrow('Invalid code');
+    expect(store.isAuthenticated).toBe(false);
+  });
+});
+
+describe('useAuthStore.authenticateWebAuthnVerify', () => {
+  it('posts mfaToken + assertion to the verify endpoint and stores the tokens', async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
+    const store = useAuthStore();
+    const assertion = { id: 'cred-1', response: {} };
+    const result = await store.authenticateWebAuthnVerify({
+      mfaToken: 'mfa-123',
+      response: assertion,
+    });
+
+    const callArgs = mockFetch.mock.calls[0];
+    expect(callArgs[0]).toContain('/auth/webauthn/authenticate/verify');
+    expect(callArgs[1].method).toBe('POST');
+    expect(JSON.parse(callArgs[1].body)).toEqual({ mfaToken: 'mfa-123', response: assertion });
+
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.accessToken).toBe('test-access-token');
+    expect(result.accessToken).toBe('test-access-token');
+  });
+
+  it('throws and leaves the store unauthenticated on an invalid passkey', async () => {
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Invalid passkey'));
+    const store = useAuthStore();
+    await expect(
+      store.authenticateWebAuthnVerify({ mfaToken: 'mfa-123', response: {} }),
+    ).rejects.toThrow('Invalid passkey');
+    expect(store.isAuthenticated).toBe(false);
+  });
 });
 
 describe('useAuthStore.register', () => {
@@ -169,7 +245,10 @@ describe('useAuthStore.initialize', () => {
 });
 
 describe('useAuthStore.logout', () => {
-  it('clears store after logout', async () => {
+  // 15s timeout: logout() dynamically imports the vault/settings stores (and their
+  // shared-crypto dependency chain) to clear them — the one-time import takes ~2s
+  // cold and can exceed the default 5s under concurrent pre-commit load.
+  it('clears store after logout', { timeout: 15_000 }, async () => {
     // Login first
     mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));
     const store = useAuthStore();
