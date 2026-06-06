@@ -10,6 +10,8 @@ import { generate, generateSecret } from 'otplib';
 import { TwoFactorService } from './two-factor.service';
 import { encryptTotpSecret } from './totp-cipher';
 import { AuditAction } from '../entities/audit-log.entity';
+import { RecoveryCode } from '../entities/recovery-code.entity';
+import { WebAuthnCredential } from '../entities/webauthn-credential.entity';
 import {
   MFA_TOKEN_PREFIX,
   MFA_ATTEMPTS_PREFIX,
@@ -257,7 +259,7 @@ describe('TwoFactorService', () => {
 
       expect(user.totpEnabled).toBe(false);
       expect(user.totpSecretEncrypted).toBeNull();
-      expect(mockEm.nativeDelete).toHaveBeenCalledTimes(1);
+      expect(mockEm.nativeDelete).toHaveBeenCalledTimes(2);
       expect(mockAuditService.persistLog).toHaveBeenCalledWith(
         user.id,
         AuditAction.TWO_FACTOR_DISABLED,
@@ -265,6 +267,21 @@ describe('TwoFactorService', () => {
         'agent',
       );
       expect(mockEm.flush).toHaveBeenCalled();
+    });
+
+    it('regression: disable also deletes WebAuthnCredentials so old passkeys cannot survive re-enrolment', async () => {
+      const user = makeUser({
+        totpEnabled: true,
+        totpSecretEncrypted: encryptTotpSecret('SECRET', KEY_BUFFER),
+      });
+      mockEm.findOneOrFail.mockResolvedValue(user);
+      mockCryptoService.verifyPassword.mockResolvedValue(true);
+
+      await service.disable(user.id, 'correct', '127.0.0.1', 'agent');
+
+      const deletedEntities = mockEm.nativeDelete.mock.calls.map((c: unknown[]) => c[0]);
+      expect(deletedEntities).toContain(RecoveryCode);
+      expect(deletedEntities).toContain(WebAuthnCredential);
     });
 
     it('not enabled: throws BadRequestException', async () => {

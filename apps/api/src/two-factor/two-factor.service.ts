@@ -11,6 +11,7 @@ import { generateSecret, generateURI, verify } from 'otplib';
 import * as QRCode from 'qrcode';
 import { User } from '../entities/user.entity';
 import { RecoveryCode } from '../entities/recovery-code.entity';
+import { WebAuthnCredential } from '../entities/webauthn-credential.entity';
 import { CryptoService } from '../crypto/crypto.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../entities/audit-log.entity';
@@ -116,6 +117,7 @@ export class TwoFactorService {
     user.totpEnabled = false;
     user.totpSecretEncrypted = null;
     await this.em.nativeDelete(RecoveryCode, { user });
+    await this.em.nativeDelete(WebAuthnCredential, { user });
     this.auditService.persistLog(user.id, AuditAction.TWO_FACTOR_DISABLED, ip, userAgent);
     await this.em.flush();
   }
