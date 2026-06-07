@@ -144,14 +144,20 @@ MIIEowIBAAKCAQEA...
 
 > **Cloudflare vs Coolify:** Coolify handles routing *inside* the VPS (which container serves which domain). Cloudflare handles external DNS — it points the domain to the VPS IP. Do this step first; Coolify needs the domain to resolve when it requests the Let's Encrypt certificate.
 
-### 6a. Add DNS records (Cloudflare dashboard)
+### 6a. Find the VPS IP
+
+**Hetzner Cloud Console** (`console.hetzner.cloud`) → select the server → copy the **IPv4** address shown in the server overview. This is the IP you put in all Cloudflare A records.
+
+> **Multiple apps on the same VPS:** all apps share this single IP. Coolify's built-in Caddy proxy routes traffic by domain name (`Host` header) — each app just needs different domains pointing to the same IP.
+
+### 6b. Add DNS records (Cloudflare dashboard)
 
 **dash.cloudflare.com → select domain `diegobaldeschi.dev` → DNS → Records → Add record:**
 
 | Type | Name | Content | Proxy status |
 |------|------|---------|-------|
-| A | `adyton` | `<VPS IP>` | Proxied (orange cloud) |
-| A | `api.adyton` | `<VPS IP>` | Proxied (orange cloud) |
+| A | `adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
+| A | `api.adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
 
 ### 6b. Harden Cloudflare settings
 
