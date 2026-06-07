@@ -109,23 +109,7 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 ---
 
-### Phase 7 — Browser Extension (MV3) | Complexity: L
-
-**Goals:** Ship a functional Manifest V3 extension for Chrome and Firefox with autofill, vault search, and synchronized auth state.
-
-**Deliverables:**
-- Extension scaffold with Vite build, TypeScript, Tailwind CSS (bundled, not NuxtUI)
-- Popup: login form, vault list with domain matching, copy buttons with 30s clipboard clear, lock/unlock
-- Content script: form detection, MutationObserver, autofill button injection, SPA navigation handling
-- Service worker: API proxy, silent token refresh (via httpOnly cookie), message handlers for `AUTOFILL_REQUEST` and `VAULT_SEARCH`
-- `chrome.storage.session` for access token persistence across service worker wake cycles
-- `packages/shared` crypto used for decrypt-on-demand in service worker and popup
-- Firefox compatibility: `browser.*` API polyfill (`webextension-polyfill`), `browser_specific_settings` in manifest
-- Packaged `.crx` and `.xpi` artifacts via CI
-
----
-
-### Phase 8 — Production Hardening | Complexity: M
+### Phase 7 — Production Hardening | Complexity: M
 
 **Goals:** Transition from development to a production-grade deployment on a VPS with SSL, automated backups, rate limiting, and a final security review pass.
 
@@ -144,7 +128,7 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 ---
 
-### Phase 9 — Capacitor Mobile App (iOS + Android) | Complexity: M
+### Phase 8 — Capacitor Mobile App (iOS + Android) | Complexity: M
 
 **Goals:** Ship the mobile app using the existing Nuxt 4 frontend wrapped in Capacitor. iOS gets native Keychain storage (no ITP), native Face ID unlock, and proper home screen install. Android gets the same via Capacitor or via the existing PWA.
 
@@ -164,19 +148,20 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 ---
 
-### Future Roadmap (post-Phase 9)
+### Future Roadmap (post-Phase 8)
 
-The following features are architecturally sound but outside current implementation scope:
+The following features are architecturally sound but outside current V1 implementation scope:
 
-| Feature | Prerequisite | Complexity |
-|---------|-------------|------------|
-| **Tauri desktop app** | Phase 9 complete | M — Tauri wraps same Nuxt build; adds Rust plugins for Keychain, screen-lock, global shortcut |
-| **Phone-as-Key Sub-model A (enforced)** | Phase 6 (WebAuthn) | S — enforce `authenticatorAttachment: 'cross-platform'` + device-bound passkeys |
-| **Phone-as-Key Sub-model B (relay)** | Tauri or Phase 9 | L — VPS relay API, Capacitor key-only app, ECDH key exchange, ntfy.sh push |
-| **Emergency access (trusted contact)** | Phase 3 | M — time-locked delegated access, zero-knowledge grant flow |
-| **VaultEntry sharing** | Phase 3 | L — asymmetric re-encryption for sharing between users on same instance |
-| **TOTP vault entries** | Phase 5 | S — store TOTP secrets as vault entries, display live codes |
-| **CLI tool** | Phase 8 | M — `@pwdsecure/cli` using shared crypto, reads/writes vault via API |
+| Feature | Prerequisite | Complexity | Notes |
+|---------|-------------|------------|-------|
+| **Browser Extension (MV3)** | Phase 7 complete | L | Moved post-V1 (2026-06-06): security review identified critical vault-key storage risk in the original §7.4 design ("decrypt in SW" violates ZK invariants). See `analysis/extension.md` §7.7–7.8 for the full risk register and pre-implementation requirements that must be resolved before implementation begins. |
+| **Tauri desktop app** | Phase 8 complete | M | Tauri wraps same Nuxt build; adds Rust plugins for Keychain, screen-lock, global shortcut |
+| **Phone-as-Key Sub-model A (enforced)** | Phase 6 (WebAuthn) | S | enforce `authenticatorAttachment: 'cross-platform'` + device-bound passkeys |
+| **Phone-as-Key Sub-model B (relay)** | Tauri or Phase 8 | L | VPS relay API, Capacitor key-only app, ECDH key exchange, ntfy.sh push |
+| **Emergency access (trusted contact)** | Phase 3 | M | time-locked delegated access, zero-knowledge grant flow |
+| **VaultEntry sharing** | Phase 3 | L | asymmetric re-encryption for sharing between users on same instance |
+| **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
+| **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |
 
 ---
 

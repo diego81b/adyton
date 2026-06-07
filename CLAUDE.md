@@ -90,7 +90,7 @@ Violating any of these breaks the security model. Flag immediately and refuse to
 
 ## Roadmap context
 
-Phases 1–9 (`analysis/roadmap/phases.md`) define V1. Order matters — earlier phases unblock later ones:
+Phases 1–8 (`analysis/roadmap/phases.md`) define V1. Order matters — earlier phases unblock later ones:
 
 1. Monorepo scaffolding + Docker
 2. NestJS auth
@@ -98,11 +98,12 @@ Phases 1–9 (`analysis/roadmap/phases.md`) define V1. Order matters — earlier
 4. `packages/shared` crypto + Nuxt auth flows
 5. Nuxt vault UI
 6. 2FA (TOTP + WebAuthn)
-7. Browser extension (MV3)
-8. Production hardening
-9. Capacitor mobile app (iOS + Android)
+7. Production hardening
+8. Capacitor mobile app (iOS + Android)
 
-Phase 10 / Section 16 (Phone-as-Key, WebAuthn PRF, Secure Enclave, QR+ECDH relay, Shamir) is **post-V1** — do not pull this work into V1 phases without explicit user approval.
+**Browser extension (MV3) moved to post-V1 (2026-06-06):** security review identified a critical vault-key storage risk in the original design (service worker cannot safely hold the vault key; `chrome.storage.session` violates the non-extractable/ZK invariants). Full risk register and pre-implementation requirements in `analysis/extension.md` §7.7–7.8. Do not start extension work until those design questions are resolved.
+
+Phone-as-Key, WebAuthn PRF, Secure Enclave, QR+ECDH relay, Shamir, Tauri are **post-V1** — do not pull into V1 without explicit user approval.
 
 `packages/shared` is the cross-cutting dependency: backend, frontend, and extension all import from it. Land it early so the other apps can rely on stable crypto + type contracts.
 

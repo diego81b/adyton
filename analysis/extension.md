@@ -170,3 +170,58 @@ All message handlers in the service worker switch on `message.type` with exhaust
 
 ---
 
+### 7.7 Security Risks — Deferred to Post-V1
+
+The extension phase was reviewed for security risks before implementation (2026-06-06) and moved to post-V1. The risks below must be resolved in the design before any code is written.
+
+#### Critical — breaks zero-knowledge invariants
+
+**Vault key storage (§7.4 is wrong as written)**
+The analysis at §7.4 says `packages/shared` crypto is used "in service worker and popup". This is incorrect for the zero-knowledge model:
+
+- `chrome.storage.session` is accessible from all extension contexts (SW, popup, options, content script). Storing the vault key there is equivalent to writing it to a shared variable any extension XSS can read.
+- The service worker is ephemeral and terminates after ~30s of inactivity. It cannot hold a `CryptoKey` in memory across wake cycles.
+- **Correct model:** vault key lives **only in popup JS memory** (never in `storage.session`, never in the SW). The popup derives the key on unlock, decrypts entries, and sends **plaintext only to itself**. The SW relays encrypted blobs from the API; the popup decrypts. Popup close = key gone (natural lock).
+- Consequence: autofill from the content script requires the popup to be open. The SW cannot autofill autonomously. This is the safe trade-off.
+
+#### High — new attack surface
+
+**Message bus not authenticated by default**
+`chrome.runtime.sendMessage` accepts messages from any extension context. Every handler in the SW must validate `sender.id === chrome.runtime.id` before processing. Without this, a page that discovers the extension ID can inject arbitrary messages.
+
+**Autofill domain matching must be exact hostname**
+The content script detects `window.location.hostname`. Domain matching against vault entries must be **exact hostname equality** (e.g. `example.com`), not suffix matching. Suffix matching allows `evil.example.com` to trigger autofill for `example.com` credentials (subdomain takeover vector).
+
+**Content script DOM clobbering**
+The content script runs at `document_idle` in the page's world. A malicious page can manipulate the DOM to inject fake `<input type="password">` fields and trigger the autofill button for a domain the user has credentials for. Mitigate: only inject the autofill button on visible, focusable fields (`offsetParent !== null`).
+
+#### Medium — implementation details
+
+**Clipboard clear on popup close**
+The 30s clipboard clear uses `setTimeout` in the popup. If the popup closes before the timeout fires, the timer is destroyed and the password persists in the clipboard indefinitely. Fix: use `chrome.alarms` (survives popup close) to schedule the clear, not `setTimeout`.
+
+**Autofill on hidden fields**
+Some sites use `input[type="password"]` honeypots with `display:none`. The content script must skip fields where `offsetParent === null` or `visibility === 'hidden'` to avoid autofilling anti-bot traps.
+
+**`<all_urls>` content script permission**
+The content script requires `<all_urls>` host permission to detect forms on any website. This is a broad permission that Chrome flags to users. Must be documented and justified (the content script makes no API calls — all communication is proxied through the SW).
+
+#### Low — supply chain
+
+**Extension distribution**
+For personal use (sideload), supply chain risk is zero. For Chrome Web Store distribution, a compromised Google account can push a malicious update. CI should sign the `.crx` with a developer key stored separately from the Web Store account.
+
+---
+
+### 7.8 Pre-implementation requirements
+
+Before Phase 7 begins, the following design decisions must be locked:
+
+1. Confirm vault key lives in popup memory only (not SW, not `storage.session`).
+2. Define autofill flow when popup is closed: content script → SW → returns "vault locked, please open popup" → popup opens → user unlocks → autofill completes.
+3. Define message bus sender validation pattern (whitelist `sender.id`).
+4. Define exact hostname matching algorithm and edge cases (www. prefix, IP addresses, localhost).
+5. Define clipboard clear mechanism (`chrome.alarms` vs `setTimeout` trade-off and popup lifecycle).
+
+---
+
