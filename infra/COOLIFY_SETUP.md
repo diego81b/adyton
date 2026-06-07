@@ -153,7 +153,27 @@ Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
 
 ---
 
-## 7. First deploy
+## 7. Configure Cloudflare DNS
+
+In Cloudflare dashboard → **DNS → Records**, add:
+
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | `adyton` | `<VPS IP>` | Proxied (orange cloud) |
+| A | `api.adyton` | `<VPS IP>` | Proxied (orange cloud) |
+
+Then:
+
+1. **SSL/TLS → Overview** → set to **Full (Strict)** — Coolify/Caddy handles the origin certificate via Let's Encrypt
+2. **SSL/TLS → Edge Certificates** → **Always Use HTTPS → ON**
+3. **Security → Bots → Bot Fight Mode → ON**
+4. **Security → WAF → Managed Rules → ON**
+
+> **Why Full (Strict)?** "Flexible" sends traffic Cloudflare → VPS in plain HTTP. "Full (Strict)" requires a valid cert on the VPS — Coolify provides one automatically.
+
+---
+
+## 8. First deploy
 
 1. Application resource → click **Deploy**
 2. Build takes ~3–5 min (pnpm install + TypeScript compile for both services)
@@ -172,7 +192,7 @@ If migrations log is missing, confirm `RUN_MIGRATIONS=true` is set.
 
 ---
 
-## 8. Smoke test
+## 9. Smoke test
 
 1. `https://adyton.diegobaldeschi.dev` → redirects to `/login`
 2. Register → login → unlock vault with master password
@@ -181,7 +201,7 @@ If migrations log is missing, confirm `RUN_MIGRATIONS=true` is set.
 
 ---
 
-## 9. Wire up CI/CD (GitHub Actions)
+## 10. Wire up CI/CD (GitHub Actions)
 
 ### Get the Coolify webhook
 
@@ -209,7 +229,7 @@ After this, every push to `staging` branch:
 
 ---
 
-## 10. Ongoing operations
+## 11. Ongoing operations
 
 ### Deploy a new version
 
