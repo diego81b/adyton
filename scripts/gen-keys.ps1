@@ -92,7 +92,9 @@ if (Test-Path $totpKey) {
 else {
     Write-Host "[gen-keys] Generating 32-byte TOTP encryption key..."
     $bytes = [byte[]]::new(32)
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
     $hex = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
     Set-Content -LiteralPath $totpKey -Value $hex -Encoding ascii -NoNewline
 }

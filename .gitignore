@@ -35,6 +35,9 @@ secrets/*
 !secrets/staging/
 !secrets/prod/
 !secrets/README.md
+secrets/dev/*
+secrets/staging/*
+secrets/prod/*
 *.pem
 *.key
 *.p8
