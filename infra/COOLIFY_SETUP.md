@@ -87,15 +87,24 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
 
 Still inside the same project/environment:
 
-1. **+ Add Resource** → **Application**
-2. Choose **GitHub** as source (authorise Coolify if first time)
-3. Select your repository `your-org/adyton`
-4. Set:
-   - **Branch**: `staging` (or `main` for prod)
-   - **Build pack / Compose file**: select **Docker Compose** and set the path to `docker-compose.prod.yml` ← **not the default `docker-compose.yml`**
-5. Click **Save**
+1. **+ Add Resource** → **Application** → **Public or Private Repository (Git)**
+   - If first time: authorise the Coolify GitHub App and install it on your repo
+2. Select your repository `your-org/adyton`
+3. Coolify shows a configuration form. Fill in:
 
-> In Coolify v4 the option is called **Application** (from Git), not "Docker Compose" as a top-level choice. "Service Stack" is the alternative for pasting a compose file directly without a Git source — don't use that here.
+   | Field | Value |
+   |-------|-------|
+   | **Name** | `adyton-staging` (or `adyton-prod`) |
+   | **Branch** | `staging` (or `main` for prod) |
+   | **Base directory** | `/` (repo root — leave default) |
+   | **Build pack** | **Docker Compose** |
+   | **Docker Compose location** | `docker-compose.staging.yml` (staging) or `docker-compose.prod.yml` (prod) ← not the default `docker-compose.yml` |
+
+4. Click **Save** — Coolify reads the compose file and discovers the `api` and `web` services.
+
+> **Service Stack vs Application:** "Service Stack" lets you paste a compose file directly with no Git source. Use **Application** (from Git) here so Coolify tracks the branch and triggers rebuilds on push.
+
+> **`coolify` network:** `docker-compose.prod.yml` declares `coolify` as an external network. Coolify creates this network automatically on install — no manual action needed.
 
 ---
 

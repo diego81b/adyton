@@ -1,14 +1,13 @@
-# Adyton — standalone production compose for Coolify.
+# Adyton — standalone staging compose for Coolify.
 # NOT an overlay over docker-compose.yml — use this file directly:
-#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.staging.yml up -d
 #
 # DB and Redis are Coolify-managed resources (not defined here).
 # Routing is handled by Coolify/Caddy — no Traefik labels needed.
 # All secrets come from env vars set in the Coolify dashboard.
 #
-# Migrations are NOT run automatically. Extract SQL and apply manually:
-#   pnpm --filter @adyton/api migration:sql
-# For staging (auto-migrate on boot), use docker-compose.staging.yml.
+# Migrations run automatically on every boot (RUN_MIGRATIONS=true).
+# For prod, use docker-compose.prod.yml and apply migrations manually.
 name: adyton
 
 services:
@@ -21,7 +20,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
-      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+      RUN_MIGRATIONS: "true"
       COOKIE_SAMESITE: strict
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       DATABASE_URL: ${DATABASE_URL}
@@ -29,8 +28,8 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       TOTP_ENC_KEY: ${TOTP_ENC_KEY}
-      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
-      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost:30000}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN}
       ENABLE_POW: ${ENABLE_POW:-false}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
