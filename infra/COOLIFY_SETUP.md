@@ -138,26 +138,11 @@ MIIEowIBAAKCAQEA...
 
 ---
 
-## 6. Configure domain routing
+## 6. Configure Cloudflare DNS
 
-Application resource → **General** tab → scroll to the **Domains** section.
+> **Cloudflare vs Coolify:** Coolify handles routing *inside* the VPS (which container serves which domain). Cloudflare handles external DNS — it points the domain to the VPS IP. Do this step first; Coolify needs the domain to resolve when it requests the Let's Encrypt certificate.
 
-For a Docker Compose application, Coolify reads the services from the compose file and lets you assign a domain to each service. Add:
-
-- `adyton.diegobaldeschi.dev` → service `web` (Nuxt frontend)
-- `api.adyton.diegobaldeschi.dev` → service `api` (NestJS backend)
-
-Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
-
-> **DNS prerequisite:** both `adyton.diegobaldeschi.dev` and `api.adyton.diegobaldeschi.dev` must have A records pointing to the VPS IP (or Cloudflare proxied). On Cloudflare, one wildcard `*.adyton.diegobaldeschi.dev` covers all subdomains.
-
----
-
-## 7. Configure Cloudflare DNS
-
-> **Cloudflare vs Coolify:** Coolify only handles routing *inside* the VPS (which container gets which domain). Cloudflare handles external DNS — it points the domain to the VPS IP. These are two separate steps; both are required.
-
-### 7a. Add DNS records (Cloudflare dashboard)
+### 6a. Add DNS records (Cloudflare dashboard)
 
 **dash.cloudflare.com → select domain `diegobaldeschi.dev` → DNS → Records → Add record:**
 
@@ -166,16 +151,29 @@ Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
 | A | `adyton` | `<VPS IP>` | Proxied (orange cloud) |
 | A | `api.adyton` | `<VPS IP>` | Proxied (orange cloud) |
 
-This makes `adyton.diegobaldeschi.dev` and `api.adyton.diegobaldeschi.dev` resolve to the VPS through Cloudflare.
-
-### 7b. Harden Cloudflare settings
+### 6b. Harden Cloudflare settings
 
 Still in the Cloudflare dashboard for `diegobaldeschi.dev`:
 
-1. **SSL/TLS → Overview** → **Full (Strict)** — requires a valid cert on the VPS; Coolify/Caddy provides one automatically via Let's Encrypt
+1. **SSL/TLS → Overview** → **Full (Strict)** — Coolify/Caddy provides the origin cert via Let's Encrypt automatically
 2. **SSL/TLS → Edge Certificates → Always Use HTTPS → ON**
 3. **Security → Bots → Bot Fight Mode → ON**
 4. **Security → WAF → Managed Rules → ON**
+
+---
+
+## 7. Configure domain routing in Coolify
+
+Application resource → **General** tab → scroll to the **Domains** section.
+
+Enter the full URL (with `https://`) for each service:
+
+| Full URL | Service |
+|----------|---------|
+| `https://adyton.diegobaldeschi.dev` | `web` |
+| `https://api.adyton.diegobaldeschi.dev` | `api` |
+
+Coolify/Caddy requests a Let's Encrypt certificate automatically when you save. No manual HTTPS toggle — the `https://` prefix in the URL is what enables it.
 
 ---
 
