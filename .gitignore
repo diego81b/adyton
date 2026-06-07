@@ -31,8 +31,13 @@ lerna-debug.log*
 
 # ── Secrets — private keys, certificates, credentials ─────────────────────────
 secrets/*
-!secrets/.gitkeep
+!secrets/dev/
+!secrets/staging/
+!secrets/prod/
 !secrets/README.md
+secrets/dev/*
+secrets/staging/*
+secrets/prod/*
 *.pem
 *.key
 *.p8

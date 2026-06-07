@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
-# Generate the RS256 keypair used by NestJS to sign JWT access tokens.
+# Generate the RS256 keypair and TOTP encryption key for a given environment.
+# Usage: ./scripts/gen-keys.sh [dev|staging|prod]
+# Default: dev
+#
+# Keys are written to secrets/<env>/ — never to the repo root.
 # Refuses to overwrite existing keys — delete them manually to rotate.
 
 set -euo pipefail
 
+ENV="${1:-dev}"
+case "${ENV}" in
+  dev|staging|prod) ;;
+  *) echo "[gen-keys] Unknown env '${ENV}'. Use: dev | staging | prod" >&2; exit 1 ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SECRETS_DIR="${REPO_ROOT}/secrets"
+SECRETS_DIR="${REPO_ROOT}/secrets/${ENV}"
 PRIVATE_KEY="${SECRETS_DIR}/jwt_private.pem"
 PUBLIC_KEY="${SECRETS_DIR}/jwt_public.pem"
 
@@ -25,18 +35,15 @@ if [[ -f "${PRIVATE_KEY}" || -f "${PUBLIC_KEY}" ]]; then
     exit 1
 fi
 
-echo "[gen-keys] Generating 4096-bit RSA private key…"
+echo "[gen-keys] Generating 4096-bit RSA private key for env=${ENV}…"
 openssl genrsa -out "${PRIVATE_KEY}" 4096
 
 echo "[gen-keys] Extracting public key…"
 openssl rsa -in "${PRIVATE_KEY}" -pubout -out "${PUBLIC_KEY}"
 
-# Best-effort permissions tightening (no-op on Windows filesystems).
 chmod 600 "${PRIVATE_KEY}" 2>/dev/null || true
 chmod 644 "${PUBLIC_KEY}"  2>/dev/null || true
 
-# Server-held AES-256-GCM key encrypting account-2FA TOTP secrets at rest
-# (sanctioned ZK exception, analysis/security/architecture.md §3.5).
 TOTP_KEY="${SECRETS_DIR}/totp_enc.key"
 if [[ -f "${TOTP_KEY}" ]]; then
     echo "[gen-keys] ${TOTP_KEY} already exists — leaving it untouched."
@@ -47,9 +54,16 @@ else
 fi
 
 echo ""
-echo "[gen-keys] Done."
+echo "[gen-keys] Done (env=${ENV})."
 echo "  private: ${PRIVATE_KEY}"
 echo "  public:  ${PUBLIC_KEY}"
 echo "  totp:    ${TOTP_KEY}"
 echo ""
-echo "Next: cp .env.example .env && docker compose up -d"
+if [[ "${ENV}" == "dev" ]]; then
+    echo "Next: docker compose up -d"
+else
+    echo "Next: paste contents into Coolify env vars / GitHub Actions secrets"
+    echo "  JWT_PRIVATE_KEY  = cat ${PRIVATE_KEY}"
+    echo "  JWT_PUBLIC_KEY   = cat ${PUBLIC_KEY}"
+    echo "  TOTP_ENC_KEY     = cat ${TOTP_KEY}"
+fi

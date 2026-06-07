@@ -19,11 +19,20 @@ const KEY_BYTES = 32;
 const IV_BYTES = 12;
 
 export function loadTotpEncKey(): Buffer {
+  // Priority 1: TOTP_ENC_KEY env var (64 hex chars) — CI and prod (no file dependency)
+  if (process.env.TOTP_ENC_KEY) {
+    const key = Buffer.from(process.env.TOTP_ENC_KEY.trim(), 'hex');
+    if (key.length !== KEY_BYTES) {
+      throw new Error(`TOTP encryption key must be ${KEY_BYTES} bytes hex, got ${key.length}`);
+    }
+    return key;
+  }
+  // Priority 2: TOTP_ENC_KEY_PATH env var or default file path — dev
   const envPath = process.env.TOTP_ENC_KEY_PATH;
   const filePath =
     envPath && fs.existsSync(envPath)
       ? envPath
-      : path.resolve(process.cwd(), '../../secrets/totp_enc.key');
+      : path.resolve(process.cwd(), '../../secrets/dev/totp_enc.key');
   const key = Buffer.from(fs.readFileSync(filePath, 'utf8').trim(), 'hex');
   if (key.length !== KEY_BYTES) {
     throw new Error(`TOTP encryption key must be ${KEY_BYTES} bytes hex, got ${key.length}`);

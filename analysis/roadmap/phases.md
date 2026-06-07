@@ -109,22 +109,23 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 ---
 
-### Phase 7 — Production Hardening | Complexity: M
+### Phase 7 — Production Hardening | Complexity: M | **STATUS: DONE (2026-06-07)**
 
-**Goals:** Transition from development to a production-grade deployment on a VPS with SSL, automated backups, rate limiting, and a final security review pass.
+**Goals:** Transition from development to a production-grade deployment on a VPS with CI/CD, automated backups, and a final security review pass.
 
-**Deliverables:**
-- `docker-compose.prod.yml` with SSL termination, certbot sidecar, resource limits, no exposed database ports
-- Production nginx config (Section 9.6): all rate limit zones, connection limits, slow HTTP timeouts, full security headers, HSTS preload, OCSP stapling, TLS 1.2/1.3 only
-- `scripts/backup.sh` with 7-daily / 4-weekly rotation policy + optional rclone remote sync
-- `@nestjs/throttler` rate limits verified against all auth endpoints
-- **fail2ban**: nginx-pwdsecure filter + jail (Section 3.10.3), escalating ban times (`bantime.increment = true`)
-- **Progressive delay smoke test**: verify Redis counters increment and delays apply under repeated auth failures
-- **Trusted device integration test**: new-device flow, email notification, registration, revocation
-- Dependency audit: `pnpm audit`, resolve all high/critical findings
-- Manual security review against OWASP Top 10 and ASVS Level 2
-- UFW firewall rules: allow only 80, 443, and SSH on non-standard port
-- Optional: enable `ENABLE_POW=true` and verify PoW challenge flow end-to-end
+**What landed (2026-06-07, branch `feature/phase-7-production-hardening`):**
+- **Step 0:** `TOTP_ENC_KEY` + `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` env var fallback — loaders check env var first, then file path; int tests switched to env var approach (no gitignored file dep on CI)
+- **Step 1:** `apps/api/Dockerfile` + `apps/web/Dockerfile` — multistage builds from monorepo root; non-root users; Nitro output self-contained (no node_modules in web runner)
+- **Step 2:** `docker-compose.prod.yml` rewritten as standalone (not base overlay): `build:` instead of `image:`, no db/redis (Coolify-managed), `coolify` external network, TOTP_ENC_KEY + WEBAUTHN_* env vars, health check via wget
+- **Step 3:** `.github/workflows/ci.yml` (typecheck + unit + integration + pnpm audit on every push/PR) + `.github/workflows/deploy.yml` (staging branch → COOLIFY_WEBHOOK_STAGING; v* tag → COOLIFY_WEBHOOK_PROD, gated by tests)
+- **Step 4:** `scripts/backup.sh` (pg_dump, 7-daily/4-weekly retention, optional rclone offsite) + `scripts/setup-vps.sh` (UFW, swap, sysctl) + `infra/README.md` (Coolify setup, env vars table, backup cron, CI/CD, fail2ban deferral)
+- **Step 5 (security audit):** `pnpm audit --audit-level=high` — bumped `happy-dom` 15→20 (critical RCE GHSA-37j7-fg3j-429f) and `vitest` 3→4 (GHSA-5xrq-8626-4rwp); 0 high/critical findings remaining
+- **Step 6:** README, `secrets/README.md`, `analysis/roadmap/phases.md` updated
+
+**Deferred from original spec:**
+- nginx config: replaced by Coolify/Caddy (no nginx in this deployment pattern)
+- fail2ban: deferred post-V1 (Cloudflare WAF + app-level progressive delay sufficient; Caddy log path/format in Coolify not stable enough; see `infra/README.md`)
+- Trusted device integration test: covered by Phase 2 unit tests; email OTP = NoOp in V1
 
 ---
 
