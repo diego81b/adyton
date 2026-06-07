@@ -1,21 +1,18 @@
 # Adyton — Coolify Setup Guide
 
-Step-by-step walkthrough for deploying Adyton on an existing Coolify instance.
+Step-by-step walkthrough for deploying Adyton on an existing Coolify instance (v4.x).
 Assumes: Coolify already installed on VPS, GitHub repo accessible, domain pointing to VPS.
 
 ---
 
 ## 1. Generate secrets locally (one-time)
 
-Run on your local machine (the keys must exist before setting Coolify env vars).
-Each environment gets its own subdirectory so dev keys are never overwritten.
+Run on your local machine before touching Coolify — you'll paste the output into the dashboard.
 
 ```powershell
-# Windows — generates into secrets/staging/
-.\scripts\gen-keys.ps1 staging
-
-# For production
-.\scripts\gen-keys.ps1 prod
+# Windows
+.\scripts\gen-keys.ps1 staging   # → secrets/staging/
+.\scripts\gen-keys.ps1 prod      # → secrets/prod/
 ```
 
 ```bash
@@ -24,20 +21,36 @@ Each environment gets its own subdirectory so dev keys are never overwritten.
 ./scripts/gen-keys.sh prod
 ```
 
-This produces `secrets/staging/jwt_private.pem`, `secrets/staging/jwt_public.pem`, `secrets/staging/totp_enc.key` (and equivalently for prod).
-Keep these files — you'll paste their contents into Coolify and GitHub in the steps below.
+Produces three files per env:
 
-**Never commit them.** `.gitignore` already excludes `*.pem` and `*.key` everywhere.
+| File | Used as |
+|------|---------|
+| `jwt_private.pem` | `JWT_PRIVATE_KEY` env var |
+| `jwt_public.pem` | `JWT_PUBLIC_KEY` env var |
+| `totp_enc.key` | `TOTP_ENC_KEY` env var (64 hex chars) |
+
+**Never commit these.** `.gitignore` already excludes `*.pem` and `*.key` everywhere.
 
 ---
 
-## 2. Create Coolify resources (PostgreSQL + Redis)
+## 2. Create a Coolify project
 
-In Coolify, before creating the application:
+In Coolify v4, all resources (databases, apps) live inside a project.
 
-### 2a. PostgreSQL
+1. Sidebar → **Projects** → **+ New Project**
+2. Name it `adyton` (or `adyton-staging` / `adyton-prod`)
+3. Click **Create** — you land on the project's environment page
+4. Coolify creates a default **production** environment; rename it to `staging` or create a new one as needed
 
-1. Sidebar → **Resources** → **New Resource** → **Database** → **PostgreSQL**
+---
+
+## 3. Add databases inside the project
+
+Both PostgreSQL and Redis are Coolify-managed resources created within the project.
+
+### 3a. PostgreSQL
+
+1. Inside the project → **+ New Resource** → **Database** → **PostgreSQL**
 2. Set:
    - Name: `adyton-db`
    - Version: `16`
@@ -45,157 +58,140 @@ In Coolify, before creating the application:
    - Username: `adyton`
    - Password: generate a strong one and save it
 3. Click **Save** → **Start**
-4. After start, open the resource and copy the **Internal Connection URL** — looks like:
+4. Once running, open the resource → copy the **Internal Connection URL**:
    ```
    postgresql://adyton:<password>@adyton-db:5432/adyton
    ```
-   You'll use this as `DATABASE_URL` in step 4.
+   Save this — it becomes `DATABASE_URL` in step 5.
 
-### 2b. Redis
+### 3b. Redis
 
-1. Sidebar → **Resources** → **New Resource** → **Database** → **Redis**
+1. Inside the project → **+ New Resource** → **Database** → **Redis**
 2. Set:
    - Name: `adyton-redis`
    - Version: `7`
    - Password: generate one and save it
 3. Click **Save** → **Start**
-4. Copy the **Internal Connection URL** — looks like:
+4. Copy the **Internal Connection URL**:
    ```
    redis://:password@adyton-redis:6379
    ```
-   You'll use this as `REDIS_URL` in step 4.
+   Save this — it becomes `REDIS_URL` in step 5.
 
-> **Why internal URLs?** The API container connects to DB and Redis over Docker's internal `coolify` network — no need for host-level port exposure.
+> **Why internal URLs?** The API container reaches DB and Redis over the shared `coolify` Docker network — no host-level port exposure needed.
 
 ---
 
-## 3. Create the application
+## 4. Add the application
 
-1. Sidebar → **Projects** → your project → **New Resource** → **Docker Compose**
-2. Set the **source**:
-   - **Source**: GitHub (connect your GitHub account if not already done)
+Still inside the same project:
+
+1. **+ New Resource** → **Docker Compose**
+2. Connect source:
+   - **Source**: GitHub (authorise Coolify if first time)
    - **Repository**: `your-org/adyton`
-   - **Branch**: `staging` (for staging) or `main` (for production)
-   - **Compose file**: `docker-compose.prod.yml`  ← **important, not the default**
+   - **Branch**: `staging` (or `main` for prod)
+   - **Compose file path**: `docker-compose.prod.yml` ← **not the default `docker-compose.yml`**
 3. Click **Save**
 
 ---
 
-## 4. Set environment variables
+## 5. Set environment variables
 
-In the application resource → **Environment Variables** tab. Add all of the following:
+Application resource → **Environment Variables** tab. Add all of the following:
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `DATABASE_URL` | `postgresql://adyton:<pw>@adyton-db:5432/adyton` | From step 2a |
-| `REDIS_URL` | `redis://:password@adyton-redis:6379` | From step 2b |
-| `JWT_PRIVATE_KEY` | *(full PEM — see below)* | Contents of `secrets/staging/jwt_private.pem` |
-| `JWT_PUBLIC_KEY` | *(full PEM — see below)* | Contents of `secrets/staging/jwt_public.pem` |
-| `TOTP_ENC_KEY` | *(64 hex chars)* | Contents of `secrets/staging/totp_enc.key` (single line) |
-| `WEBAUTHN_RP_ID` | `vault.yourdomain.com` | Your actual domain, no protocol |
-| `WEBAUTHN_ORIGIN` | `https://vault.yourdomain.com` | Full origin with https |
-| `ALLOWED_ORIGINS` | `https://vault.yourdomain.com` | Same as WEBAUTHN_ORIGIN |
+| `DATABASE_URL` | `postgresql://adyton:<pw>@adyton-db:5432/adyton` | From step 3a |
+| `REDIS_URL` | `redis://:password@adyton-redis:6379` | From step 3b |
+| `JWT_PRIVATE_KEY` | *(full PEM)* | `cat secrets/staging/jwt_private.pem` |
+| `JWT_PUBLIC_KEY` | *(full PEM)* | `cat secrets/staging/jwt_public.pem` |
+| `TOTP_ENC_KEY` | *(64 hex chars)* | `cat secrets/staging/totp_enc.key` |
+| `WEBAUTHN_RP_ID` | `vault.yourdomain.com` | Domain only, no protocol |
+| `WEBAUTHN_ORIGIN` | `https://vault.yourdomain.com` | Full origin |
+| `ALLOWED_ORIGINS` | `https://vault.yourdomain.com` | Same as above |
 | `NUXT_PUBLIC_API_BASE_URL` | `https://vault.yourdomain.com/api` | Must end in `/api` |
 | `RUN_MIGRATIONS` | `true` | Auto-applies pending DB migrations on API boot |
 | `NODE_ENV` | `production` | |
 
 ### Pasting multi-line PEM keys
 
-Coolify's env var editor accepts multi-line values. Paste the full PEM content including the `-----BEGIN/END-----` lines. Example:
+Coolify's env var editor accepts multi-line values. Paste the full PEM including the `-----BEGIN/END-----` lines:
 
 ```
 JWT_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEA...
-...rest of key...
 -----END RSA PRIVATE KEY-----
 ```
 
-Alternatively, encode as a single line to avoid UI issues:
+---
 
-```bash
-# On local machine — produces a base64 single-line string
-base64 -w0 secrets/jwt_private.pem
-```
+## 6. Configure domain routing
 
-Then in the API source code you'd need to decode it — simpler to just paste the multi-line PEM directly (Coolify handles it).
+Application resource → **Domains** tab:
+
+- `vault.yourdomain.com` → service `web`, port `3000`
+- `vault.yourdomain.com/api` → service `api`, port `3001`
+
+Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
+
+> **DNS prerequisite:** `vault.yourdomain.com` A record must point to the VPS IP (or Cloudflare proxied).
 
 ---
 
-## 5. Configure domain routing
-
-1. Application resource → **Domains** tab
-2. Add domains:
-   - `vault.yourdomain.com` → service `web`, port `3000`
-   - `vault.yourdomain.com/api` → service `api`, port `3001`
-
-   Or if you want the API on a subdomain:
-   - `vault.yourdomain.com` → `web` port `3000`
-   - `api.vault.yourdomain.com` → `api` port `3001`  
-     *(then update `NUXT_PUBLIC_API_BASE_URL` to `https://api.vault.yourdomain.com/api`)*
-
-3. Enable **HTTPS** (Let's Encrypt) — Coolify/Caddy handles the certificate automatically.
-
-> **DNS prerequisite:** `vault.yourdomain.com` must point to your VPS IP (A record, or Cloudflare proxied).
-
----
-
-## 6. First deploy
+## 7. First deploy
 
 1. Application resource → click **Deploy**
-2. Watch the **Deployment Logs** — the build takes ~3–5 minutes (pnpm install + TypeScript compile for both api and web)
-3. Verify these lines appear in the API logs (after deploy completes):
+2. Build takes ~3–5 min (pnpm install + TypeScript compile for both services)
+3. Check API container logs — should contain:
    ```
    [MikroORM] migrations applied (6 run)
    [NestApplication] Nest application successfully started
    ```
-4. Check health:
+4. Verify health endpoint:
    ```bash
    curl https://vault.yourdomain.com/api/health
-   # → {"status":"ok","timestamp":"2026-06-07T..."}
+   # → {"status":"ok","timestamp":"..."}
    ```
 
-If migrations are missing from the log, check that `RUN_MIGRATIONS=true` is set in env vars.
+If migrations log is missing, confirm `RUN_MIGRATIONS=true` is set.
 
 ---
 
-## 7. Smoke test
+## 8. Smoke test
 
-1. Navigate to `https://vault.yourdomain.com` → should redirect to `/login`
-2. Register a new account
-3. Login → unlock vault with master password
-4. Create a test entry → verify it saves and decrypts correctly
-5. Lock and re-unlock → entry still readable
-
----
-
-## 8. Get the deploy webhook URL (for GitHub Actions)
-
-1. Application resource → **Webhooks** tab (or **Settings** → **Webhook**)
-2. Copy the **Deploy Webhook URL** — looks like:
-   ```
-   https://your-coolify.example.com/api/v1/deploy?uuid=abc123&token=xyz789
-   ```
-3. Add this URL as a GitHub secret: **Settings → Secrets → Actions → New secret**
-   - Name: `COOLIFY_WEBHOOK_STAGING`
-   - Value: the webhook URL
+1. `https://vault.yourdomain.com` → redirects to `/login`
+2. Register → login → unlock vault with master password
+3. Create a test entry → verify it saves and decrypts
+4. Lock and re-unlock → entry still readable
 
 ---
 
-## 9. Set GitHub Actions secrets
+## 9. Wire up CI/CD (GitHub Actions)
 
-In GitHub repo → **Settings → Secrets → Actions**, add:
+### Get the Coolify webhook
+
+Application resource → **Webhooks** tab (or **Settings** → **Webhook**) → copy the **Deploy Webhook URL**:
+
+```
+https://your-coolify.host/api/v1/deploy?uuid=abc123&token=xyz789
+```
+
+### Set GitHub Actions secrets
+
+GitHub repo → **Settings → Secrets → Actions**:
 
 | Secret | Value |
 |--------|-------|
-| `TOTP_ENC_KEY` | 64-char hex from `secrets/staging/totp_enc.key` |
-| `JWT_PRIVATE_KEY` | Full PEM content of `secrets/staging/jwt_private.pem` |
-| `JWT_PUBLIC_KEY` | Full PEM content of `secrets/staging/jwt_public.pem` |
-| `COOLIFY_WEBHOOK_STAGING` | Webhook URL from step 8 |
-| `COOLIFY_WEBHOOK_PROD` | Placeholder for now (set when prod environment exists) |
+| `JWT_PRIVATE_KEY` | Full PEM — `cat secrets/staging/jwt_private.pem` |
+| `JWT_PUBLIC_KEY` | Full PEM — `cat secrets/staging/jwt_public.pem` |
+| `TOTP_ENC_KEY` | 64 hex chars — `cat secrets/staging/totp_enc.key` |
+| `COOLIFY_WEBHOOK_STAGING` | Webhook URL from above |
+| `COOLIFY_WEBHOOK_PROD` | Placeholder (set when prod env is ready) |
 
-After this, every push to the `staging` branch will:
-1. Run CI (typecheck + unit + integration tests + audit)
-2. On success, call the Coolify webhook → Coolify rebuilds and redeploys
+After this, every push to `staging` branch:
+1. GitHub Actions runs CI (typecheck + unit + integration + audit)
+2. On green: calls the webhook → Coolify rebuilds and redeploys
 
 ---
 
@@ -205,18 +201,18 @@ After this, every push to the `staging` branch will:
 
 ```bash
 git checkout staging
-git merge develop    # or cherry-pick specific commits
+git merge develop
 git push origin staging
-# → GitHub Actions runs CI → webhook fires → Coolify redeploys
+# CI runs → webhook fires → Coolify redeploys
 ```
 
 ### View logs
 
-Coolify → application resource → **Logs** tab. Both `api` and `web` service logs available.
+Application resource → **Logs** tab. Select `api` or `web` service.
 
 ### Run a one-off command (e.g. manual migration)
 
-Coolify → application resource → **Terminal** tab → select `api` container:
+Application resource → **Terminal** tab → select `api` container:
 
 ```bash
 pnpm exec mikro-orm migration:up
@@ -224,17 +220,16 @@ pnpm exec mikro-orm migration:up
 
 ### Rotate secrets
 
-1. Generate new keys locally (`scripts/gen-keys.sh` — it refuses to overwrite existing files; delete them first)
-2. Update in Coolify env vars
-3. Update in GitHub Actions secrets
-4. Redeploy (all active JWT sessions will be invalidated — users must log in again)
+1. Delete old files, regenerate: `./scripts/gen-keys.sh staging`
+2. Update Coolify env vars
+3. Update GitHub Actions secrets
+4. Redeploy — all active JWT sessions invalidated, users must re-login
 
-**Warning:** Rotating `TOTP_ENC_KEY` is destructive — all enrolled TOTP secrets become unrecoverable and every user must re-enroll 2FA.
+**Warning:** Rotating `TOTP_ENC_KEY` is destructive — all enrolled TOTP secrets become unrecoverable; every user must re-enroll 2FA.
 
 ### Backup database
 
-Coolify-managed PostgreSQL: connect via the internal connection URL from Coolify dashboard.
-For scheduled backups, see `scripts/backup.sh` and the cron setup in `infra/README.md`.
+See cron setup in the main `README.md` (Production deployment → Backup section).
 
 ---
 
@@ -242,10 +237,10 @@ For scheduled backups, see `scripts/backup.sh` and the cron setup in `infra/READ
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| Build fails: `pnpm install` error | pnpm version mismatch in Dockerfile vs lockfile | Check `pnpm@9.15.4` in Dockerfile matches `engines.pnpm` |
-| API starts but 500 on login | Missing `JWT_PRIVATE_KEY` | Check env var is set and includes full PEM headers |
-| API starts but 500 on 2FA setup | Missing `TOTP_ENC_KEY` | Check env var is exactly 64 hex chars |
-| Vault entries fail to decrypt | `NUXT_PUBLIC_API_BASE_URL` points to wrong host | Must match actual deployed API URL |
-| WebAuthn registration fails | `WEBAUTHN_RP_ID` mismatch | `rpID` must match the domain exactly (no protocol, no path) |
-| Migrations not applied | `RUN_MIGRATIONS` not set to `true` | Set in Coolify env vars and redeploy |
-| CORS errors in browser | `ALLOWED_ORIGINS` missing | Set to `https://vault.yourdomain.com` |
+| Build fails: `pnpm install` error | pnpm version mismatch | `pnpm@9.15.4` in Dockerfile must match lockfile |
+| API 500 on login | Missing `JWT_PRIVATE_KEY` | Check env var includes full PEM headers |
+| API 500 on 2FA setup | Missing or malformed `TOTP_ENC_KEY` | Must be exactly 64 hex chars |
+| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must match actual deployed API URL, end in `/api` |
+| WebAuthn registration fails | `WEBAUTHN_RP_ID` mismatch | Must match domain exactly — no protocol, no path, no port |
+| Migrations not applied | `RUN_MIGRATIONS` not `true` | Set in env vars and redeploy |
+| CORS errors | Missing `ALLOWED_ORIGINS` | Set to `https://vault.yourdomain.com` |
