@@ -119,10 +119,10 @@ Application resource → **Environment Variables** tab. Add all of the following
 | `JWT_PRIVATE_KEY` | *(full PEM)* | `cat secrets/staging/jwt_private.pem` |
 | `JWT_PUBLIC_KEY` | *(full PEM)* | `cat secrets/staging/jwt_public.pem` |
 | `TOTP_ENC_KEY` | *(64 hex chars)* | `cat secrets/staging/totp_enc.key` |
-| `WEBAUTHN_RP_ID` | `vault.yourdomain.com` | Domain only, no protocol |
-| `WEBAUTHN_ORIGIN` | `https://vault.yourdomain.com` | Full origin |
-| `ALLOWED_ORIGINS` | `https://vault.yourdomain.com` | Same as above |
-| `NUXT_PUBLIC_API_BASE_URL` | `https://vault.yourdomain.com/api` | Must end in `/api` |
+| `WEBAUTHN_RP_ID` | `adyton.diegobaldeschi.dev` | Frontend domain only, no protocol |
+| `WEBAUTHN_ORIGIN` | `https://adyton.diegobaldeschi.dev` | Frontend full origin |
+| `ALLOWED_ORIGINS` | `https://adyton.diegobaldeschi.dev` | Frontend origin (CORS) |
+| `NUXT_PUBLIC_API_BASE_URL` | `https://api.adyton.diegobaldeschi.dev` | API origin — no `/api` suffix (app adds it) |
 | `RUN_MIGRATIONS` | `true` | Auto-applies pending DB migrations on API boot |
 | `NODE_ENV` | `production` | |
 
@@ -140,14 +140,16 @@ MIIEowIBAAKCAQEA...
 
 ## 6. Configure domain routing
 
-Application resource → **Domains** tab:
+Application resource → **General** tab → scroll to the **Domains** section.
 
-- `vault.yourdomain.com` → service `web`, port `3000`
-- `vault.yourdomain.com/api` → service `api`, port `3001`
+For a Docker Compose application, Coolify reads the services from the compose file and lets you assign a domain to each service. Add:
+
+- `adyton.diegobaldeschi.dev` → service `web` (Nuxt frontend)
+- `api.adyton.diegobaldeschi.dev` → service `api` (NestJS backend)
 
 Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
 
-> **DNS prerequisite:** `vault.yourdomain.com` A record must point to the VPS IP (or Cloudflare proxied).
+> **DNS prerequisite:** both `adyton.diegobaldeschi.dev` and `api.adyton.diegobaldeschi.dev` must have A records pointing to the VPS IP (or Cloudflare proxied). On Cloudflare, one wildcard `*.adyton.diegobaldeschi.dev` covers all subdomains.
 
 ---
 
@@ -162,7 +164,7 @@ Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
    ```
 4. Verify health endpoint:
    ```bash
-   curl https://vault.yourdomain.com/api/health
+   curl https://api.adyton.diegobaldeschi.dev/api/health
    # → {"status":"ok","timestamp":"..."}
    ```
 
@@ -172,7 +174,7 @@ If migrations log is missing, confirm `RUN_MIGRATIONS=true` is set.
 
 ## 8. Smoke test
 
-1. `https://vault.yourdomain.com` → redirects to `/login`
+1. `https://adyton.diegobaldeschi.dev` → redirects to `/login`
 2. Register → login → unlock vault with master password
 3. Create a test entry → verify it saves and decrypts
 4. Lock and re-unlock → entry still readable
@@ -255,4 +257,4 @@ See cron setup in the main `README.md` (Production deployment → Backup section
 | Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must match actual deployed API URL, end in `/api` |
 | WebAuthn registration fails | `WEBAUTHN_RP_ID` mismatch | Must match domain exactly — no protocol, no path, no port |
 | Migrations not applied | `RUN_MIGRATIONS` not `true` | Set in env vars and redeploy |
-| CORS errors | Missing `ALLOWED_ORIGINS` | Set to `https://vault.yourdomain.com` |
+| CORS errors | Missing `ALLOWED_ORIGINS` | Set to the deployed origin (e.g. `https://adyton.diegobaldeschi.dev`) |

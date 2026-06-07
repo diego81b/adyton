@@ -10,17 +10,20 @@ interface AuthUser {
 }
 
 // Base URL resolved lazily so it works in tests (where useRuntimeConfig may be mocked)
-// and in Nuxt runtime. Falls back to '/api' if not configured.
+// and in Nuxt runtime. NUXT_PUBLIC_API_BASE_URL is the bare origin (no /api suffix);
+// this function appends /api so callers only pass the path (e.g. '/auth/login').
 function getBaseUrl(): string {
   if (typeof useRuntimeConfig === 'function') {
     try {
       const config = useRuntimeConfig();
-      return (config.public.apiBaseUrl as string) || '/api';
+      const base = (config.public.apiBaseUrl as string) || '';
+      return `${base}/api`;
     } catch {
       // Outside Nuxt context (e.g. unit tests) — fall back to env or default
     }
   }
-  return (globalThis as Record<string, unknown>).__TEST_API_BASE__ as string ?? '/api';
+  const base = (globalThis as Record<string, unknown>).__TEST_API_BASE__ as string ?? '';
+  return `${base}/api`;
 }
 
 export const useAuthStore = defineStore('auth', () => {

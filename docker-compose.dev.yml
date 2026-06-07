@@ -60,9 +60,7 @@ services:
     depends_on:
       api: { condition: service_started }
     environment:
-      # Must include the API's global prefix (setGlobalPrefix('api')) — the auth
-      # store posts ${base}/auth/login, so the base needs the /api segment.
-      NUXT_PUBLIC_API_BASE_URL: http://localhost:30001/api
+      NUXT_PUBLIC_API_BASE_URL: http://localhost:30001
       NODE_ENV: development
       HOST: 0.0.0.0
       CHOKIDAR_USEPOLLING: "true"
