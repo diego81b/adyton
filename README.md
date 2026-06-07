@@ -48,7 +48,8 @@ See `analysis/security/` for the full threat model, attack vectors, and pentest 
 | Frontend | Nuxt 4, NuxtUI 4, TailwindCSS, Pinia |
 | Monorepo | pnpm workspaces |
 | Dev infra | Docker Compose — 4 services (db, redis, api, web) |
-| Production | Hetzner VPS, Coolify + Traefik + Cloudflare (Phase 8) |
+| CI/CD | GitHub Actions — typecheck + unit + integration + audit on every push; deploy on `staging` push / `v*` tag |
+| Production | Hetzner VPS, Coolify + Caddy + Cloudflare |
 
 ## Project structure
 
@@ -56,12 +57,14 @@ See `analysis/security/` for the full threat model, attack vectors, and pentest 
 apps/
   api/        @adyton/api    — NestJS backend
   web/        @adyton/web    — Nuxt 4 frontend
-  extension/  reserved       — MV3 browser extension (Phase 7)
-  mobile/     reserved       — Capacitor (Phase 9)
+  extension/  reserved       — MV3 browser extension (post-V1)
+  mobile/     reserved       — Capacitor (Phase 8)
 packages/
-  shared/     @adyton/shared — crypto primitives + shared types (Phase 4)
+  shared/     @adyton/shared — crypto primitives + shared types
 analysis/     full technical design (~5000 lines) — read before changing architecture
-secrets/      RS256 keypair — never committed
+infra/        deployment docs (Coolify setup, backup, fail2ban rationale)
+scripts/      gen-keys, backup, VPS setup
+secrets/      RS256 keypair + TOTP key — never committed
 ```
 
 ## Setup
@@ -110,9 +113,9 @@ pnpm lint                             # ESLint flat config
 | 4 | `packages/shared` crypto + Nuxt auth flows | Done |
 | 5 | Nuxt vault UI | Done |
 | 6 | 2FA (TOTP + WebAuthn passkeys) | Done |
-| 7 | Browser extension (MV3) | — |
-| 8 | Production hardening | — |
-| 9 | Capacitor mobile (iOS + Android) | — |
+| 7 | Production hardening (Dockerfiles, CI/CD, backup, security audit) | Done |
+| 8 | Capacitor mobile (iOS + Android) | — |
+| — | Browser extension (MV3) | Post-V1 — security design pending |
 
 ## License
 

@@ -37,9 +37,8 @@ as the database.
 
 ## How they are consumed
 
-Locally, `docker-compose.yml` mounts both files as Docker secrets at
-`/run/secrets/jwt_private_key` and `/run/secrets/jwt_public_key`. The NestJS
-config reads those paths (`JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH`).
+**Dev:** `docker-compose.yml` mounts both PEM files as Docker secrets. NestJS reads them via `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH`. TOTP key is read from `secrets/totp_enc.key` (via `TOTP_ENC_KEY_PATH` or default path).
 
-In production (Coolify), the PEM content is pasted as a multiline env var; no
-files exist on disk. See `analysis/infrastructure.md` §9.5.
+**CI (GitHub Actions):** All three secrets are passed as plain env vars — `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `TOTP_ENC_KEY`. The loaders check env vars first and skip file access entirely. Store these as GitHub Actions secrets (Settings → Secrets → Actions).
+
+**Production (Coolify):** Same env var approach — paste values into the Coolify dashboard. No files on disk. See `infra/README.md` for the full env var table.
