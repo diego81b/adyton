@@ -70,11 +70,12 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
 2. Set:
    - Name: `adyton-redis`
    - Version: `7`
-   - Password: generate one and save it
+   - Username: `adyton` (or leave `default`)
+   - Password: generate a strong one and save it (`openssl rand -hex 32`)
 3. Click **Save** → **Start**
-4. Copy the **Internal Connection URL**:
+4. Once running, open the resource → copy the **Internal Connection URL**:
    ```
-   redis://:password@adyton-redis:6379
+   redis://<username>:<password>@adyton-redis:6379
    ```
    Save this — it becomes `REDIS_URL` in step 5.
 
