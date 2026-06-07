@@ -58,7 +58,7 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
    - Username: `adyton`
    - Password: generate a strong one and save it
 3. Click **Save** → **Start**
-4. Once running, open the resource → copy the **Internal Connection URL**:
+4. Once running, click the resource name to open it → go to the **Connections** tab (or scroll to the **Connection** section in General) → copy the **Internal Connection URL**:
    ```
    postgresql://adyton:<password>@adyton-db:5432/adyton
    ```
@@ -73,7 +73,7 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
    - Username: `adyton` (or leave `default`)
    - Password: generate a strong one and save it (`openssl rand -hex 32`)
 3. Click **Save** → **Start**
-4. Once running, open the resource → copy the **Internal Connection URL**:
+4. Once running, click the resource name to open it → same **Connections** tab → copy the **Internal Connection URL**:
    ```
    redis://<username>:<password>@adyton-redis:6379
    ```
@@ -155,21 +155,27 @@ Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
 
 ## 7. Configure Cloudflare DNS
 
-In Cloudflare dashboard → **DNS → Records**, add:
+> **Cloudflare vs Coolify:** Coolify only handles routing *inside* the VPS (which container gets which domain). Cloudflare handles external DNS — it points the domain to the VPS IP. These are two separate steps; both are required.
 
-| Type | Name | Content | Proxy |
+### 7a. Add DNS records (Cloudflare dashboard)
+
+**dash.cloudflare.com → select domain `diegobaldeschi.dev` → DNS → Records → Add record:**
+
+| Type | Name | Content | Proxy status |
 |------|------|---------|-------|
 | A | `adyton` | `<VPS IP>` | Proxied (orange cloud) |
 | A | `api.adyton` | `<VPS IP>` | Proxied (orange cloud) |
 
-Then:
+This makes `adyton.diegobaldeschi.dev` and `api.adyton.diegobaldeschi.dev` resolve to the VPS through Cloudflare.
 
-1. **SSL/TLS → Overview** → set to **Full (Strict)** — Coolify/Caddy handles the origin certificate via Let's Encrypt
-2. **SSL/TLS → Edge Certificates** → **Always Use HTTPS → ON**
+### 7b. Harden Cloudflare settings
+
+Still in the Cloudflare dashboard for `diegobaldeschi.dev`:
+
+1. **SSL/TLS → Overview** → **Full (Strict)** — requires a valid cert on the VPS; Coolify/Caddy provides one automatically via Let's Encrypt
+2. **SSL/TLS → Edge Certificates → Always Use HTTPS → ON**
 3. **Security → Bots → Bot Fight Mode → ON**
 4. **Security → WAF → Managed Rules → ON**
-
-> **Why Full (Strict)?** "Flexible" sends traffic Cloudflare → VPS in plain HTTP. "Full (Strict)" requires a valid cert on the VPS — Coolify provides one automatically.
 
 ---
 
