@@ -62,21 +62,21 @@ apps/
 packages/
   shared/     @adyton/shared — crypto primitives + shared types
 analysis/     full technical design (~5000 lines) — read before changing architecture
-infra/        deployment docs (Coolify setup, backup, fail2ban rationale)
+infra/        COOLIFY_SETUP.md — step-by-step Coolify deployment guide
 scripts/      gen-keys, backup, VPS setup
 secrets/      RS256 keypair + TOTP key — never committed
 ```
 
-## Setup
+## Development setup
 
 ### Prerequisites
 
 - Node.js 22, pnpm 9, Docker + Compose v2
 
-### Generate RS256 keys
+### Generate dev keys
 
 ```powershell
-.\scripts\gen-keys.ps1
+.\scripts\gen-keys.ps1       # → secrets/dev/
 # or on POSIX:
 ./scripts/gen-keys.sh
 ```
@@ -102,6 +102,66 @@ pnpm --filter @adyton/api test:int   # integration (Docker required)
 pnpm typecheck                        # TS check all workspaces
 pnpm lint                             # ESLint flat config
 ```
+
+## Production deployment
+
+Deployment target: Hetzner VPS running Coolify + Caddy, behind Cloudflare.
+
+For the full step-by-step guide see **[infra/COOLIFY_SETUP.md](infra/COOLIFY_SETUP.md)**.
+
+### VPS initial setup (once)
+
+```bash
+bash scripts/setup-vps.sh   # UFW rules, swap, sysctl hardening
+# then install Coolify per https://coolify.io/docs
+```
+
+### Keys per environment
+
+Each environment gets its own subdirectory under `secrets/`:
+
+```powershell
+.\scripts\gen-keys.ps1 staging   # → secrets/staging/
+.\scripts\gen-keys.ps1 prod      # → secrets/prod/
+```
+
+### Required env vars (Coolify dashboard)
+
+| Variable | Notes |
+|----------|-------|
+| `DATABASE_URL` | From Coolify-managed PostgreSQL resource |
+| `REDIS_URL` | From Coolify-managed Redis resource |
+| `JWT_PRIVATE_KEY` | Full PEM — `cat secrets/staging/jwt_private.pem` |
+| `JWT_PUBLIC_KEY` | Full PEM — `cat secrets/staging/jwt_public.pem` |
+| `TOTP_ENC_KEY` | 64 hex chars — `cat secrets/staging/totp_enc.key` |
+| `WEBAUTHN_RP_ID` | Domain, e.g. `vault.yourdomain.com` |
+| `WEBAUTHN_ORIGIN` | Full origin, e.g. `https://vault.yourdomain.com` |
+| `ALLOWED_ORIGINS` | Same as `WEBAUTHN_ORIGIN` |
+| `NUXT_PUBLIC_API_BASE_URL` | `https://vault.yourdomain.com/api` |
+| `RUN_MIGRATIONS` | `true` on staging; unset on prod (apply SQL manually) |
+
+### CI/CD
+
+GitHub Actions runs typecheck + unit + integration + audit on every push.
+Push to `staging` branch or tag `v*` triggers a Coolify rebuild via webhook.
+
+GitHub secrets needed: `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `TOTP_ENC_KEY`, `COOLIFY_WEBHOOK_STAGING`, `COOLIFY_WEBHOOK_PROD`.
+
+### Backup
+
+Daily PostgreSQL dump, 7-day daily + 4-week weekly retention:
+
+```
+0 2 * * * PGHOST=127.0.0.1 PGUSER=adyton PGDATABASE=adyton PGPASSWORD=<pw> \
+  BACKUP_DIR=/var/backups/adyton bash /opt/adyton/scripts/backup.sh
+```
+
+Optional offsite via rclone: set `RCLONE_DEST=s3:bucket/adyton`.
+
+### Attack mitigation
+
+No fail2ban in V1 (Coolify log paths not stable; Cloudflare WAF + app-level progressive delay sufficient).
+Defense layers: Cloudflare WAF → `@fastify/rate-limit` per-IP caps → `ProgressiveDelayService` exponential back-off on failed logins.
 
 ## Roadmap
 
