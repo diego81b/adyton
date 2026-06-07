@@ -24,6 +24,10 @@ Then install Coolify per their docs. Coolify manages Caddy, TLS (Let's Encrypt),
 
 ## Coolify deployment pattern
 
+For a complete step-by-step walkthrough, see **[COOLIFY_SETUP.md](COOLIFY_SETUP.md)**.
+
+Quick reference below.
+
 Adyton uses **build-from-source** — Coolify builds from the Dockerfile in the repo rather than pulling a pre-built image from a registry. This avoids the need for GHCR or Docker Hub.
 
 Compose file for production: `docker-compose.prod.yml` (standalone, not an overlay over the dev base compose).
