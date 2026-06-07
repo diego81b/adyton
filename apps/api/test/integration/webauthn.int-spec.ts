@@ -93,7 +93,8 @@ beforeAll(async () => {
   process.env.COOKIE_SAMESITE = 'lax';
   process.env.JWT_PRIVATE_KEY_PATH = path.resolve(__dirname, '../../../../secrets/jwt_private.pem');
   process.env.JWT_PUBLIC_KEY_PATH = path.resolve(__dirname, '../../../../secrets/jwt_public.pem');
-  process.env.TOTP_ENC_KEY_PATH = path.resolve(__dirname, '../../../../secrets/totp_enc.key');
+  // Use hex env var so int tests run without a local key file (unblocks CI)
+  process.env.TOTP_ENC_KEY = 'a'.repeat(64);
 
   app = await createApp();
   await app.init();
