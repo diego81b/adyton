@@ -50,7 +50,7 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
 
 ### 3a. PostgreSQL
 
-1. Inside the project → **+ New Resource** → **Database** → **PostgreSQL**
+1. Inside the project/environment → **+ Add Resource** → **Database** → **PostgreSQL**
 2. Set:
    - Name: `adyton-db`
    - Version: `16`
@@ -66,7 +66,7 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
 
 ### 3b. Redis
 
-1. Inside the project → **+ New Resource** → **Database** → **Redis**
+1. Inside the project/environment → **+ Add Resource** → **Database** → **Redis**
 2. Set:
    - Name: `adyton-redis`
    - Version: `7`
@@ -84,15 +84,17 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
 
 ## 4. Add the application
 
-Still inside the same project:
+Still inside the same project/environment:
 
-1. **+ New Resource** → **Docker Compose**
-2. Connect source:
-   - **Source**: GitHub (authorise Coolify if first time)
-   - **Repository**: `your-org/adyton`
+1. **+ Add Resource** → **Application**
+2. Choose **GitHub** as source (authorise Coolify if first time)
+3. Select your repository `your-org/adyton`
+4. Set:
    - **Branch**: `staging` (or `main` for prod)
-   - **Compose file path**: `docker-compose.prod.yml` ← **not the default `docker-compose.yml`**
-3. Click **Save**
+   - **Build pack / Compose file**: select **Docker Compose** and set the path to `docker-compose.prod.yml` ← **not the default `docker-compose.yml`**
+5. Click **Save**
+
+> In Coolify v4 the option is called **Application** (from Git), not "Docker Compose" as a top-level choice. "Service Stack" is the alternative for pasting a compose file directly without a Git source — don't use that here.
 
 ---
 
@@ -171,7 +173,7 @@ If migrations log is missing, confirm `RUN_MIGRATIONS=true` is set.
 
 ### Get the Coolify webhook
 
-Application resource → **Webhooks** tab (or **Settings** → **Webhook**) → copy the **Deploy Webhook URL**:
+Application resource → **Configuration** tab → **Deploy Webhook URL**:
 
 ```
 https://your-coolify.host/api/v1/deploy?uuid=abc123&token=xyz789
