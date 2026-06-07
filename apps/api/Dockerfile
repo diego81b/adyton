@@ -20,7 +20,7 @@ FROM deps AS build
 COPY apps/api ./apps/api
 COPY packages/shared ./packages/shared
 COPY tsconfig.base.json ./
-# nest build strips the src/ prefix → output lands in apps/api/dist/
+# rootDir="./" → nest build preserves src/ prefix → dist/src/main.js
 RUN pnpm --filter @adyton/api build
 
 # --- runner: minimal runtime image ---
@@ -39,4 +39,4 @@ COPY --chown=adyton:adyton apps/api/package.json ./apps/api/package.json
 WORKDIR /app/apps/api
 USER adyton
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
