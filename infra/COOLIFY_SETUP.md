@@ -166,7 +166,7 @@ Still in the Cloudflare dashboard for `diegobaldeschi.dev`:
 1. **SSL/TLS → Overview** → **Full (Strict)** — Coolify/Caddy provides the origin cert via Let's Encrypt automatically
 2. **SSL/TLS → Edge Certificates → Always Use HTTPS → ON**
 3. **Security → Bots → Bot Fight Mode → ON**
-4. **Security → WAF → Managed Rules → ON**
+4. *(Optional, free plan)* **Security → WAF → Managed rules** tab → enable **Cloudflare Free Managed Ruleset** if visible. This section may not appear on all plans or dashboard layouts — skip if not found.
 
 ---
 
