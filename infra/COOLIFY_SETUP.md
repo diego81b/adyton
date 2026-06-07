@@ -7,22 +7,27 @@ Assumes: Coolify already installed on VPS, GitHub repo accessible, domain pointi
 
 ## 1. Generate secrets locally (one-time)
 
-Run on your local machine (the keys must exist before setting Coolify env vars):
+Run on your local machine (the keys must exist before setting Coolify env vars).
+Each environment gets its own subdirectory so dev keys are never overwritten.
 
 ```powershell
-# Windows
-.\scripts\gen-keys.ps1
+# Windows — generates into secrets/staging/
+.\scripts\gen-keys.ps1 staging
+
+# For production
+.\scripts\gen-keys.ps1 prod
 ```
 
 ```bash
 # macOS / Linux
-./scripts/gen-keys.sh
+./scripts/gen-keys.sh staging
+./scripts/gen-keys.sh prod
 ```
 
-This produces `secrets/jwt_private.pem`, `secrets/jwt_public.pem`, `secrets/totp_enc.key`.
+This produces `secrets/staging/jwt_private.pem`, `secrets/staging/jwt_public.pem`, `secrets/staging/totp_enc.key` (and equivalently for prod).
 Keep these files — you'll paste their contents into Coolify and GitHub in the steps below.
 
-**Never commit them.** `.gitignore` already excludes them.
+**Never commit them.** `.gitignore` already excludes `*.pem` and `*.key` everywhere.
 
 ---
 
@@ -84,9 +89,9 @@ In the application resource → **Environment Variables** tab. Add all of the fo
 |----------|-------|-------|
 | `DATABASE_URL` | `postgresql://adyton:<pw>@adyton-db:5432/adyton` | From step 2a |
 | `REDIS_URL` | `redis://:password@adyton-redis:6379` | From step 2b |
-| `JWT_PRIVATE_KEY` | *(full PEM — see below)* | Contents of `secrets/jwt_private.pem` |
-| `JWT_PUBLIC_KEY` | *(full PEM — see below)* | Contents of `secrets/jwt_public.pem` |
-| `TOTP_ENC_KEY` | *(64 hex chars)* | Contents of `secrets/totp_enc.key` (single line) |
+| `JWT_PRIVATE_KEY` | *(full PEM — see below)* | Contents of `secrets/staging/jwt_private.pem` |
+| `JWT_PUBLIC_KEY` | *(full PEM — see below)* | Contents of `secrets/staging/jwt_public.pem` |
+| `TOTP_ENC_KEY` | *(64 hex chars)* | Contents of `secrets/staging/totp_enc.key` (single line) |
 | `WEBAUTHN_RP_ID` | `vault.yourdomain.com` | Your actual domain, no protocol |
 | `WEBAUTHN_ORIGIN` | `https://vault.yourdomain.com` | Full origin with https |
 | `ALLOWED_ORIGINS` | `https://vault.yourdomain.com` | Same as WEBAUTHN_ORIGIN |
@@ -182,9 +187,9 @@ In GitHub repo → **Settings → Secrets → Actions**, add:
 
 | Secret | Value |
 |--------|-------|
-| `TOTP_ENC_KEY` | 64-char hex from `secrets/totp_enc.key` |
-| `JWT_PRIVATE_KEY` | Full PEM content of `secrets/jwt_private.pem` |
-| `JWT_PUBLIC_KEY` | Full PEM content of `secrets/jwt_public.pem` |
+| `TOTP_ENC_KEY` | 64-char hex from `secrets/staging/totp_enc.key` |
+| `JWT_PRIVATE_KEY` | Full PEM content of `secrets/staging/jwt_private.pem` |
+| `JWT_PUBLIC_KEY` | Full PEM content of `secrets/staging/jwt_public.pem` |
 | `COOLIFY_WEBHOOK_STAGING` | Webhook URL from step 8 |
 | `COOLIFY_WEBHOOK_PROD` | Placeholder for now (set when prod environment exists) |
 

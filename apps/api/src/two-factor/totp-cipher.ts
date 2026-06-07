@@ -32,7 +32,7 @@ export function loadTotpEncKey(): Buffer {
   const filePath =
     envPath && fs.existsSync(envPath)
       ? envPath
-      : path.resolve(process.cwd(), '../../secrets/totp_enc.key');
+      : path.resolve(process.cwd(), '../../secrets/dev/totp_enc.key');
   const key = Buffer.from(fs.readFileSync(filePath, 'utf8').trim(), 'hex');
   if (key.length !== KEY_BYTES) {
     throw new Error(`TOTP encryption key must be ${KEY_BYTES} bytes hex, got ${key.length}`);

@@ -1,22 +1,31 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Generate the RS256 keypair used by NestJS to sign JWT access tokens.
+    Generate the RS256 keypair and TOTP encryption key for a given environment.
 
 .DESCRIPTION
-    Writes secrets/jwt_private.pem and secrets/jwt_public.pem.
+    Writes keys to secrets/<env>/ (default: dev).
     Refuses to overwrite existing keys (delete them manually to rotate).
     Prefers `openssl` if available; falls back to Node `crypto.generateKeyPairSync`.
 
+.PARAMETER Env
+    Target environment: dev | staging | prod (default: dev)
+
 .EXAMPLE
-    ./scripts/gen-keys.ps1
+    ./scripts/gen-keys.ps1           # → secrets/dev/
+    ./scripts/gen-keys.ps1 staging  # → secrets/staging/
+    ./scripts/gen-keys.ps1 prod     # → secrets/prod/
 #>
+param(
+    [ValidateSet('dev', 'staging', 'prod')]
+    [string]$Env = 'dev'
+)
 
 $ErrorActionPreference = 'Stop'
 
 $scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot    = Resolve-Path (Join-Path $scriptDir '..')
-$secretsDir  = Join-Path $repoRoot 'secrets'
+$secretsDir  = Join-Path $repoRoot "secrets\$Env"
 $privateKey  = Join-Path $secretsDir 'jwt_private.pem'
 $publicKey   = Join-Path $secretsDir 'jwt_public.pem'
 
@@ -35,7 +44,7 @@ if ((Test-Path $privateKey) -or (Test-Path $publicKey)) {
 $openssl = Get-Command openssl -ErrorAction SilentlyContinue
 
 if ($openssl) {
-    Write-Host "[gen-keys] Using openssl at $($openssl.Source)"
+    Write-Host "[gen-keys] Using openssl at $($openssl.Source) (env=$Env)"
     & $openssl.Source genrsa -out $privateKey 4096
     if ($LASTEXITCODE -ne 0) { throw "openssl genrsa failed (exit $LASTEXITCODE)" }
     & $openssl.Source rsa -in $privateKey -pubout -out $publicKey
@@ -46,12 +55,8 @@ else {
     if (-not $node) {
         throw "Neither openssl nor node is available in PATH. Install one and retry."
     }
-    Write-Host "[gen-keys] openssl not found - falling back to Node crypto.generateKeyPairSync"
+    Write-Host "[gen-keys] openssl not found - falling back to Node crypto.generateKeyPairSync (env=$Env)"
 
-    # PowerShell native-arg quoting mangles strings passed via `node -e`
-    # (quotes get stripped, TS-eval can misinterpret content). Safer: write
-    # the script to a tmp file and run it directly. Single-quoted here-string
-    # so $-prefixed identifiers stay literal; closing '@ MUST be at column 0.
     $nodeScript = @'
 const fs = require("node:fs");
 const { generateKeyPairSync } = require("node:crypto");
@@ -80,8 +85,6 @@ fs.writeFileSync(process.env.JWT_PUB_OUT,  publicKey);
     }
 }
 
-# Server-held AES-256-GCM key encrypting account-2FA TOTP secrets at rest
-# (sanctioned ZK exception, analysis/security/architecture.md §3.5).
 $totpKey = Join-Path $secretsDir 'totp_enc.key'
 if (Test-Path $totpKey) {
     Write-Host "[gen-keys] $totpKey already exists - leaving it untouched." -ForegroundColor Yellow
@@ -95,9 +98,16 @@ else {
 }
 
 Write-Host ""
-Write-Host "[gen-keys] Done." -ForegroundColor Green
+Write-Host "[gen-keys] Done (env=$Env)." -ForegroundColor Green
 Write-Host "  private: $privateKey"
 Write-Host "  public:  $publicKey"
 Write-Host "  totp:    $totpKey"
 Write-Host ""
-Write-Host "Next: cp .env.example .env ; docker compose up -d"
+if ($Env -eq 'dev') {
+    Write-Host "Next: docker compose up -d"
+} else {
+    Write-Host "Next: paste contents into Coolify env vars / GitHub Actions secrets"
+    Write-Host "  JWT_PRIVATE_KEY  = Get-Content $privateKey -Raw"
+    Write-Host "  JWT_PUBLIC_KEY   = Get-Content $publicKey -Raw"
+    Write-Host "  TOTP_ENC_KEY     = Get-Content $totpKey -Raw"
+}

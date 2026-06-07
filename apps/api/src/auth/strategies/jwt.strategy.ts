@@ -21,7 +21,7 @@ export function loadPublicKey(): string {
   // Priority 2: JWT_PUBLIC_KEY_PATH env var or default file path — dev
   const envPath = process.env.JWT_PUBLIC_KEY_PATH;
   if (envPath && fs.existsSync(envPath)) return fs.readFileSync(envPath, 'utf8');
-  const localPath = path.resolve(process.cwd(), '../../secrets/jwt_public.pem');
+  const localPath = path.resolve(process.cwd(), '../../secrets/dev/jwt_public.pem');
   return fs.readFileSync(localPath, 'utf8');
 }
 
@@ -31,7 +31,7 @@ export function loadPrivateKey(): string {
   // Priority 2: JWT_PRIVATE_KEY_PATH env var or default file path — dev
   const envPath = process.env.JWT_PRIVATE_KEY_PATH;
   if (envPath && fs.existsSync(envPath)) return fs.readFileSync(envPath, 'utf8');
-  const localPath = path.resolve(process.cwd(), '../../secrets/jwt_private.pem');
+  const localPath = path.resolve(process.cwd(), '../../secrets/dev/jwt_private.pem');
   return fs.readFileSync(localPath, 'utf8');
 }
 
