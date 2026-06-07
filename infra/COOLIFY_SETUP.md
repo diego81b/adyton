@@ -58,11 +58,13 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
    - Username: `adyton`
    - Password: generate a strong one and save it
 3. Click **Save** → **Start**
-4. Once running, click the resource name to open it → go to the **Connections** tab (or scroll to the **Connection** section in General) → copy the **Internal Connection URL**:
+4. The internal connection URL is built from the values you just set — no need to hunt for it in the UI:
    ```
    postgresql://adyton:<password>@adyton-db:5432/adyton
    ```
-   Save this — it becomes `DATABASE_URL` in step 5.
+   The hostname (`adyton-db`) is the **Name** you set in step 2. Save this string — it becomes `DATABASE_URL` in step 5.
+
+   > Coolify may also show this URL in the resource detail page under a **Connections** or **Overview** section — if you see it there, you can copy it directly.
 
 ### 3b. Redis
 
@@ -73,11 +75,11 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
    - Username: `adyton` (or leave `default`)
    - Password: generate a strong one and save it (`openssl rand -hex 32`)
 3. Click **Save** → **Start**
-4. Once running, click the resource name to open it → same **Connections** tab → copy the **Internal Connection URL**:
+4. Build the internal URL from the values above:
    ```
-   redis://<username>:<password>@adyton-redis:6379
+   redis://adyton:<password>@adyton-redis:6379
    ```
-   Save this — it becomes `REDIS_URL` in step 5.
+   Again, the hostname (`adyton-redis`) is the **Name** from step 2. Save this — it becomes `REDIS_URL` in step 5.
 
 > **Why internal URLs?** The API container reaches DB and Redis over the shared `coolify` Docker network — no host-level port exposure needed.
 
