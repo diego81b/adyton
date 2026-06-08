@@ -196,7 +196,7 @@ Coolify/Caddy requests a Let's Encrypt certificate automatically when you save. 
    ```
 4. Verify health endpoint:
    ```bash
-   curl https://api.adyton.diegobaldeschi.dev/api/health
+   curl https://api.adyton.diegobaldeschi.dev/health
    # → {"status":"ok","timestamp":"..."}
    ```
 
@@ -286,7 +286,7 @@ See cron setup in the main `README.md` (Production deployment → Backup section
 | Build fails: `pnpm install` error | pnpm version mismatch | `pnpm@9.15.4` in Dockerfile must match lockfile |
 | API 500 on login | Missing `JWT_PRIVATE_KEY` | Check env var includes full PEM headers |
 | API 500 on 2FA setup | Missing or malformed `TOTP_ENC_KEY` | Must be exactly 64 hex chars |
-| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must match actual deployed API URL, end in `/api` |
+| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must be the bare API origin — no `/api` suffix (app appends it). E.g. `https://api.adyton.diegobaldeschi.dev` |
 | WebAuthn registration fails | `WEBAUTHN_RP_ID` mismatch | Must match domain exactly — no protocol, no path, no port |
 | Migrations not applied | `RUN_MIGRATIONS` not `true` | Set in env vars and redeploy |
 | CORS errors | Missing `ALLOWED_ORIGINS` | Set to the deployed origin (e.g. `https://adyton.diegobaldeschi.dev`) |
