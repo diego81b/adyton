@@ -21,7 +21,12 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.services.api.loadbalancer.server.port=3001"
+      - "traefik.http.routers.adyton-api.rule=Host(`api.adyton.diegobaldeschi.dev`)"
+      - "traefik.http.routers.adyton-api.entrypoints=https"
+      - "traefik.http.routers.adyton-api.tls=true"
+      - "traefik.http.routers.adyton-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.adyton-api.service=adyton-api"
+      - "traefik.http.services.adyton-api.loadbalancer.server.port=3001"
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -57,7 +62,12 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.http.routers.adyton-web.rule=Host(`adyton.diegobaldeschi.dev`)"
+      - "traefik.http.routers.adyton-web.entrypoints=https"
+      - "traefik.http.routers.adyton-web.tls=true"
+      - "traefik.http.routers.adyton-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.adyton-web.service=adyton-web"
+      - "traefik.http.services.adyton-web.loadbalancer.server.port=3000"
     environment:
       NODE_ENV: production
       NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL}
