@@ -47,20 +47,9 @@ export default defineNuxtConfig({
     routeRules: {
       '/**': {
         headers: {
-          // CSP applied in production only — dev mode requires unsafe-inline for HMR + __NUXT__ injection
-          ...(process.env.NODE_ENV === 'production' ? {
-            'Content-Security-Policy': [
-              "default-src 'self'",
-              "script-src 'self' 'wasm-unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data:",
-              "connect-src 'self' https://api.pwnedpasswords.com",
-              "frame-ancestors 'none'",
-              "form-action 'self'",
-              "base-uri 'self'",
-              "object-src 'none'",
-            ].join('; '),
-          } : {}),
+          // CSP is applied per-request via server/middleware/csp.ts (nonce-based).
+          // Static CSP here would break inline scripts injected by Nuxt (color-mode,
+          // __NUXT__ config) because their hashes change every build.
           'X-Content-Type-Options': 'nosniff',
           'X-Frame-Options': 'DENY',
           'Referrer-Policy': 'no-referrer',
