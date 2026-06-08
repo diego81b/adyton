@@ -3,7 +3,9 @@
 #   docker compose -f docker-compose.staging.yml up -d
 #
 # DB and Redis are Coolify-managed resources (not defined here).
-# Routing is handled by Coolify/Caddy — no Traefik labels needed.
+# Routing is handled by Coolify/Traefik. Port labels are required because
+# Traefik runs with exposedbydefault=false; Coolify injects router rules
+# (domain/TLS) at deploy time on top of these labels.
 # All secrets come from env vars set in the Coolify dashboard.
 #
 # Migrations run automatically on every boot (RUN_MIGRATIONS=true).
@@ -17,6 +19,9 @@ services:
       dockerfile: apps/api/Dockerfile
       target: runner
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.api.loadbalancer.server.port=3001"
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -50,6 +55,9 @@ services:
       dockerfile: apps/web/Dockerfile
       target: runner
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
     environment:
       NODE_ENV: production
       NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL}
