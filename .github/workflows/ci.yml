@@ -3,8 +3,6 @@ name: CI/CD
 on:
   push:
     branches: ["**"]
-    tags:
-      - "v*" # → production Coolify instance
   pull_request:
     branches: ["**"]
 
@@ -120,13 +118,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     steps:
       - name: Trigger Coolify staging rebuild
-        run: curl -fSs "${{ secrets.COOLIFY_WEBHOOK_STAGING }}"
-
-  deploy-prod:
-    name: Deploy → Production
-    runs-on: ubuntu-latest
-    needs: [typecheck-lint, unit-tests, integration-tests, audit]
-    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
-    steps:
-      - name: Trigger Coolify production rebuild
-        run: curl -fSs "${{ secrets.COOLIFY_WEBHOOK_PROD }}"
+        env:
+          WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK_STAGING }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::warning::COOLIFY_WEBHOOK_STAGING not set — skipping deploy trigger"
+            exit 0
+          fi
+          curl -fSs "$WEBHOOK"
