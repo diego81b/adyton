@@ -70,12 +70,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # JWT keys for tests are ephemeral and throwaway — generate them per run instead of
+      # injecting GitHub secrets. The int specs point JWT_*_KEY_PATH at secrets/*.pem (repo
+      # root), so loadPrivateKey/loadPublicKey read these files. Do NOT set JWT_PRIVATE_KEY /
+      # JWT_PUBLIC_KEY env here: those take priority over the files and a malformed multiline
+      # secret would break RS256 signing.
+      - name: Generate ephemeral JWT test keys
+        run: |
+          mkdir -p secrets
+          openssl genrsa -out secrets/jwt_private.pem 4096
+          openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+
       - name: Run integration tests
-        # Key material from GitHub secrets — env var approach avoids file provisioning on CI
         env:
           TOTP_ENC_KEY: ${{ secrets.TOTP_ENC_KEY }}
-          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
-          JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
         working-directory: apps/api
         run: pnpm test:int
 

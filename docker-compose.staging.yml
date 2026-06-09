@@ -42,7 +42,7 @@ services:
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN}
       ENABLE_POW: ${ENABLE_POW:-false}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,7 +72,7 @@ services:
       NODE_ENV: production
       NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -32,11 +32,16 @@ jobs:
       - name: Unit tests
         run: pnpm test:coverage
 
+      # Ephemeral throwaway JWT keys per run — see ci.yml for why we use files, not env secrets.
+      - name: Generate ephemeral JWT test keys
+        run: |
+          mkdir -p secrets
+          openssl genrsa -out secrets/jwt_private.pem 4096
+          openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+
       - name: Integration tests
         env:
           TOTP_ENC_KEY: ${{ secrets.TOTP_ENC_KEY }}
-          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
-          JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
         working-directory: apps/api
         run: pnpm test:int
 
