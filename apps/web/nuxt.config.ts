@@ -7,6 +7,37 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // ssr:false means icons render client-side. The default server bundle is useless here,
+  // so bundle icons into the CLIENT and never fall back to the Iconify CDN — a remote
+  // fetch would violate both our CSP (connect-src) and the no-CDN/zero-knowledge posture.
+  // `scan` collects icon names from our source; collections (lucide, simple-icons) are
+  // installed locally. NuxtUI's internal icon names are registered via its app config.
+  icon: {
+    provider: 'iconify',
+    fallbackToApi: false,
+    clientBundle: {
+      scan: true,
+      includeCustomCollections: true,
+      // `scan` only sees icon names that appear as literals in our own source. NuxtUI
+      // renders its own chrome (select chevrons, alert/close icons, etc.) from names that
+      // live in NuxtUI's source, not ours, so scan can miss them and they'd hit the CDN.
+      // Pin NuxtUI's full default lucide set explicitly. Source: @nuxt/ui theme defaults
+      // (ui.icons). Update if a NuxtUI upgrade adds new default icons.
+      icons: [
+        'lucide:arrow-down', 'lucide:arrow-left', 'lucide:arrow-right', 'lucide:arrow-up',
+        'lucide:arrow-up-right', 'lucide:check', 'lucide:chevron-down', 'lucide:chevron-left',
+        'lucide:chevron-right', 'lucide:chevron-up', 'lucide:chevrons-left', 'lucide:chevrons-right',
+        'lucide:circle-alert', 'lucide:circle-check', 'lucide:circle-x', 'lucide:copy',
+        'lucide:copy-check', 'lucide:ellipsis', 'lucide:eye', 'lucide:eye-off', 'lucide:file',
+        'lucide:folder', 'lucide:folder-open', 'lucide:grip-vertical', 'lucide:hash', 'lucide:info',
+        'lucide:lightbulb', 'lucide:loader-circle', 'lucide:menu', 'lucide:minus', 'lucide:monitor',
+        'lucide:moon', 'lucide:panel-left-close', 'lucide:panel-left-open', 'lucide:plus',
+        'lucide:rotate-ccw', 'lucide:search', 'lucide:square', 'lucide:sun', 'lucide:terminal',
+        'lucide:triangle-alert', 'lucide:upload', 'lucide:x',
+      ],
+    },
+  },
+
   // Mockup is dark-first; honor the user's system preference but default to dark.
   colorMode: {
     preference: 'dark',

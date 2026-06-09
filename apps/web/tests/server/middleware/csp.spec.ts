@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto'
 import { describe, it, expect } from 'vitest'
-import { generateNonce, buildCspHeader, injectNonce } from '../../../server/utils/csp'
+import {
+  generateNonce,
+  buildCspHeader,
+  injectNonce,
+  NUXT_UI_COLOR_CLEANUP_HASH,
+} from '../../../server/utils/csp'
 
 describe('generateNonce', () => {
   it('returns a base64 string', () => {
@@ -13,10 +19,21 @@ describe('generateNonce', () => {
 })
 
 describe('buildCspHeader', () => {
-  it('contains nonce in script-src', () => {
+  it('contains nonce and the NuxtUI cleanup hash in script-src', () => {
     const header = buildCspHeader('abc123')
     expect(header).toContain("'nonce-abc123'")
-    expect(header).toContain("script-src 'self' 'wasm-unsafe-eval' 'nonce-abc123'")
+    expect(header).toContain(
+      `script-src 'self' 'wasm-unsafe-eval' 'nonce-abc123' ${NUXT_UI_COLOR_CLEANUP_HASH}`,
+    )
+  })
+
+  it('pins the NuxtUI cleanup hash to its source script', () => {
+    // The exact inline script NuxtUI re-injects client-side at mount. If a NuxtUI
+    // upgrade changes this string, this test fails — recompute the hash from the new
+    // bytes (browser console reports it) and update NUXT_UI_COLOR_CLEANUP_HASH.
+    const script = "document.head.removeChild(document.querySelector('[data-nuxt-ui-colors]'))"
+    const hash = createHash('sha256').update(script, 'utf8').digest('base64')
+    expect(NUXT_UI_COLOR_CLEANUP_HASH).toBe(`'sha256-${hash}'`)
   })
 
   it('includes HIBP endpoint in connect-src', () => {
