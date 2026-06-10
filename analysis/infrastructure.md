@@ -628,3 +628,31 @@ Coolify UI (porta 8000, solo tuo IP)
 
 ---
 
+### 9.8 Reset del database (staging)
+
+> **ATTENZIONE — operazione distruttiva.** Cancella in modo permanente TUTTI i dati
+> di staging (utenti, voci del vault, sessioni, codici 2FA). Nessun undo.
+> Non eseguire mai su produzione. Verificare di essere sulla risorsa DB di **staging**.
+
+Su staging il database è una risorsa PostgreSQL gestita da Coolify (non definita in
+`docker-compose.staging.yml`). Le migrazioni vengono ri-applicate automaticamente al
+boot dell'API (`RUN_MIGRATIONS=true`), quindi il reset consiste solo nel droppare lo
+schema e far ripartire l'API.
+
+**Procedura (da Coolify dashboard):**
+
+1. Apri la risorsa **PostgreSQL** di staging → tab **Terminal** (Execute Command).
+2. Esegui (le variabili `$POSTGRES_USER`/`$POSTGRES_DB` sono già nell'env del container):
+
+   ```bash
+   psql -U $POSTGRES_USER -d $POSTGRES_DB -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO $POSTGRES_USER; GRANT ALL ON SCHEMA public TO public;"
+   ```
+
+3. Vai sull'applicazione **api** → **Restart** (o Redeploy). Al boot le migrazioni
+   ricreano lo schema da zero.
+
+**L'ordine conta:** droppa lo schema *prima*, riavvia l'API *dopo*. Se l'API gira
+durante il drop genererà errori finché non viene riavviata.
+
+---
+
