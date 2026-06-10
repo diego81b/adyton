@@ -124,7 +124,7 @@ Application resource → **Environment Variables** tab. Add all of the following
 | `WEBAUTHN_RP_ID` | `adyton.diegobaldeschi.dev` | Frontend domain only, no protocol |
 | `WEBAUTHN_ORIGIN` | `https://adyton.diegobaldeschi.dev` | Frontend full origin |
 | `ALLOWED_ORIGINS` | `https://adyton.diegobaldeschi.dev` | Frontend origin (CORS) |
-| `NUXT_PUBLIC_API_BASE_URL` | `https://api.adyton.diegobaldeschi.dev` | API origin — no `/api` suffix (app adds it) |
+| `NUXT_PUBLIC_API_BASE_URL` | `https://api-adyton.diegobaldeschi.dev` | API origin — no `/api` suffix (app adds it) |
 | `RUN_MIGRATIONS` | `true` | Auto-applies pending DB migrations on API boot |
 | `NODE_ENV` | `production` | |
 
@@ -157,7 +157,7 @@ MIIEowIBAAKCAQEA...
 | Type | Name | Content | Proxy status |
 |------|------|---------|-------|
 | A | `adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
-| A | `api.adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
+| A | `api-adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
 
 ### 6b. Harden Cloudflare settings
 
@@ -179,7 +179,7 @@ Enter the full URL (with `https://`) for each service:
 | Full URL | Service |
 |----------|---------|
 | `https://adyton.diegobaldeschi.dev` | `web` |
-| `https://api.adyton.diegobaldeschi.dev` | `api` |
+| `https://api-adyton.diegobaldeschi.dev` | `api` |
 
 Coolify/Caddy requests a Let's Encrypt certificate automatically when you save. No manual HTTPS toggle — the `https://` prefix in the URL is what enables it.
 
@@ -196,7 +196,7 @@ Coolify/Caddy requests a Let's Encrypt certificate automatically when you save. 
    ```
 4. Verify health endpoint:
    ```bash
-   curl https://api.adyton.diegobaldeschi.dev/health
+   curl https://api-adyton.diegobaldeschi.dev/health
    # → {"status":"ok","timestamp":"..."}
    ```
 
@@ -286,7 +286,7 @@ See cron setup in the main `README.md` (Production deployment → Backup section
 | Build fails: `pnpm install` error | pnpm version mismatch | `pnpm@9.15.4` in Dockerfile must match lockfile |
 | API 500 on login | Missing `JWT_PRIVATE_KEY` | Check env var includes full PEM headers |
 | API 500 on 2FA setup | Missing or malformed `TOTP_ENC_KEY` | Must be exactly 64 hex chars |
-| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must be the bare API origin — no `/api` suffix (app appends it). E.g. `https://api.adyton.diegobaldeschi.dev` |
+| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must be the bare API origin — no `/api` suffix (app appends it). E.g. `https://api-adyton.diegobaldeschi.dev` |
 | WebAuthn registration fails | `WEBAUTHN_RP_ID` mismatch | Must match domain exactly — no protocol, no path, no port |
 | Migrations not applied | `RUN_MIGRATIONS` not `true` | Set in env vars and redeploy |
 | CORS errors | Missing `ALLOWED_ORIGINS` | Set to the deployed origin (e.g. `https://adyton.diegobaldeschi.dev`) |

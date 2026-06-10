@@ -137,7 +137,7 @@ Each environment gets its own subdirectory under `secrets/`:
 | `WEBAUTHN_RP_ID` | Frontend domain, e.g. `adyton.diegobaldeschi.dev` |
 | `WEBAUTHN_ORIGIN` | Frontend full origin, e.g. `https://adyton.diegobaldeschi.dev` |
 | `ALLOWED_ORIGINS` | Frontend origin (CORS), e.g. `https://adyton.diegobaldeschi.dev` |
-| `NUXT_PUBLIC_API_BASE_URL` | API origin, e.g. `https://api.adyton.diegobaldeschi.dev` (no `/api` suffix) |
+| `NUXT_PUBLIC_API_BASE_URL` | API origin, e.g. `https://api-adyton.diegobaldeschi.dev` (no `/api` suffix) |
 | `RUN_MIGRATIONS` | `true` on staging; unset on prod (apply SQL manually) |
 
 ### CI/CD

@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.adyton-api.rule=Host(`api.adyton.diegobaldeschi.dev`)"
+      - "traefik.http.routers.adyton-api.rule=Host(`api-adyton.diegobaldeschi.dev`)"
       - "traefik.http.routers.adyton-api.entrypoints=https"
       - "traefik.http.routers.adyton-api.tls=true"
       - "traefik.http.routers.adyton-api.tls.certresolver=letsencrypt"
