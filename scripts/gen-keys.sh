@@ -62,13 +62,23 @@ echo ""
 if [[ "${ENV}" == "dev" ]]; then
     echo "Next: docker compose up -d"
 else
-    echo "Next: set these env vars in Coolify / GitHub Actions secrets."
-    echo "Use base64 for the PEM keys — Coolify mangles multiline values; the API"
-    echo "loader decodes base64 automatically (see jwt.strategy.ts normalizePem)."
-    echo ""
-    echo "  JWT_PRIVATE_KEY  = $(openssl base64 -A -in "${PRIVATE_KEY}")"
-    echo ""
-    echo "  JWT_PUBLIC_KEY   = $(openssl base64 -A -in "${PUBLIC_KEY}")"
-    echo ""
-    echo "  TOTP_ENC_KEY     = $(cat "${TOTP_KEY}")"
+    # Write a ready-to-paste Coolify env file (gitignored, same folder as the keys).
+    # Base64 for the PEMs — Coolify mangles multiline values; the API loader decodes
+    # base64 automatically (see jwt.strategy.ts normalizePem).
+    ENV_FILE="${SECRETS_DIR}/coolify-env.txt"
+    {
+        echo "# Adyton ${ENV} — Coolify env values. GITIGNORED, plaintext secrets."
+        echo "# Source of truth = the .pem/.key files in this folder. Safe to delete this file."
+        echo "# Regenerated every time you run gen-keys for this env."
+        echo ""
+        echo "JWT_PRIVATE_KEY=$(openssl base64 -A -in "${PRIVATE_KEY}")"
+        echo ""
+        echo "JWT_PUBLIC_KEY=$(openssl base64 -A -in "${PUBLIC_KEY}")"
+        echo ""
+        echo "TOTP_ENC_KEY=$(tr -d '\r\n' < "${TOTP_KEY}")"
+    } > "${ENV_FILE}"
+    chmod 600 "${ENV_FILE}" 2>/dev/null || true
+
+    echo "Next: paste these into Coolify / GitHub Actions secrets."
+    echo "  env file (ready to copy): ${ENV_FILE}"
 fi

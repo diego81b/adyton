@@ -108,15 +108,26 @@ Write-Host ""
 if ($Env -eq 'dev') {
     Write-Host "Next: docker compose up -d"
 } else {
-    Write-Host "Next: set these env vars in Coolify / GitHub Actions secrets."
-    Write-Host "Use base64 for the PEM keys - Coolify mangles multiline values; the API"
-    Write-Host "loader decodes base64 automatically (see jwt.strategy.ts normalizePem)."
+    # Write a ready-to-paste Coolify env file (gitignored, same folder as the keys).
+    # Base64 for the PEMs - Coolify mangles multiline values; the API loader decodes
+    # base64 automatically (see jwt.strategy.ts normalizePem).
     $privB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($privateKey))
     $pubB64  = [Convert]::ToBase64String([IO.File]::ReadAllBytes($publicKey))
-    Write-Host ""
-    Write-Host "  JWT_PRIVATE_KEY  = $privB64"
-    Write-Host ""
-    Write-Host "  JWT_PUBLIC_KEY   = $pubB64"
-    Write-Host ""
-    Write-Host "  TOTP_ENC_KEY     = $(Get-Content $totpKey -Raw)"
+    $totpHex = (Get-Content $totpKey -Raw).Trim()
+    $envFile = Join-Path $secretsDir 'coolify-env.txt'
+    $lines = @(
+        "# Adyton $Env - Coolify env values. GITIGNORED, plaintext secrets.",
+        "# Source of truth = the .pem/.key files in this folder. Safe to delete this file.",
+        "# Regenerated every time you run gen-keys for this env.",
+        "",
+        "JWT_PRIVATE_KEY=$privB64",
+        "",
+        "JWT_PUBLIC_KEY=$pubB64",
+        "",
+        "TOTP_ENC_KEY=$totpHex"
+    )
+    Set-Content -LiteralPath $envFile -Value $lines -Encoding ascii
+
+    Write-Host "Next: paste these into Coolify / GitHub Actions secrets."
+    Write-Host "  env file (ready to copy): $envFile"
 }
