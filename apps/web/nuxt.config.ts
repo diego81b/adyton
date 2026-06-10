@@ -16,7 +16,14 @@ export default defineNuxtConfig({
     provider: 'iconify',
     fallbackToApi: false,
     clientBundle: {
-      scan: true,
+      // @nuxt/icon's default scan glob is **/*.{vue,jsx,tsx,md,...} — it does NOT
+      // include `.ts`. Our icon names live as literals in `.ts` utilities too
+      // (nav.ts, card-brand detection, entry-display), so the default scan misses
+      // them and they'd fall back to the Iconify CDN (CSP + zero-knowledge breach).
+      // Add `ts` so every `i-lucide-*` / `i-simple-icons-*` literal gets bundled.
+      scan: {
+        globInclude: ['**/*.{vue,jsx,tsx,ts,md,mdc,mdx,yml,yaml}'],
+      },
       includeCustomCollections: true,
       // `scan` only sees icon names that appear as literals in our own source. NuxtUI
       // renders its own chrome (select chevrons, alert/close icons, etc.) from names that
