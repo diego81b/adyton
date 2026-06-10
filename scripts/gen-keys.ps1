@@ -108,8 +108,15 @@ Write-Host ""
 if ($Env -eq 'dev') {
     Write-Host "Next: docker compose up -d"
 } else {
-    Write-Host "Next: paste contents into Coolify env vars / GitHub Actions secrets"
-    Write-Host "  JWT_PRIVATE_KEY  = Get-Content $privateKey -Raw"
-    Write-Host "  JWT_PUBLIC_KEY   = Get-Content $publicKey -Raw"
-    Write-Host "  TOTP_ENC_KEY     = Get-Content $totpKey -Raw"
+    Write-Host "Next: set these env vars in Coolify / GitHub Actions secrets."
+    Write-Host "Use base64 for the PEM keys - Coolify mangles multiline values; the API"
+    Write-Host "loader decodes base64 automatically (see jwt.strategy.ts normalizePem)."
+    $privB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($privateKey))
+    $pubB64  = [Convert]::ToBase64String([IO.File]::ReadAllBytes($publicKey))
+    Write-Host ""
+    Write-Host "  JWT_PRIVATE_KEY  = $privB64"
+    Write-Host ""
+    Write-Host "  JWT_PUBLIC_KEY   = $pubB64"
+    Write-Host ""
+    Write-Host "  TOTP_ENC_KEY     = $(Get-Content $totpKey -Raw)"
 }

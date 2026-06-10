@@ -62,8 +62,13 @@ echo ""
 if [[ "${ENV}" == "dev" ]]; then
     echo "Next: docker compose up -d"
 else
-    echo "Next: paste contents into Coolify env vars / GitHub Actions secrets"
-    echo "  JWT_PRIVATE_KEY  = cat ${PRIVATE_KEY}"
-    echo "  JWT_PUBLIC_KEY   = cat ${PUBLIC_KEY}"
-    echo "  TOTP_ENC_KEY     = cat ${TOTP_KEY}"
+    echo "Next: set these env vars in Coolify / GitHub Actions secrets."
+    echo "Use base64 for the PEM keys — Coolify mangles multiline values; the API"
+    echo "loader decodes base64 automatically (see jwt.strategy.ts normalizePem)."
+    echo ""
+    echo "  JWT_PRIVATE_KEY  = $(openssl base64 -A -in "${PRIVATE_KEY}")"
+    echo ""
+    echo "  JWT_PUBLIC_KEY   = $(openssl base64 -A -in "${PUBLIC_KEY}")"
+    echo ""
+    echo "  TOTP_ENC_KEY     = $(cat "${TOTP_KEY}")"
 fi

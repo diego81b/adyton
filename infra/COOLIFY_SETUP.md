@@ -118,8 +118,8 @@ Application resource → **Environment Variables** tab. Add all of the following
 |----------|-------|-------|
 | `DATABASE_URL` | `postgresql://adyton:<pw>@adyton-db:5432/adyton` | From step 3a |
 | `REDIS_URL` | `redis://:password@adyton-redis:6379` | From step 3b |
-| `JWT_PRIVATE_KEY` | *(full PEM)* | `cat secrets/staging/jwt_private.pem` |
-| `JWT_PUBLIC_KEY` | *(full PEM)* | `cat secrets/staging/jwt_public.pem` |
+| `JWT_PRIVATE_KEY` | *(base64 PEM)* | `openssl base64 -A -in secrets/staging/jwt_private.pem` — see note below |
+| `JWT_PUBLIC_KEY` | *(base64 PEM)* | `openssl base64 -A -in secrets/staging/jwt_public.pem` — see note below |
 | `TOTP_ENC_KEY` | *(64 hex chars)* | `cat secrets/staging/totp_enc.key` |
 | `WEBAUTHN_RP_ID` | `adyton.diegobaldeschi.dev` | Frontend domain only, no protocol |
 | `WEBAUTHN_ORIGIN` | `https://adyton.diegobaldeschi.dev` | Frontend full origin |
@@ -128,15 +128,24 @@ Application resource → **Environment Variables** tab. Add all of the following
 | `RUN_MIGRATIONS` | `true` | Auto-applies pending DB migrations on API boot |
 | `NODE_ENV` | `production` | |
 
-### Pasting multi-line PEM keys
+### Pasting the PEM keys — use base64 (single line)
 
-Coolify's env var editor accepts multi-line values. Paste the full PEM including the `-----BEGIN/END-----` lines:
+Coolify's env var editor mangles multi-line values: newlines get collapsed or
+turned into literal `\n`, producing the runtime error
+`secretOrPrivateKey must be an asymmetric key when using RS256` on first login/register.
 
+**Base64-encode the keys to a single line.** The API loader (`jwt.strategy.ts`
+`normalizePem`) auto-detects and decodes base64, so this is mangle-proof:
+
+```sh
+openssl base64 -A -in secrets/staging/jwt_private.pem   # paste into JWT_PRIVATE_KEY
+openssl base64 -A -in secrets/staging/jwt_public.pem    # paste into JWT_PUBLIC_KEY
 ```
-JWT_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA...
------END RSA PRIVATE KEY-----
-```
+
+`./scripts/gen-keys.sh staging` (or `.ps1`) prints these base64 one-liners for you.
+
+The loader still accepts a raw PEM or a `\n`-escaped PEM if newlines survive — but
+base64 is the only form guaranteed not to break through Coolify's editor.
 
 ---
 
