@@ -95,6 +95,7 @@ run dev
 | API | http://localhost:30001 |
 | Swagger | http://localhost:30001/api-docs |
 | Health | http://localhost:30001/health |
+| Mailpit (email inspector) | http://localhost:8025 |
 
 ### Tests
 
@@ -142,12 +143,12 @@ Each environment gets its own subdirectory under `secrets/`:
 | `NUXT_PUBLIC_API_BASE_URL` | API origin, e.g. `https://api-adyton.diegobaldeschi.dev` (no `/api` suffix) |
 | `RUN_MIGRATIONS` | `true` on staging; unset on prod (apply SQL manually) |
 | `TOTP_ISSUER` | Label shown in authenticator apps. Default: `Adyton`. Use `Adyton [DEV]` in dev to distinguish environments. |
-| `SMTP_HOST` | SMTP server hostname. When unset, email notifications are silently skipped. |
+| `SMTP_HOST` | SMTP server hostname. When unset, email notifications are silently skipped. Recommended: `smtp.resend.com` (Resend — 3 000 free emails/month, handles deliverability). |
 | `SMTP_PORT` | SMTP port. Default: `587`. |
 | `SMTP_SECURE` | Set `true` for port 465 SSL. Default: `false` (STARTTLS). |
-| `SMTP_USER` | SMTP auth username. Optional if server allows unauthenticated. |
-| `SMTP_PASS` | SMTP auth password. |
-| `SMTP_FROM` | Sender address. Default: `Adyton <noreply@adyton.app>`. |
+| `SMTP_USER` | SMTP auth username. For Resend: `resend`. |
+| `SMTP_PASS` | SMTP auth password. For Resend: the API key. |
+| `SMTP_FROM` | Verified sender address. Must match a domain verified in your SMTP provider. |
 
 ### CI/CD
 
