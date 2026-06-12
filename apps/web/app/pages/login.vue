@@ -119,7 +119,7 @@ function onMfaBack() {
 </script>
 
 <template>
-  <AuthShell>
+  <AuthShell width="lg">
     <template #brand>
       <BrandLogo tagline="Zero-knowledge vault for what matters" />
     </template>

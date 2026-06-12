@@ -93,6 +93,11 @@ function onlyDigits(value: string) {
   code.value = value.replace(/\D/g, '').slice(0, 6);
 }
 
+// Auto-submit when a complete 6-digit code is entered — no need to press Enter.
+watch(code, (v) => {
+  if (v.length === 6 && !verifyLoading.value) void verify();
+});
+
 function finish() {
   if (!acknowledged.value) return;
   emit('enabled');
@@ -130,9 +135,9 @@ function finish() {
               <img
                 :src="qrDataUri"
                 alt="TOTP QR code"
-                class="size-44 rounded-lg bg-white p-2"
-                width="176"
-                height="176"
+                class="size-52 rounded-lg bg-white p-2"
+                width="208"
+                height="208"
               />
             </div>
 

@@ -73,10 +73,17 @@ describe('TwoFactorChallenge', () => {
   it('emits submit with the code payload', async () => {
     const w = mountChallenge();
     await w.find('.uinput').setValue('123456');
-    await w.find('form').trigger('submit');
 
+    // Auto-submit fires when the 6th digit is entered — no need to press the button.
     expect(w.emitted('submit')).toHaveLength(1);
     expect(w.emitted('submit')![0]).toEqual([{ code: '123456' }]);
+  });
+
+  it('auto-submits when a complete 6-digit code is entered', async () => {
+    const w = mountChallenge();
+    await w.find('.uinput').setValue('654321');
+    expect(w.emitted('submit')).toHaveLength(1);
+    expect(w.emitted('submit')![0]).toEqual([{ code: '654321' }]);
   });
 
   it('toggles to the recovery-code input and validates its format', async () => {

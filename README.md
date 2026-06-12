@@ -134,10 +134,10 @@ Each environment gets its own subdirectory under `secrets/`:
 | `JWT_PRIVATE_KEY` | Full PEM — `cat secrets/staging/jwt_private.pem` |
 | `JWT_PUBLIC_KEY` | Full PEM — `cat secrets/staging/jwt_public.pem` |
 | `TOTP_ENC_KEY` | 64 hex chars — `cat secrets/staging/totp_enc.key` |
-| `WEBAUTHN_RP_ID` | Domain, e.g. `vault.yourdomain.com` |
-| `WEBAUTHN_ORIGIN` | Full origin, e.g. `https://vault.yourdomain.com` |
-| `ALLOWED_ORIGINS` | Same as `WEBAUTHN_ORIGIN` |
-| `NUXT_PUBLIC_API_BASE_URL` | `https://vault.yourdomain.com/api` |
+| `WEBAUTHN_RP_ID` | Frontend domain, e.g. `adyton.diegobaldeschi.dev` |
+| `WEBAUTHN_ORIGIN` | Frontend full origin, e.g. `https://adyton.diegobaldeschi.dev` |
+| `ALLOWED_ORIGINS` | Frontend origin (CORS), e.g. `https://adyton.diegobaldeschi.dev` |
+| `NUXT_PUBLIC_API_BASE_URL` | API origin, e.g. `https://api-adyton.diegobaldeschi.dev` (no `/api` suffix) |
 | `RUN_MIGRATIONS` | `true` on staging; unset on prod (apply SQL manually) |
 
 ### CI/CD

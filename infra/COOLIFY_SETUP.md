@@ -58,11 +58,13 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
    - Username: `adyton`
    - Password: generate a strong one and save it
 3. Click **Save** → **Start**
-4. Once running, open the resource → copy the **Internal Connection URL**:
+4. The internal connection URL is built from the values you just set — no need to hunt for it in the UI:
    ```
    postgresql://adyton:<password>@adyton-db:5432/adyton
    ```
-   Save this — it becomes `DATABASE_URL` in step 5.
+   The hostname (`adyton-db`) is the **Name** you set in step 2. Save this string — it becomes `DATABASE_URL` in step 5.
+
+   > Coolify may also show this URL in the resource detail page under a **Connections** or **Overview** section — if you see it there, you can copy it directly.
 
 ### 3b. Redis
 
@@ -73,11 +75,11 @@ Both PostgreSQL and Redis are Coolify-managed resources created within the proje
    - Username: `adyton` (or leave `default`)
    - Password: generate a strong one and save it (`openssl rand -hex 32`)
 3. Click **Save** → **Start**
-4. Once running, open the resource → copy the **Internal Connection URL**:
+4. Build the internal URL from the values above:
    ```
-   redis://<username>:<password>@adyton-redis:6379
+   redis://adyton:<password>@adyton-redis:6379
    ```
-   Save this — it becomes `REDIS_URL` in step 5.
+   Again, the hostname (`adyton-redis`) is the **Name** from step 2. Save this — it becomes `REDIS_URL` in step 5.
 
 > **Why internal URLs?** The API container reaches DB and Redis over the shared `coolify` Docker network — no host-level port exposure needed.
 
@@ -116,42 +118,83 @@ Application resource → **Environment Variables** tab. Add all of the following
 |----------|-------|-------|
 | `DATABASE_URL` | `postgresql://adyton:<pw>@adyton-db:5432/adyton` | From step 3a |
 | `REDIS_URL` | `redis://:password@adyton-redis:6379` | From step 3b |
-| `JWT_PRIVATE_KEY` | *(full PEM)* | `cat secrets/staging/jwt_private.pem` |
-| `JWT_PUBLIC_KEY` | *(full PEM)* | `cat secrets/staging/jwt_public.pem` |
+| `JWT_PRIVATE_KEY` | *(base64 PEM)* | `openssl base64 -A -in secrets/staging/jwt_private.pem` — see note below |
+| `JWT_PUBLIC_KEY` | *(base64 PEM)* | `openssl base64 -A -in secrets/staging/jwt_public.pem` — see note below |
 | `TOTP_ENC_KEY` | *(64 hex chars)* | `cat secrets/staging/totp_enc.key` |
-| `WEBAUTHN_RP_ID` | `vault.yourdomain.com` | Domain only, no protocol |
-| `WEBAUTHN_ORIGIN` | `https://vault.yourdomain.com` | Full origin |
-| `ALLOWED_ORIGINS` | `https://vault.yourdomain.com` | Same as above |
-| `NUXT_PUBLIC_API_BASE_URL` | `https://vault.yourdomain.com/api` | Must end in `/api` |
+| `WEBAUTHN_RP_ID` | `adyton.diegobaldeschi.dev` | Frontend domain only, no protocol |
+| `WEBAUTHN_ORIGIN` | `https://adyton.diegobaldeschi.dev` | Frontend full origin |
+| `ALLOWED_ORIGINS` | `https://adyton.diegobaldeschi.dev` | Frontend origin (CORS) |
+| `NUXT_PUBLIC_API_BASE_URL` | `https://api-adyton.diegobaldeschi.dev` | API origin — no `/api` suffix (app adds it) |
 | `RUN_MIGRATIONS` | `true` | Auto-applies pending DB migrations on API boot |
 | `NODE_ENV` | `production` | |
 
-### Pasting multi-line PEM keys
+### Pasting the PEM keys — use base64 (single line)
 
-Coolify's env var editor accepts multi-line values. Paste the full PEM including the `-----BEGIN/END-----` lines:
+Coolify's env var editor mangles multi-line values: newlines get collapsed or
+turned into literal `\n`, producing the runtime error
+`secretOrPrivateKey must be an asymmetric key when using RS256` on first login/register.
 
+**Base64-encode the keys to a single line.** The API loader (`jwt.strategy.ts`
+`normalizePem`) auto-detects and decodes base64, so this is mangle-proof:
+
+```sh
+openssl base64 -A -in secrets/staging/jwt_private.pem   # paste into JWT_PRIVATE_KEY
+openssl base64 -A -in secrets/staging/jwt_public.pem    # paste into JWT_PUBLIC_KEY
 ```
-JWT_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA...
------END RSA PRIVATE KEY-----
-```
+
+`./scripts/gen-keys.sh staging` (or `.ps1`) prints these base64 one-liners for you.
+
+The loader still accepts a raw PEM or a `\n`-escaped PEM if newlines survive — but
+base64 is the only form guaranteed not to break through Coolify's editor.
 
 ---
 
-## 6. Configure domain routing
+## 6. Configure Cloudflare DNS
 
-Application resource → **Domains** tab:
+> **Cloudflare vs Coolify:** Coolify handles routing *inside* the VPS (which container serves which domain). Cloudflare handles external DNS — it points the domain to the VPS IP. Do this step first; Coolify needs the domain to resolve when it requests the Let's Encrypt certificate.
 
-- `vault.yourdomain.com` → service `web`, port `3000`
-- `vault.yourdomain.com/api` → service `api`, port `3001`
+### 6a. Find the VPS IP
 
-Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
+**Hetzner Cloud Console** (`console.hetzner.cloud`) → select the server → copy the **IPv4** address shown in the server overview. This is the IP you put in all Cloudflare A records.
 
-> **DNS prerequisite:** `vault.yourdomain.com` A record must point to the VPS IP (or Cloudflare proxied).
+> **Multiple apps on the same VPS:** all apps share this single IP. Coolify's built-in Caddy proxy routes traffic by domain name (`Host` header) — each app just needs different domains pointing to the same IP.
+
+### 6b. Add DNS records (Cloudflare dashboard)
+
+**dash.cloudflare.com → select domain `diegobaldeschi.dev` → DNS → Records → Add record:**
+
+| Type | Name | Content | Proxy status |
+|------|------|---------|-------|
+| A | `adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
+| A | `api-adyton` | `<VPS IPv4>` | Proxied (orange cloud) |
+
+### 6b. Harden Cloudflare settings
+
+Still in the Cloudflare dashboard for `diegobaldeschi.dev`:
+
+1. **SSL/TLS → Overview** → **Full (Strict)** — Coolify/Caddy provides the origin cert via Let's Encrypt automatically
+2. **SSL/TLS → Edge Certificates → Always Use HTTPS → ON**
+3. **Security → Bots → Bot Fight Mode → ON**
+4. *(Optional)* **Security → WAF** or **Security → Security rules** (Cloudflare rinomina spesso questa sezione) → cerca **Managed rules** o **Cloudflare Free Managed Ruleset** e abilitalo se disponibile sul tuo piano.
 
 ---
 
-## 7. First deploy
+## 7. Configure domain routing in Coolify
+
+Application resource → **General** tab → scroll to the **Domains** section.
+
+Enter the full URL (with `https://`) for each service:
+
+| Full URL | Service |
+|----------|---------|
+| `https://adyton.diegobaldeschi.dev` | `web` |
+| `https://api-adyton.diegobaldeschi.dev` | `api` |
+
+Coolify/Caddy requests a Let's Encrypt certificate automatically when you save. No manual HTTPS toggle — the `https://` prefix in the URL is what enables it.
+
+---
+
+## 8. First deploy
 
 1. Application resource → click **Deploy**
 2. Build takes ~3–5 min (pnpm install + TypeScript compile for both services)
@@ -162,7 +205,7 @@ Enable **HTTPS** — Coolify/Caddy handles Let's Encrypt automatically.
    ```
 4. Verify health endpoint:
    ```bash
-   curl https://vault.yourdomain.com/api/health
+   curl https://api-adyton.diegobaldeschi.dev/health
    # → {"status":"ok","timestamp":"..."}
    ```
 
@@ -170,16 +213,16 @@ If migrations log is missing, confirm `RUN_MIGRATIONS=true` is set.
 
 ---
 
-## 8. Smoke test
+## 9. Smoke test
 
-1. `https://vault.yourdomain.com` → redirects to `/login`
+1. `https://adyton.diegobaldeschi.dev` → redirects to `/login`
 2. Register → login → unlock vault with master password
 3. Create a test entry → verify it saves and decrypts
 4. Lock and re-unlock → entry still readable
 
 ---
 
-## 9. Wire up CI/CD (GitHub Actions)
+## 10. Wire up CI/CD (GitHub Actions)
 
 ### Get the Coolify webhook
 
@@ -207,7 +250,7 @@ After this, every push to `staging` branch:
 
 ---
 
-## 10. Ongoing operations
+## 11. Ongoing operations
 
 ### Deploy a new version
 
@@ -252,7 +295,7 @@ See cron setup in the main `README.md` (Production deployment → Backup section
 | Build fails: `pnpm install` error | pnpm version mismatch | `pnpm@9.15.4` in Dockerfile must match lockfile |
 | API 500 on login | Missing `JWT_PRIVATE_KEY` | Check env var includes full PEM headers |
 | API 500 on 2FA setup | Missing or malformed `TOTP_ENC_KEY` | Must be exactly 64 hex chars |
-| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must match actual deployed API URL, end in `/api` |
+| Vault entries fail to decrypt | Wrong `NUXT_PUBLIC_API_BASE_URL` | Must be the bare API origin — no `/api` suffix (app appends it). E.g. `https://api-adyton.diegobaldeschi.dev` |
 | WebAuthn registration fails | `WEBAUTHN_RP_ID` mismatch | Must match domain exactly — no protocol, no path, no port |
 | Migrations not applied | `RUN_MIGRATIONS` not `true` | Set in env vars and redeploy |
-| CORS errors | Missing `ALLOWED_ORIGINS` | Set to `https://vault.yourdomain.com` |
+| CORS errors | Missing `ALLOWED_ORIGINS` | Set to the deployed origin (e.g. `https://adyton.diegobaldeschi.dev`) |

@@ -89,7 +89,7 @@ describe('TwoFactorSetupModal', () => {
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
     await w.find('.uinput').setValue('123456');
-    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
     expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/enable', {
@@ -110,11 +110,28 @@ describe('TwoFactorSetupModal', () => {
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
     await w.find('.uinput').setValue('000000');
-    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
     expect(w.text()).toContain('Invalid code');
     expect(w.find('.codes').exists()).toBe(false);
+  });
+
+  it('auto-submits when 6 digits are entered in the verify step', async () => {
+    mockApiFetch.mockResolvedValueOnce(SETUP);
+    mockApiFetch.mockResolvedValueOnce({ recoveryCodes: RECOVERY });
+    const w = mountModal();
+    await flushPromises();
+
+    await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
+    await w.find('.uinput').setValue('123456');
+    await flushPromises();
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/enable', {
+      method: 'POST',
+      body: { code: '123456' },
+    });
+    expect(w.find('.codes').text()).toBe('8');
   });
 
   it('gates Done behind the acknowledgment checkbox and emits enabled', async () => {
@@ -125,7 +142,7 @@ describe('TwoFactorSetupModal', () => {
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
     await w.find('.uinput').setValue('123456');
-    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
     const done = w.findAll('button').find((b) => b.text() === 'Done')!;

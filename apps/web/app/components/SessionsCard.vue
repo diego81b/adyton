@@ -84,7 +84,7 @@ onMounted(load);
       </div>
       <div v-else class="divide-y divide-default">
         <div
-          v-for="s in sessions"
+          v-for="s in sessions.slice(0, 5)"
           :key="s.id"
           class="gap-3 px-4 py-3 sm:grid sm:grid-cols-[1fr_130px_110px_auto] sm:items-center"
         >
@@ -111,6 +111,10 @@ onMounted(load);
             </UButton>
           </div>
         </div>
+      </div>
+
+      <div v-if="sessions.length > 5" class="border-t border-default px-4 py-2 text-[11px] text-dimmed">
+        Showing 5 of {{ sessions.length }} sessions
       </div>
 
       <div v-if="sessions.length > 1" class="border-t border-default p-3">

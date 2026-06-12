@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -37,6 +37,15 @@ const canSubmit = computed(() =>
 function toggleMode() {
   useRecovery.value = !useRecovery.value;
 }
+
+function onlyDigits(value: string) {
+  code.value = value.replace(/\D/g, '').slice(0, 6);
+}
+
+// Auto-submit when a complete 6-digit code is entered — no need to press Enter.
+watch(code, (v) => {
+  if (v.length === 6 && !useRecovery.value && !props.loading) onSubmit();
+});
 
 function onSubmit() {
   if (props.loading || !canSubmit.value) return;
@@ -85,14 +94,15 @@ function onSubmit() {
         :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
       >
         <UInput
-          v-model="code"
+          :model-value="code"
           inputmode="numeric"
           autocomplete="one-time-code"
           autofocus
           size="lg"
-          class="w-full"
+          class="w-full text-center font-mono tracking-[0.4em]"
           placeholder="123456"
           maxlength="6"
+          @update:model-value="onlyDigits($event as string)"
         />
       </UFormField>
 

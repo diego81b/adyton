@@ -33,24 +33,12 @@ body {
   overscroll-behavior-y: contain;
 }
 
-/* Suppress the browser's native password reveal/clear control (Edge/Chromium
-   `::-ms-reveal` / `::-ms-clear`). PasswordInput provides its own eye toggle, so the
-   browser's duplicate control is unwanted — and on a zero-knowledge master-password
-   field we never want the UA exposing the value. Base reset on the element, not a
-   utility class. */
+/* Suppress Edge/IE's native password reveal/clear control. PasswordInput provides
+   its own eye toggle via type="password"→"text" toggle; the browser's duplicate
+   control causes a double-button in the trailing area. */
 input::-ms-reveal,
 input::-ms-clear {
   display: none;
-}
-
-/* Masks an input WITHOUT using type="password", so Chromium/Edge attach none of their
-   password UI (saved-password autofill, "suggest strong password" dropdown, native
-   reveal eye). PasswordInput renders type="text" and toggles this class for its own
-   eye control. Real value is unaffected (copy/submit get plaintext); only the glyphs
-   render as discs. Supported in Chromium, Safari, and Firefox 121+. */
-@utility text-security-disc {
-  -webkit-text-security: disc;
-  text-security: disc;
 }
 
 /* Custom utilities for primitives Tailwind has no built-in for — emerald grid

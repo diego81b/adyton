@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import PasswordInput from '../../app/components/PasswordInput.vue';
 
-// Stub UInput so we can read the resolved `type` + the `ui.base` mask class, and
-// expose the #trailing slot.
 const UInputStub = {
   name: 'UInput',
   props: ['type', 'modelValue', 'ui'],
@@ -25,40 +23,38 @@ function mountInput() {
 }
 
 describe('PasswordInput', () => {
-  it('renders type="text" (never type=password — no browser password UI)', () => {
-    expect(mountInput().find('.uinput').attributes('data-type')).toBe('text');
+  it('renders type="password" by default so the browser can suggest and save credentials', () => {
+    expect(mountInput().find('.uinput').attributes('data-type')).toBe('password');
   });
 
-  it('is masked by default via the text-security class, with a "show" (eye) toggle', () => {
+  it('uses font-mono base class and shows a "show" (eye) toggle by default', () => {
     const wrapper = mountInput();
-    expect(wrapper.find('.uinput').attributes('data-base')).toContain('text-security-disc');
+    expect(wrapper.find('.uinput').attributes('data-base')).toContain('font-mono');
     const btn = wrapper.find('.ubutton');
     expect(btn.attributes('data-icon')).toBe('i-lucide-eye');
     expect(btn.attributes('aria-label')).toBe('Show password');
   });
 
-  it('reveals the value (drops the mask class) and flips the icon/label on toggle', async () => {
+  it('switches to type="text" and flips the icon/label when the eye button is clicked', async () => {
     const wrapper = mountInput();
     await wrapper.find('.ubutton').trigger('click');
-    expect(wrapper.find('.uinput').attributes('data-base')).not.toContain('text-security-disc');
+    expect(wrapper.find('.uinput').attributes('data-type')).toBe('text');
     const btn = wrapper.find('.ubutton');
     expect(btn.attributes('data-icon')).toBe('i-lucide-eye-off');
     expect(btn.attributes('aria-label')).toBe('Hide password');
   });
 
-  it('toggles back to masked on a second click', async () => {
+  it('toggles back to type="password" on a second click', async () => {
     const wrapper = mountInput();
     await wrapper.find('.ubutton').trigger('click');
     await wrapper.find('.ubutton').trigger('click');
-    expect(wrapper.find('.uinput').attributes('data-base')).toContain('text-security-disc');
+    expect(wrapper.find('.uinput').attributes('data-type')).toBe('password');
   });
 
-  it('carries password-manager suppression attributes onto the input', () => {
+  it('does not carry password-manager suppression attributes', () => {
     const input = mountInput().find('.uinput');
-    // Block 1Password / LastPass / Bitwarden autofill overlays + browser heuristics.
-    expect(input.attributes('data-1p-ignore')).toBeDefined();
-    expect(input.attributes('data-lpignore')).toBe('true');
-    expect(input.attributes('data-bwignore')).toBeDefined();
-    expect(input.attributes('spellcheck')).toBe('false');
+    expect(input.attributes('data-1p-ignore')).toBeUndefined();
+    expect(input.attributes('data-lpignore')).toBeUndefined();
+    expect(input.attributes('data-bwignore')).toBeUndefined();
   });
 });

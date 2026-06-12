@@ -19,7 +19,7 @@ REM First load: ~3-5 s instead of 90 s.  http://localhost:30000
 if "%1"=="web-local" (
     docker compose -f docker-compose.yml -f docker-compose.dev.yml stop web 2>nul
     docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db redis api
-    set NUXT_PUBLIC_API_BASE_URL=http://localhost:30001/api
+    set NUXT_PUBLIC_API_BASE_URL=http://localhost:30001
     set NODE_ENV=development
     set PORT=30000
     pnpm --filter @adyton/web dev

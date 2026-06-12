@@ -7,6 +7,44 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // ssr:false means icons render client-side. The default server bundle is useless here,
+  // so bundle icons into the CLIENT and never fall back to the Iconify CDN — a remote
+  // fetch would violate both our CSP (connect-src) and the no-CDN/zero-knowledge posture.
+  // `scan` collects icon names from our source; collections (lucide, simple-icons) are
+  // installed locally. NuxtUI's internal icon names are registered via its app config.
+  icon: {
+    provider: 'iconify',
+    fallbackToApi: false,
+    clientBundle: {
+      // @nuxt/icon's default scan glob is **/*.{vue,jsx,tsx,md,...} — it does NOT
+      // include `.ts`. Our icon names live as literals in `.ts` utilities too
+      // (nav.ts, card-brand detection, entry-display), so the default scan misses
+      // them and they'd fall back to the Iconify CDN (CSP + zero-knowledge breach).
+      // Add `ts` so every `i-lucide-*` / `i-simple-icons-*` literal gets bundled.
+      scan: {
+        globInclude: ['**/*.{vue,jsx,tsx,ts,md,mdc,mdx,yml,yaml}'],
+      },
+      includeCustomCollections: true,
+      // `scan` only sees icon names that appear as literals in our own source. NuxtUI
+      // renders its own chrome (select chevrons, alert/close icons, etc.) from names that
+      // live in NuxtUI's source, not ours, so scan can miss them and they'd hit the CDN.
+      // Pin NuxtUI's full default lucide set explicitly. Source: @nuxt/ui theme defaults
+      // (ui.icons). Update if a NuxtUI upgrade adds new default icons.
+      icons: [
+        'lucide:arrow-down', 'lucide:arrow-left', 'lucide:arrow-right', 'lucide:arrow-up',
+        'lucide:arrow-up-right', 'lucide:check', 'lucide:chevron-down', 'lucide:chevron-left',
+        'lucide:chevron-right', 'lucide:chevron-up', 'lucide:chevrons-left', 'lucide:chevrons-right',
+        'lucide:circle-alert', 'lucide:circle-check', 'lucide:circle-x', 'lucide:copy',
+        'lucide:copy-check', 'lucide:ellipsis', 'lucide:eye', 'lucide:eye-off', 'lucide:file',
+        'lucide:folder', 'lucide:folder-open', 'lucide:grip-vertical', 'lucide:hash', 'lucide:info',
+        'lucide:lightbulb', 'lucide:loader-circle', 'lucide:menu', 'lucide:minus', 'lucide:monitor',
+        'lucide:moon', 'lucide:panel-left-close', 'lucide:panel-left-open', 'lucide:plus',
+        'lucide:rotate-ccw', 'lucide:search', 'lucide:square', 'lucide:sun', 'lucide:terminal',
+        'lucide:triangle-alert', 'lucide:upload', 'lucide:x',
+      ],
+    },
+  },
+
   // Mockup is dark-first; honor the user's system preference but default to dark.
   colorMode: {
     preference: 'dark',
@@ -15,7 +53,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL ?? '/api',
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL ?? '',
     },
   },
 
@@ -47,20 +85,9 @@ export default defineNuxtConfig({
     routeRules: {
       '/**': {
         headers: {
-          // CSP applied in production only — dev mode requires unsafe-inline for HMR + __NUXT__ injection
-          ...(process.env.NODE_ENV === 'production' ? {
-            'Content-Security-Policy': [
-              "default-src 'self'",
-              "script-src 'self' 'wasm-unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data:",
-              "connect-src 'self' https://api.pwnedpasswords.com",
-              "frame-ancestors 'none'",
-              "form-action 'self'",
-              "base-uri 'self'",
-              "object-src 'none'",
-            ].join('; '),
-          } : {}),
+          // CSP is applied per-request via server/middleware/csp.ts (nonce-based).
+          // Static CSP here would break inline scripts injected by Nuxt (color-mode,
+          // __NUXT__ config) because their hashes change every build.
           'X-Content-Type-Options': 'nosniff',
           'X-Frame-Options': 'DENY',
           'Referrer-Policy': 'no-referrer',
