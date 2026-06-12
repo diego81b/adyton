@@ -25,6 +25,16 @@ const config: CapacitorConfig = {
     SystemBars: {
       insetsHandling: 'disable',
     },
+    SplashScreen: {
+      // Brand dark behind the logo while the WebView boots; auto-hides as soon
+      // as the app is ready (no artificial minimum duration).
+      backgroundColor: '#0a0e0f',
+      launchAutoHide: true,
+      launchShowDuration: 0,
+      androidScaleType: 'CENTER_INSIDE',
+      splashFullScreen: false,
+      splashImmersive: false,
+    },
   },
   server: {
     // The WebView origin becomes https://adyton.diegobaldeschi.dev (assets are still
