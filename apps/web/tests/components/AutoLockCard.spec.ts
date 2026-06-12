@@ -31,7 +31,7 @@ describe('AutoLockCard', () => {
   it('marks the active duration and mode from the settings store', () => {
     const w = mountCard();
     const active = w.findAll('button[aria-pressed="true"]');
-    expect(active.map((b) => b.text())).toEqual(['15 min', 'On inactivity']);
+    expect(active.map((b) => b.text())).toEqual(['15', 'On inactivity']);
   });
 
   it('persists a duration change and re-arms the timer', async () => {
@@ -41,7 +41,7 @@ describe('AutoLockCard', () => {
       lockDurationMs: 300_000,
     });
     const w = mountCard();
-    const fiveMin = w.findAll('button').find((b) => b.text() === '5 min')!;
+    const fiveMin = w.findAll('button').find((b) => b.text() === '5')!;
     await fiveMin.trigger('click');
     await vi.waitFor(() => expect(mockApiFetch).toHaveBeenCalled());
 

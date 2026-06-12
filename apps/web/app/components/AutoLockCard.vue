@@ -9,10 +9,10 @@ const crypto = useCryptoStore();
 const toast = useToast();
 
 const DURATIONS: Array<{ label: string; ms: number }> = [
-  { label: '5 min', ms: 5 * 60_000 },
-  { label: '15 min', ms: 15 * 60_000 },
-  { label: '30 min', ms: 30 * 60_000 },
-  { label: '60 min', ms: 60 * 60_000 },
+  { label: '5', ms: 5 * 60_000 },
+  { label: '15', ms: 15 * 60_000 },
+  { label: '30', ms: 30 * 60_000 },
+  { label: '60', ms: 60 * 60_000 },
   { label: 'Never', ms: 0 },
 ];
 
@@ -41,7 +41,7 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
       </p>
     </div>
 
-    <div class="mb-1.5 text-sm font-medium text-toned">Timeout</div>
+    <div class="mb-1.5 text-sm font-medium text-toned">Timeout (min)</div>
     <div class="flex flex-wrap gap-1.5 rounded-xl border border-default bg-accented/40 p-1">
       <button
         v-for="d in DURATIONS"

@@ -81,14 +81,15 @@ async function onDeleted() {
                   :maxlength="64"
                 />
                 <UButton
-                  color="neutral"
-                  variant="subtle"
+                  color="primary"
                   size="lg"
+                  icon="i-lucide-check"
+                  aria-label="Save display name"
                   :loading="savingName"
                   :disabled="displayNameDraft.trim() === settings.displayName"
                   @click="saveDisplayName"
                 >
-                  Save
+                  <span class="hidden sm:inline">Save</span>
                 </UButton>
               </div>
             </label>
@@ -107,7 +108,16 @@ async function onDeleted() {
                 Changing re-encrypts your entire vault — available in a later release
               </p>
             </div>
-            <UButton color="neutral" variant="subtle" size="md" disabled>Change</UButton>
+            <UButton
+              color="primary"
+              variant="subtle"
+              size="md"
+              icon="i-lucide-key-round"
+              aria-label="Change master password"
+              disabled
+            >
+              <span class="hidden sm:inline">Change</span>
+            </UButton>
           </div>
         </div>
         </SettingsSection>
