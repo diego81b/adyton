@@ -53,10 +53,15 @@ const UIconStub = { name: 'UIcon', props: ['name'], template: '<i :data-icon="na
 // Real PasswordInput is fine but pulls more stubs; stub it to a plain input bound to v-model.
 const PasswordInputStub = {
   name: 'PasswordInput',
-  props: ['modelValue', 'placeholder'],
+  props: {
+    modelValue: { type: String, default: '' },
+    placeholder: { type: String, default: '' },
+    // Typed Boolean so the value-less `concealed` attribute casts to true.
+    concealed: { type: Boolean, default: false },
+  },
   emits: ['update:modelValue'],
   template:
-    '<input class="pwinput" :data-placeholder="placeholder" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    '<input class="pwinput" :data-placeholder="placeholder" :data-concealed="concealed ? \'true\' : \'false\'" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
 };
 
 function mountModal(props: Record<string, unknown> = {}) {
@@ -258,5 +263,33 @@ describe('VaultEntryModal — Step 5 follow-up improvements', () => {
     expect(w.find('[data-icon="i-simple-icons-visa"]').exists()).toBe(true);
     await number.setValue('5500 0000');
     expect(w.find('[data-icon="i-simple-icons-mastercard"]').exists()).toBe(true);
+  });
+});
+
+// Vault secrets must never trigger the OS/browser password manager save prompt
+// (Capacitor WebView: Google Password Manager). Every secret field in the modal
+// goes through PasswordInput in concealed mode; the LOGIN username opts out of
+// autofill so no username+password pair is ever detected.
+describe('VaultEntryModal — password-manager suppression', () => {
+  it('LOGIN password field is concealed and username has autocomplete=off', () => {
+    const w = mountModal();
+    expect(w.find('.pwinput').attributes('data-concealed')).toBe('true');
+    const username = w
+      .findAll('.ufield')
+      .find((f) => f.attributes('data-name') === 'username')!;
+    // autocomplete is a fallthrough attr on the UInput stub root.
+    expect(username.find('span').attributes('autocomplete')).toBe('off');
+  });
+
+  it('SECRET value field is concealed', async () => {
+    const w = mountModal();
+    await typeChip(w, 'Secret')!.trigger('click');
+    expect(w.find('.pwinput').attributes('data-concealed')).toBe('true');
+  });
+
+  it('CREDIT_CARD CVV field is concealed', async () => {
+    const w = mountModal();
+    await typeChip(w, 'Card')!.trigger('click');
+    expect(w.find('.pwinput').attributes('data-concealed')).toBe('true');
   });
 });

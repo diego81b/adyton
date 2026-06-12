@@ -278,7 +278,7 @@ function close() {
         <div class="flex-1 overflow-y-auto">
           <!-- Type selector — equal-size grid, no horizontal scroll. -->
           <div class="px-5 pt-4">
-            <div class="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">Entry Type</div>
+            <div class="text-[11px] font-mono uppercase tracking-wider text-muted mb-2">Entry Type</div>
             <div class="grid grid-cols-3 gap-2">
               <button
                 v-for="t in TYPE_FILTERS"
@@ -311,7 +311,13 @@ function close() {
                 <UInput v-model="form.url" size="lg" class="w-full font-mono" placeholder="https://github.com" />
               </UFormField>
               <UFormField label="Username" name="username">
-                <UInput v-model="form.username" size="lg" class="w-full" placeholder="alice@example.com" />
+                <UInput
+                  v-model="form.username"
+                  size="lg"
+                  class="w-full"
+                  placeholder="alice@example.com"
+                  autocomplete="off"
+                />
               </UFormField>
               <UFormField label="Password" name="password">
                 <div class="flex gap-2">
@@ -319,7 +325,8 @@ function close() {
                     v-model="form.password"
                     class="flex-1"
                     placeholder="••••••••••••"
-                    autocomplete="new-password"
+                    concealed
+                    :required="false"
                   />
                   <UButton
                     color="neutral"
@@ -399,7 +406,8 @@ function close() {
                   v-model="form.secretValue"
                   class="w-full"
                   placeholder="sk_live_…"
-                  autocomplete="off"
+                  concealed
+                  :required="false"
                 />
               </UFormField>
               <UFormField name="secretDescription">
@@ -458,7 +466,7 @@ function close() {
                   />
                 </UFormField>
                 <UFormField label="CVV" name="cardCvv">
-                  <PasswordInput v-model="form.cardCvv" class="w-full" placeholder="•••" autocomplete="off" />
+                  <PasswordInput v-model="form.cardCvv" class="w-full" placeholder="•••" concealed :required="false" />
                 </UFormField>
               </div>
               <UFormField label="Notes" name="notes">

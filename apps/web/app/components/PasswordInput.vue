@@ -10,8 +10,17 @@ withDefaults(
     placeholder?: string;
     autocomplete?: string;
     autofocus?: boolean;
+    /** Vault secret mode: keep type="text" and mask via CSS (text-security-disc) so
+        autofill frameworks never see a password field — no "save to Google" prompt.
+        Auth fields (login/register/unlock) must NOT set this: they want real
+        type="password" so the browser password manager keeps working. */
+    concealed?: boolean;
+    /** Auth fields are mandatory; vault secret fields are optional (the entry label
+        is the only gate) — pass false there so native constraint validation and
+        screen readers don't claim otherwise. */
+    required?: boolean;
   }>(),
-  { autocomplete: 'off' },
+  { autocomplete: 'off', required: true },
 );
 
 const visible = ref(false);
@@ -20,18 +29,18 @@ const visible = ref(false);
 <template>
   <UInput
     v-model="model"
-    :type="visible ? 'text' : 'password'"
+    :type="visible || concealed ? 'text' : 'password'"
     icon="i-lucide-lock"
     size="lg"
     class="w-full"
-    :ui="{ base: 'font-mono' }"
+    :ui="{ base: concealed && !visible ? 'font-mono text-security-disc' : 'font-mono' }"
     :placeholder="placeholder"
     :autocomplete="autocomplete"
     :autofocus="autofocus"
     autocapitalize="off"
     autocorrect="off"
     spellcheck="false"
-    required
+    :required="required"
   >
     <template #trailing>
       <UButton

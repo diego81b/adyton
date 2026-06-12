@@ -59,6 +59,14 @@ input::-ms-clear {
   box-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
 }
 
+/* Vault secret fields: the input stays type="text" and masking is done in CSS, so
+   Android Autofill / Google Password Manager never classify the field as a password
+   (no save/update prompt on Capacitor). Supported by Chromium, WebKit, Firefox ≥138. */
+@utility text-security-disc {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
 /* TOTP countdown ring — conic-gradient sweep driven by `--progress` (0%..100%),
    masked into a ring. Track uses the elevated token so it works in both themes. */
 @utility totp-ring {
