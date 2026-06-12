@@ -113,17 +113,17 @@ describe('VaultEntryCard — fixed action columns', () => {
   it('renders spacers so notes/copy always occupy the same columns', () => {
     // No notes, no copy (ENV_FILE without notes) → two spacers.
     const none = mountCard(entry({ type: VaultEntryType.ENV_FILE, envParsed: {} }));
-    expect(none.findAll('span[aria-hidden="true"].size-9')).toHaveLength(2);
+    expect(none.findAll('span[aria-hidden="true"].size-10')).toHaveLength(2);
 
     // Notes but no copy (SECURE_NOTE) → copy slot is a spacer.
     const noteOnly = mountCard(entry({ type: VaultEntryType.SECURE_NOTE, notes: 'x' }));
     expect(noteOnly.find('[data-testid="notes-toggle"]').exists()).toBe(true);
-    expect(noteOnly.findAll('span[aria-hidden="true"].size-9')).toHaveLength(1);
+    expect(noteOnly.findAll('span[aria-hidden="true"].size-10')).toHaveLength(1);
 
     // Copy but no notes (LOGIN) → notes slot is a spacer.
     const copyOnly = mountCard(entry({ type: VaultEntryType.LOGIN }));
     expect(copyOnly.find('[data-testid="copy-action"]').exists()).toBe(true);
-    expect(copyOnly.findAll('span[aria-hidden="true"].size-9')).toHaveLength(1);
+    expect(copyOnly.findAll('span[aria-hidden="true"].size-10')).toHaveLength(1);
   });
 
   it('action buttons are tinted tile-style (bg + border)', () => {

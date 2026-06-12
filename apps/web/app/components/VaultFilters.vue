@@ -74,7 +74,7 @@ function apply() {
       <div class="space-y-6">
         <!-- Type -->
         <div>
-          <div class="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">Type</div>
+          <div class="text-[11px] font-mono uppercase tracking-wider text-muted mb-2">Type</div>
           <!-- Uniform-size chips: a 2-col grid makes every pill the same width. -->
           <div class="grid grid-cols-2 gap-2">
             <button
@@ -100,7 +100,7 @@ function apply() {
 
         <!-- Environment — only for env-carrying types (ENV_FILE / SECRET) or 'all'. -->
         <div v-if="showEnvironment">
-          <div class="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">
+          <div class="text-[11px] font-mono uppercase tracking-wider text-muted mb-2">
             Environment
           </div>
           <USelect

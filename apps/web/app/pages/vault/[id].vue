@@ -135,7 +135,7 @@ async function confirmDelete() {
       to="/vault"
       class="inline-flex items-center gap-2 text-sm text-muted hover:text-default transition mb-5"
     >
-      <UIcon name="i-lucide-arrow-left" class="size-4" />
+      <UIcon name="i-lucide-arrow-left" class="size-5" />
       Back to vault
     </NuxtLink>
 
@@ -168,15 +168,15 @@ async function confirmDelete() {
               v-if="envMeta"
               color="neutral"
               variant="soft"
-              size="sm"
+              size="md"
             >
               <span class="w-1.5 h-1.5 rounded-full mr-1" :class="envMeta.dot" />
               {{ envMeta.label }}
             </UBadge>
             <span :class="VERSION_TAG_CLASS">v{{ entry.secretVersion }}</span>
           </div>
-          <h1 class="text-2xl font-bold tracking-tight mt-2 break-words">{{ entry.label }}</h1>
-          <p class="text-xs text-dimmed mt-0.5">{{ metaLine }}</p>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mt-2 break-words">{{ entry.label }}</h1>
+          <p class="text-sm text-dimmed mt-0.5">{{ metaLine }}</p>
         </div>
       </div>
 
@@ -235,8 +235,8 @@ async function confirmDelete() {
         v-if="entry.notes"
         class="mt-4 bg-elevated/40 border border-default rounded-2xl p-4"
       >
-        <div class="text-[10px] font-mono uppercase tracking-wider text-dimmed mb-1.5">Notes</div>
-        <p class="text-sm text-default leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
+        <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed mb-1.5">Notes</div>
+        <p class="text-base text-default leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
       </div>
 
       <!-- Action bar. Icon-only on mobile (labels appear from sm up) so all actions fit
@@ -244,6 +244,7 @@ async function confirmDelete() {
       <div class="flex gap-2 mt-5">
         <UButton
           v-if="entry.type === T.ENV_FILE"
+          size="lg"
           class="flex-1 accent-glow text-white justify-center"
           icon="i-lucide-download"
           :aria-label="envDownloadLabel"
@@ -252,6 +253,7 @@ async function confirmDelete() {
           <span class="hidden sm:inline">{{ envDownloadLabel }}</span>
         </UButton>
         <UButton
+          size="lg"
           class="flex-1 justify-center"
           color="neutral"
           variant="soft"
@@ -262,6 +264,7 @@ async function confirmDelete() {
           <span class="hidden sm:inline">Edit</span>
         </UButton>
         <UButton
+          size="lg"
           class="flex-1 justify-center"
           color="neutral"
           variant="soft"
@@ -272,6 +275,7 @@ async function confirmDelete() {
           <span class="hidden sm:inline">History</span>
         </UButton>
         <UButton
+          size="lg"
           class="flex-1 justify-center"
           color="error"
           variant="soft"
@@ -284,8 +288,8 @@ async function confirmDelete() {
       </div>
 
       <!-- Encryption badge -->
-      <div class="mt-6 flex items-center justify-center gap-2 text-[11px] text-dimmed">
-        <UIcon name="i-lucide-shield-check" class="size-3" />
+      <div class="mt-6 flex items-center justify-center gap-2 text-xs text-dimmed">
+        <UIcon name="i-lucide-shield-check" class="size-4" />
         Encrypted locally — server sees only ciphertext
       </div>
 

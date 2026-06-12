@@ -36,10 +36,10 @@ async function onCopy() {
 
 <template>
   <div class="p-4">
-    <div class="text-[10px] font-mono uppercase tracking-wider text-dimmed mb-1.5">{{ label }}</div>
+    <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed mb-1.5">{{ label }}</div>
     <div class="flex items-center gap-2">
       <span
-        class="flex-1 text-sm text-default truncate"
+        class="flex-1 text-base text-default truncate"
         :class="[mono && 'font-mono', revealable && !isRevealed('v') && 'tracking-wider']"
       >{{ shown }}</span>
 
@@ -47,7 +47,7 @@ async function onCopy() {
         v-if="copyable"
         color="neutral"
         variant="ghost"
-        size="xs"
+        size="sm"
         icon="i-lucide-copy"
         :aria-label="`Copy ${label}`"
         @click="onCopy"
@@ -56,7 +56,7 @@ async function onCopy() {
         v-if="link"
         color="neutral"
         variant="ghost"
-        size="xs"
+        size="sm"
         icon="i-lucide-external-link"
         :to="link"
         target="_blank"
@@ -67,7 +67,7 @@ async function onCopy() {
         v-if="revealable"
         color="neutral"
         variant="ghost"
-        size="xs"
+        size="sm"
         :icon="isRevealed('v') ? 'i-lucide-eye-off' : 'i-lucide-eye'"
         :aria-label="isRevealed('v') ? `Hide ${label}` : `Reveal ${label}`"
         @click="toggle('v')"
