@@ -23,6 +23,8 @@ Adyton is a vault. Like a physical safe, only you can open it — not the server
 
 **Recovery codes** are eight single-use emergency tickets generated when you enable 2FA. If you lose your phone, one code gets you in. The server stores only their hashes — never the codes themselves. Each works exactly once.
 
+**On the mobile app (iOS / Android), biometric unlock is optional.** If you turn it on in Settings, the key derived from your master password is placed in your phone's hardware-protected secure storage (iOS Keychain / Android Keystore) and released only after Face ID, Touch ID, or a fingerprint check. This trades a little of the "key exists nowhere at rest" purity for daily usability — on your own device only, never on the server, and never the master password itself. The app also locks the vault every time it goes to the background; biometrics make re-opening a one-tap action. Turning the feature off (or a failed match against your vault) removes the stored key immediately. The server is not involved and learns nothing.
+
 **What the server knows:** your email, a hashed password, and ciphertext it cannot read. Nothing else.
 
 **What the server will never know:** your master password, the key derived from it, or any plaintext secret.
@@ -48,6 +50,7 @@ See `analysis/security/` for the full threat model, attack vectors, and pentest 
 | Backend | NestJS 11, Fastify 5, MikroORM 6, PostgreSQL 16, Redis 7 |
 | Auth | JWT RS256 — 15 min access / 7-day httpOnly refresh, Argon2id passwords |
 | Frontend | Nuxt 4, NuxtUI 4, TailwindCSS, Pinia |
+| Mobile | Capacitor 8 (iOS + Android) wrapping the Nuxt static build — biometric unlock via Keychain/Keystore |
 | Monorepo | pnpm workspaces |
 | Dev infra | Docker Compose — 4 services (db, redis, api, web) |
 | CI/CD | GitHub Actions — typecheck + unit + integration + audit on every push; deploy on `staging` push / `v*` tag |
@@ -60,7 +63,7 @@ apps/
   api/        @adyton/api    — NestJS backend
   web/        @adyton/web    — Nuxt 4 frontend
   extension/  reserved       — MV3 browser extension (post-V1)
-  mobile/     reserved       — Capacitor (Phase 8)
+  mobile/     @adyton/mobile — Capacitor shell (iOS + Android) wrapping the web build
 packages/
   shared/     @adyton/shared — crypto primitives + shared types
 analysis/     full technical design (~5000 lines) — read before changing architecture
