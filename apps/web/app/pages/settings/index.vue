@@ -177,6 +177,7 @@ async function onDeleted() {
           <div class="space-y-4">
             <TwoFactorCard />
             <PasskeysCard />
+            <BiometricUnlockCard />
 
             <SessionsCard />
             <TrustedDevicesCard />
