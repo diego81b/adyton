@@ -15,6 +15,12 @@ export default defineNuxtConfig({
   icon: {
     provider: 'iconify',
     fallbackToApi: false,
+    // With fallbackToApi:false, @nuxt/icon resolves the local /api/_nuxt_icon/ endpoint
+    // only for collections listed here. Without this, the endpoint returns nothing and
+    // icons that miss the clientBundle disappear (no CDN, no local API = blank).
+    serverBundle: {
+      collections: ['lucide', 'simple-icons'],
+    },
     clientBundle: {
       // @nuxt/icon's default scan glob is **/*.{vue,jsx,tsx,md,...} — it does NOT
       // include `.ts`. Our icon names live as literals in `.ts` utilities too
