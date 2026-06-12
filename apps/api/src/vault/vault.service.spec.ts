@@ -39,6 +39,7 @@ describe('VaultService', () => {
     flush: jest.Mock;
     remove: jest.Mock;
     getReference: jest.Mock;
+    nativeDelete: jest.Mock;
   };
   let mockAudit: { log: jest.Mock; persistLog: jest.Mock };
 
@@ -52,6 +53,7 @@ describe('VaultService', () => {
       flush: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn(),
       getReference: jest.fn().mockImplementation((_, id) => ({ id })),
+      nativeDelete: jest.fn().mockResolvedValue(undefined),
     };
     mockAudit = {
       log: jest.fn().mockResolvedValue(undefined),
@@ -486,6 +488,35 @@ describe('VaultService', () => {
         'UA',
         { entryId: CLIENT_UUID },
       );
+    });
+  });
+
+  describe('removeAll', () => {
+    it('nativeDeletes all entries for user and logs VAULT_DELETE', async () => {
+      mockEm.count.mockResolvedValue(3);
+
+      await service.removeAll('user-1', '1.1.1.1', 'UA');
+
+      expect(mockEm.nativeDelete).toHaveBeenCalledWith(
+        expect.anything(),
+        { user: { id: 'user-1' } },
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        'user-1',
+        AuditAction.VAULT_DELETE,
+        '1.1.1.1',
+        'UA',
+        { wiped: true, count: 3 },
+      );
+    });
+
+    it('skips delete and audit when vault is already empty', async () => {
+      mockEm.count.mockResolvedValue(0);
+
+      await service.removeAll('user-1', '1.1.1.1', 'UA');
+
+      expect(mockEm.nativeDelete).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
     });
   });
 });

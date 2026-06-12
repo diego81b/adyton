@@ -89,6 +89,18 @@ export class VaultController {
     return this.vaultService.update(req.user.userId, id, dto, req.ip, ua ?? '');
   }
 
+  @ApiOperation({ summary: 'Wipe all vault entries for the authenticated user (import restore)' })
+  @ApiResponse({ status: 204, description: 'All entries deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @Delete()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeAll(
+    @Req() req: RequestWithUser,
+    @Headers('user-agent') ua: string,
+  ) {
+    return this.vaultService.removeAll(req.user.userId, req.ip, ua ?? '');
+  }
+
   @ApiOperation({ summary: 'Delete a vault entry and all its version history' })
   @ApiParam({ name: 'id', description: 'Entry UUID' })
   @ApiResponse({ status: 204, description: 'Deleted' })
