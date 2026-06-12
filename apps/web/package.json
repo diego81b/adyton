@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
+    "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -19,6 +20,10 @@
   },
   "dependencies": {
     "@adyton/shared": "workspace:*",
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.4.0",
     "@nuxt/ui": "^4.0.0",
     "@pinia/nuxt": "^0.11.0",
     "@simplewebauthn/browser": "^13.3.0",
