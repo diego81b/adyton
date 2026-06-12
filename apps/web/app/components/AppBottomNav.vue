@@ -13,7 +13,7 @@ const activeId = computed(() => {
 
 <template>
   <nav
-    class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-default/95 backdrop-blur-xl border-t border-default h-16 flex pb-[env(safe-area-inset-bottom)]"
+    class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-default/95 backdrop-blur-xl border-t border-default h-[calc(4rem+env(safe-area-inset-bottom,0px))] flex pb-[env(safe-area-inset-bottom,0px)]"
   >
     <NuxtLink
       v-for="item in NAV_ITEMS"

@@ -17,6 +17,15 @@ const config: CapacitorConfig = {
   appName: 'Adyton',
   // Nuxt static output (`nuxt generate` in apps/web). Run `pnpm build:web` first.
   webDir: '../web/.output/public',
+  plugins: {
+    // Insets are owned by @capacitor-community/safe-area (it polyfills broken
+    // Chromium < 140 webviews via webview padding; on newer webviews the real
+    // env(safe-area-inset-*) values flow through). Capacitor's own handling
+    // must be off or the two fight (plugin README, "Setup").
+    SystemBars: {
+      insetsHandling: 'disable',
+    },
+  },
   server: {
     // The WebView origin becomes https://adyton.diegobaldeschi.dev (assets are still
     // served locally from the bundle — no network round-trip). This makes the app

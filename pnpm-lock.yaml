@@ -201,6 +201,9 @@ importers:
       '@aparajita/capacitor-secure-storage':
         specifier: ^8.0.0
         version: 8.0.0
+      '@capacitor-community/safe-area':
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.4.0)
       '@capacitor/android':
         specifier: ^8.4.0
         version: 8.4.0(@capacitor/core@8.4.0)
@@ -601,6 +604,11 @@ packages:
 
   '@borewit/text-codec@0.2.2':
     resolution: {integrity: sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ==}
+
+  '@capacitor-community/safe-area@8.0.1':
+    resolution: {integrity: sha512-zVVQ7k94DbOff1mHP8qrZGTJZWyhGZnKHD2eXdcobIoOBFW9CeVphLNZYDCop/DBsHXfv6r8k0/Ac8xMIlwT+A==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor/android@8.4.0':
     resolution: {integrity: sha512-K1ZPkQzvRzPEALz9nBdLx5p5nAPzp5fsTYWk7LRiKZeH/NXqjDvqfTv7lrLgrziQNoDeaL6ijg64oBREzXiV+g==}
@@ -8520,6 +8528,10 @@ snapshots:
       citty: 0.2.2
 
   '@borewit/text-codec@0.2.2': {}
+
+  '@capacitor-community/safe-area@8.0.1(@capacitor/core@8.4.0)':
+    dependencies:
+      '@capacitor/core': 8.4.0
 
   '@capacitor/android@8.4.0(@capacitor/core@8.4.0)':
     dependencies:
