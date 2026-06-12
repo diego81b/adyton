@@ -40,11 +40,11 @@ const segments = computed<Segment[]>(() => {
       class="pointer-events-none absolute top-0 right-0 h-32 w-32 -translate-y-12 translate-x-12 rounded-full bg-primary/10 blur-3xl"
     />
 
-    <div class="mb-3 font-mono text-[10px] uppercase tracking-wider text-dimmed">
+    <div class="mb-3 font-mono text-[11px] uppercase tracking-wider text-dimmed">
       Generated {{ words?.length ? 'Passphrase' : 'Password' }}
     </div>
 
-    <p v-if="error" class="mb-4 text-sm text-error">{{ error }}</p>
+    <p v-if="error" class="mb-4 text-base text-error">{{ error }}</p>
     <div
       v-else
       data-testid="generated-value"
