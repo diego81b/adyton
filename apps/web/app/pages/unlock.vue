@@ -129,6 +129,11 @@ async function onSubmit() {
       </p>
     </AuthCard>
 
+    <p class="mt-4 max-w-xs text-center text-xs text-muted">
+      If you forget your master password, your vault cannot be recovered.
+      There is no reset link — encryption keys are derived only from your password.
+    </p>
+
     <template #footer>
       🛡️ Zero-knowledge · Your data stays encrypted, even from us
     </template>

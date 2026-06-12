@@ -27,6 +27,8 @@ Adyton is a vault. Like a physical safe, only you can open it — not the server
 
 **What the server will never know:** your master password, the key derived from it, or any plaintext secret.
 
+> **No password recovery.** If you forget your master password, your vault cannot be recovered — not by you, not by the server, not by anyone. The server never sees or stores the master password or the key it produces. There is no reset link, no email recovery, no back door. Write your master password down and store it somewhere safe (a physical safe, a trusted person, a separate backup manager). This is not a bug; it is the zero-knowledge property.
+
 ## Security model
 
 Encryption and decryption happen exclusively in the browser. The server never sees:
@@ -139,6 +141,13 @@ Each environment gets its own subdirectory under `secrets/`:
 | `ALLOWED_ORIGINS` | Frontend origin (CORS), e.g. `https://adyton.diegobaldeschi.dev` |
 | `NUXT_PUBLIC_API_BASE_URL` | API origin, e.g. `https://api-adyton.diegobaldeschi.dev` (no `/api` suffix) |
 | `RUN_MIGRATIONS` | `true` on staging; unset on prod (apply SQL manually) |
+| `TOTP_ISSUER` | Label shown in authenticator apps. Default: `Adyton`. Use `Adyton [DEV]` in dev to distinguish environments. |
+| `SMTP_HOST` | SMTP server hostname. When unset, email notifications are silently skipped. |
+| `SMTP_PORT` | SMTP port. Default: `587`. |
+| `SMTP_SECURE` | Set `true` for port 465 SSL. Default: `false` (STARTTLS). |
+| `SMTP_USER` | SMTP auth username. Optional if server allows unauthenticated. |
+| `SMTP_PASS` | SMTP auth password. |
+| `SMTP_FROM` | Sender address. Default: `Adyton <noreply@adyton.app>`. |
 
 ### CI/CD
 
