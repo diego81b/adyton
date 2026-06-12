@@ -100,17 +100,17 @@ async function disable() {
   <template v-if="isNative">
     <div class="rounded-2xl border border-default bg-elevated p-4">
       <div class="mb-0.5 flex items-center gap-2">
-        <h3 class="text-sm font-semibold">Biometric unlock</h3>
+        <h3 class="text-base font-semibold">Biometric unlock</h3>
         <span
           v-if="enrolled"
-          class="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-300"
+          class="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-300"
         >
           <span class="size-1.5 rounded-full bg-emerald-400" />
           Enabled
         </span>
         <span
           v-else-if="supported !== undefined && supported"
-          class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted"
+          class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted"
         >
           Not configured
         </span>
@@ -119,14 +119,14 @@ async function disable() {
       <!-- Device has no biometrics enrolled -->
       <p
         v-if="supported === false"
-        class="mt-1 text-[11px] text-muted"
+        class="mt-1 text-[13px] text-muted"
       >
         No biometrics are enrolled on this device. Set up Face ID, Touch ID, or a fingerprint
         in your device settings first.
       </p>
 
       <template v-else-if="supported !== undefined">
-        <p class="text-[11px] text-muted">
+        <p class="text-[13px] text-muted">
           Unlock your vault with Face ID, Touch ID, or fingerprint instead of typing your
           master password.
         </p>
@@ -137,13 +137,13 @@ async function disable() {
             v-if="enrolled"
             color="error"
             variant="subtle"
-            size="sm"
+            size="md"
             icon="i-lucide-fingerprint"
             aria-label="Disable biometric unlock"
             :loading="disabling"
             @click="disable"
           >
-            <span class="hidden sm:inline">Disable</span>
+            Disable
           </UButton>
 
           <!-- Not enrolled: show enable button -->
@@ -151,18 +151,18 @@ async function disable() {
             v-else
             color="primary"
             variant="subtle"
-            size="sm"
+            size="md"
             icon="i-lucide-fingerprint"
             aria-label="Enable biometric unlock"
             @click="openEnable"
           >
-            <span class="hidden sm:inline">Enable biometric unlock</span>
+            Enable biometric unlock
           </UButton>
         </div>
       </template>
 
       <!-- Loading state while probing support/enrollment -->
-      <p v-else class="mt-2 text-[11px] text-muted">Checking biometric availability…</p>
+      <p v-else class="mt-2 text-[13px] text-muted">Checking biometric availability…</p>
 
       <PasswordPromptModal
         v-model:open="promptOpen"

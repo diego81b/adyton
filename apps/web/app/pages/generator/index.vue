@@ -43,7 +43,7 @@ async function onCopy() {
        page look misaligned next to the others). -->
   <div class="mx-auto w-full max-w-4xl">
     <!-- Mode toggle -->
-    <div class="mb-5 inline-flex rounded-xl border border-default bg-elevated p-1">
+    <div class="mb-4 inline-flex rounded-xl border border-default bg-elevated p-1">
       <button
         v-for="m in MODES"
         :key="m.id"
@@ -55,7 +55,7 @@ async function onCopy() {
     </div>
 
     <GeneratedSecret
-      class="mb-5"
+      class="mb-4"
       :value="generated"
       :words="mode === 'passphrase' ? words : undefined"
       :error="error"
@@ -63,7 +63,7 @@ async function onCopy() {
       @regenerate="regenerate"
     />
 
-    <EntropyMeter class="mb-5" :bits="entropyBits" :strength="strength" />
+    <EntropyMeter class="mb-4" :bits="entropyBits" :strength="strength" />
 
     <!-- Controls -->
     <div class="space-y-5 rounded-2xl border border-default bg-elevated p-5">

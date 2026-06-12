@@ -35,19 +35,19 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
 <template>
   <div class="rounded-2xl border border-default bg-elevated p-4">
     <div class="mb-3">
-      <h3 class="text-sm font-semibold">Auto-lock</h3>
-      <p class="mt-0.5 text-[11px] text-muted">
+      <h3 class="text-base font-semibold">Auto-lock</h3>
+      <p class="mt-0.5 text-[13px] text-muted">
         The vault key is wiped from memory when the timer fires
       </p>
     </div>
 
-    <div class="mb-1.5 text-xs font-medium text-toned">Timeout</div>
+    <div class="mb-1.5 text-sm font-medium text-toned">Timeout</div>
     <div class="flex flex-wrap gap-1.5 rounded-xl border border-default bg-accented/40 p-1">
       <button
         v-for="d in DURATIONS"
         :key="d.ms"
         type="button"
-        class="min-w-[60px] flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+        class="min-w-[60px] flex-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition"
         :class="
           settings.lockDurationMs === d.ms
             ? 'border border-primary/30 bg-primary/15 text-primary'
@@ -59,17 +59,17 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
         {{ d.label }}
       </button>
     </div>
-    <p v-if="settings.lockDurationMs === 0" class="mt-2 text-[11px] text-amber-400">
+    <p v-if="settings.lockDurationMs === 0" class="mt-2 text-[13px] text-amber-400">
       The vault stays unlocked until you lock it, close the tab, or reload.
     </p>
 
-    <div class="mb-1.5 mt-4 text-xs font-medium text-toned">Mode</div>
+    <div class="mb-1.5 mt-4 text-sm font-medium text-toned">Mode</div>
     <div class="flex gap-1.5 rounded-xl border border-default bg-accented/40 p-1">
       <button
         v-for="m in MODES"
         :key="m.value"
         type="button"
-        class="flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+        class="flex-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition"
         :class="
           settings.lockMode === m.value
             ? 'border border-primary/30 bg-primary/15 text-primary'
@@ -82,7 +82,7 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
         {{ m.label }}
       </button>
     </div>
-    <p class="mt-2 font-mono text-[10px] text-dimmed">
+    <p class="mt-2 font-mono text-[11px] text-dimmed">
       {{ MODES.find((m) => m.value === settings.lockMode)?.hint }}
     </p>
   </div>

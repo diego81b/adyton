@@ -43,17 +43,17 @@ onMounted(load);
   <div class="rounded-2xl border border-default bg-elevated">
     <div class="flex items-center justify-between px-4 pb-3 pt-4">
       <div>
-        <h3 class="text-sm font-semibold">Trusted devices</h3>
-        <p class="mt-0.5 text-[11px] text-muted">
+        <h3 class="text-base font-semibold">Trusted devices</h3>
+        <p class="mt-0.5 text-[13px] text-muted">
           Skip new-device verification on these — revoke immediately if lost
         </p>
       </div>
-      <span class="font-mono text-[10px] text-dimmed">{{ devices.length }} trusted</span>
+      <span class="font-mono text-[11px] text-dimmed">{{ devices.length }} trusted</span>
     </div>
 
     <div class="border-t border-default">
-      <div v-if="loading" class="px-4 py-6 text-center text-xs text-muted">Loading…</div>
-      <div v-else-if="devices.length === 0" class="px-4 py-6 text-center text-xs text-muted">
+      <div v-if="loading" class="px-4 py-6 text-center text-sm text-muted">Loading…</div>
+      <div v-else-if="devices.length === 0" class="px-4 py-6 text-center text-sm text-muted">
         No trusted devices
       </div>
       <div v-else class="divide-y divide-default">
@@ -64,17 +64,17 @@ onMounted(load);
             <UIcon name="i-lucide-smartphone" class="size-3.5 text-muted" />
           </div>
           <div class="min-w-0 flex-1">
-            <div class="text-xs font-semibold text-highlighted">
+            <div class="text-sm font-semibold text-highlighted">
               {{ describeUserAgent(d.userAgent) }}
             </div>
-            <div class="text-[10px] text-dimmed">
+            <div class="text-[11px] text-dimmed">
               trusted {{ relativeTime(d.createdAt) }} · last seen {{ relativeTime(d.lastSeenAt) }}
             </div>
           </div>
           <UButton
             color="error"
             variant="subtle"
-            size="xs"
+            size="sm"
             :aria-label="`Revoke trust from ${describeUserAgent(d.userAgent)}`"
             @click="confirmId = d.id"
           >

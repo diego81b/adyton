@@ -70,8 +70,8 @@ async function onDeleted() {
         <div class="divide-y divide-default rounded-2xl border border-default bg-elevated">
           <div class="p-4">
             <label class="block">
-              <span class="text-xs font-medium text-toned">Display name</span>
-              <p class="mb-2 text-[11px] text-muted">Shown in the avatar — synced across devices</p>
+              <span class="text-sm font-medium text-toned">Display name</span>
+              <p class="mb-2 text-[13px] text-muted">Shown in the avatar — synced across devices</p>
               <div class="flex gap-2">
                 <UInput
                   v-model="displayNameDraft"
@@ -95,19 +95,19 @@ async function onDeleted() {
           </div>
 
           <div class="p-4">
-            <span class="text-xs font-medium text-toned">Email</span>
-            <p class="mb-2 text-[11px] text-muted">Used for sign-in · cannot be changed in V1</p>
-            <p class="font-mono text-sm text-highlighted">{{ auth.user?.email }}</p>
+            <span class="text-sm font-medium text-toned">Email</span>
+            <p class="mb-2 text-[13px] text-muted">Used for sign-in · cannot be changed in V1</p>
+            <p class="font-mono text-base text-highlighted">{{ auth.user?.email }}</p>
           </div>
 
           <div class="flex items-center justify-between gap-3 p-4">
             <div class="min-w-0">
-              <div class="text-xs font-medium text-toned">Master password</div>
-              <p class="mt-0.5 text-[11px] text-muted">
+              <div class="text-sm font-medium text-toned">Master password</div>
+              <p class="mt-0.5 text-[13px] text-muted">
                 Changing re-encrypts your entire vault — available in a later release
               </p>
             </div>
-            <UButton color="neutral" variant="subtle" size="sm" disabled>Change</UButton>
+            <UButton color="neutral" variant="subtle" size="md" disabled>Change</UButton>
           </div>
         </div>
         </SettingsSection>
@@ -119,34 +119,34 @@ async function onDeleted() {
             <div class="rounded-2xl border border-default bg-elevated divide-y divide-default">
               <div class="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div class="min-w-0">
-                  <div class="text-xs font-medium text-toned">Export vault</div>
-                  <p class="mt-0.5 text-[11px] text-muted">Download an encrypted backup of all entries</p>
+                  <div class="text-sm font-medium text-toned">Export vault</div>
+                  <p class="mt-0.5 text-[13px] text-muted">Download an encrypted backup of all entries</p>
                 </div>
                 <UButton
                   color="neutral"
                   variant="subtle"
-                  size="sm"
+                  size="md"
                   icon="i-lucide-download"
                   aria-label="Export vault"
                   @click="exportOpen = true"
                 >
-                  <span class="hidden sm:inline">Export</span>
+                  Export
                 </UButton>
               </div>
               <div class="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div class="min-w-0">
-                  <div class="text-xs font-medium text-toned">Import vault</div>
-                  <p class="mt-0.5 text-[11px] text-muted">Restore from a <span class="font-mono">.adyton</span> export file — replaces current vault</p>
+                  <div class="text-sm font-medium text-toned">Import vault</div>
+                  <p class="mt-0.5 text-[13px] text-muted">Restore from a <span class="font-mono">.adyton</span> export file — replaces current vault</p>
                 </div>
                 <UButton
                   color="neutral"
                   variant="subtle"
-                  size="sm"
+                  size="md"
                   icon="i-lucide-upload"
                   aria-label="Import vault"
                   @click="importOpen = true"
                 >
-                  <span class="hidden sm:inline">Import</span>
+                  Import
                 </UButton>
               </div>
             </div>
@@ -158,12 +158,12 @@ async function onDeleted() {
           <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
-                <h3 class="text-sm font-semibold text-rose-300">Delete account</h3>
-                <p class="mt-0.5 text-[11px] text-muted">
+                <h3 class="text-base font-semibold text-rose-300">Delete account</h3>
+                <p class="mt-0.5 text-[13px] text-muted">
                   Permanently removes your account and every encrypted entry. Irreversible.
                 </p>
               </div>
-              <UButton color="error" variant="subtle" size="sm" @click="deleteOpen = true">
+              <UButton color="error" variant="subtle" size="md" @click="deleteOpen = true">
                 Delete account
               </UButton>
             </div>
