@@ -31,6 +31,7 @@ services:
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       TOTP_ENC_KEY_PATH: /run/secrets/totp_enc_key
+      TOTP_ISSUER: "Adyton [DEV]"
       NODE_ENV: development
       PORT: "3001"
       # Dev migrates via the container command (dev:migrate → mikro-orm CLI on src), so
