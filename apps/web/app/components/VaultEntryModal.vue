@@ -491,7 +491,7 @@ function close() {
 
         <!-- Footer -->
         <div
-          class="sticky bottom-0 z-10 bg-default px-5 py-4 border-t border-default flex gap-2"
+          class="sticky bottom-0 z-10 bg-default px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-default flex gap-2"
         >
           <UButton color="neutral" variant="soft" size="lg" class="flex-1 justify-center" @click="close">
             Cancel

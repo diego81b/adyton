@@ -43,19 +43,19 @@ async function onCopy() {
        page look misaligned next to the others). -->
   <div class="mx-auto w-full max-w-4xl">
     <!-- Mode toggle -->
-    <div class="mb-5 inline-flex rounded-xl border border-default bg-elevated p-1">
+    <div class="mb-4 inline-flex rounded-xl border border-default bg-elevated p-1">
       <button
         v-for="m in MODES"
         :key="m.id"
         type="button"
-        class="rounded-lg px-4 py-1.5 text-xs font-semibold transition"
+        class="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
         :class="mode === m.id ? 'bg-primary/15 text-primary' : 'text-muted hover:text-highlighted'"
         @click="mode = m.id"
       >{{ m.label }}</button>
     </div>
 
     <GeneratedSecret
-      class="mb-5"
+      class="mb-4"
       :value="generated"
       :words="mode === 'passphrase' ? words : undefined"
       :error="error"
@@ -63,33 +63,33 @@ async function onCopy() {
       @regenerate="regenerate"
     />
 
-    <EntropyMeter class="mb-5" :bits="entropyBits" :strength="strength" />
+    <EntropyMeter class="mb-4" :bits="entropyBits" :strength="strength" />
 
     <!-- Controls -->
     <div class="space-y-5 rounded-2xl border border-default bg-elevated p-5">
       <!-- Length / word count slider -->
       <div v-if="mode === 'password'">
         <div class="mb-2 flex items-center justify-between">
-          <span class="text-xs font-medium text-toned">Length</span>
-          <span class="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+          <span class="text-sm font-medium text-toned">Length</span>
+          <span class="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-sm font-semibold text-primary">
             {{ passwordOptions.length }}
           </span>
         </div>
         <USlider v-model="passwordOptions.length" :min="12" :max="64" :step="1" />
-        <div class="mt-1.5 flex justify-between font-mono text-[10px] text-dimmed">
+        <div class="mt-1.5 flex justify-between font-mono text-[11px] text-dimmed">
           <span>12</span>
           <span>64</span>
         </div>
       </div>
       <div v-else>
         <div class="mb-2 flex items-center justify-between">
-          <span class="text-xs font-medium text-toned">Words</span>
-          <span class="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+          <span class="text-sm font-medium text-toned">Words</span>
+          <span class="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-sm font-semibold text-primary">
             {{ wordCount }}
           </span>
         </div>
         <USlider v-model="wordCount" :min="3" :max="10" :step="1" />
-        <div class="mt-1.5 flex justify-between font-mono text-[10px] text-dimmed">
+        <div class="mt-1.5 flex justify-between font-mono text-[11px] text-dimmed">
           <span>3</span>
           <span>10</span>
         </div>
@@ -100,7 +100,7 @@ async function onCopy() {
 
         <!-- Character options -->
         <div>
-          <div class="mb-3 text-xs font-medium text-toned">Include</div>
+          <div class="mb-3 text-sm font-medium text-toned">Include</div>
           <div class="grid grid-cols-2 gap-2.5">
             <label
               v-for="cls in CHAR_CLASSES"
@@ -109,8 +109,8 @@ async function onCopy() {
             >
               <UCheckbox v-model="passwordOptions[cls.key]" />
               <span class="flex-1">
-                <span class="block text-sm font-medium">{{ cls.label }}</span>
-                <span class="block font-mono text-[10px] text-dimmed">{{ cls.hint }}</span>
+                <span class="block text-base font-medium">{{ cls.label }}</span>
+                <span class="block font-mono text-[11px] text-dimmed">{{ cls.hint }}</span>
               </span>
             </label>
           </div>
@@ -120,8 +120,8 @@ async function onCopy() {
           >
             <UCheckbox v-model="passwordOptions.excludeAmbiguous" />
             <span class="flex-1">
-              <span class="block text-sm font-medium">Exclude ambiguous</span>
-              <span class="block font-mono text-[10px] text-dimmed">O 0 I l 1</span>
+              <span class="block text-base font-medium">Exclude ambiguous</span>
+              <span class="block font-mono text-[11px] text-dimmed">O 0 I l 1</span>
             </span>
           </label>
         </div>

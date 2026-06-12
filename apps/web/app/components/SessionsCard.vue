@@ -69,17 +69,17 @@ onMounted(load);
   <div class="rounded-2xl border border-default bg-elevated">
     <div class="flex items-center justify-between px-4 pb-3 pt-4">
       <div>
-        <h3 class="text-sm font-semibold">Active sessions</h3>
-        <p class="mt-0.5 text-[11px] text-muted">
+        <h3 class="text-base font-semibold">Active sessions</h3>
+        <p class="mt-0.5 text-[13px] text-muted">
           Revoking this device's session signs you out
         </p>
       </div>
-      <span class="font-mono text-[10px] text-dimmed">{{ sessions.length }} active</span>
+      <span class="font-mono text-[11px] text-dimmed">{{ sessions.length }} active</span>
     </div>
 
     <div class="border-t border-default">
-      <div v-if="loading" class="px-4 py-6 text-center text-xs text-muted">Loading…</div>
-      <div v-else-if="sessions.length === 0" class="px-4 py-6 text-center text-xs text-muted">
+      <div v-if="loading" class="px-4 py-6 text-center text-sm text-muted">Loading…</div>
+      <div v-else-if="sessions.length === 0" class="px-4 py-6 text-center text-sm text-muted">
         No active sessions
       </div>
       <div v-else class="divide-y divide-default">
@@ -91,19 +91,19 @@ onMounted(load);
           <div class="mb-1 flex items-center gap-2.5 sm:mb-0">
             <UIcon name="i-lucide-monitor" class="size-4 shrink-0 text-muted" />
             <div class="min-w-0">
-              <div class="truncate text-xs font-semibold text-highlighted">
+              <div class="truncate text-sm font-semibold text-highlighted">
                 {{ describeUserAgent(s.userAgent) }}
               </div>
-              <div class="text-[10px] text-dimmed">expires {{ relativeTime(s.expiresAt) }}</div>
+              <div class="text-[11px] text-dimmed">expires {{ relativeTime(s.expiresAt) }}</div>
             </div>
           </div>
-          <div class="font-mono text-xs text-muted">{{ s.ipAddress }}</div>
-          <div class="text-xs text-muted">{{ relativeTime(s.createdAt) }}</div>
+          <div class="font-mono text-sm text-muted">{{ s.ipAddress }}</div>
+          <div class="text-sm text-muted">{{ relativeTime(s.createdAt) }}</div>
           <div class="sm:text-right">
             <UButton
               color="error"
               variant="subtle"
-              size="xs"
+              size="sm"
               :aria-label="`Revoke session ${describeUserAgent(s.userAgent)}`"
               @click="confirmId = s.id"
             >
@@ -113,7 +113,7 @@ onMounted(load);
         </div>
       </div>
 
-      <div v-if="sessions.length > 5" class="border-t border-default px-4 py-2 text-[11px] text-dimmed">
+      <div v-if="sessions.length > 5" class="border-t border-default px-4 py-2 text-[13px] text-dimmed">
         Showing 5 of {{ sessions.length }} sessions
       </div>
 
@@ -121,7 +121,7 @@ onMounted(load);
         <UButton
           color="error"
           variant="subtle"
-          size="sm"
+          size="md"
           class="w-full justify-center"
           @click="confirmAllOpen = true"
         >

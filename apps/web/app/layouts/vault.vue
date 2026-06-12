@@ -46,7 +46,7 @@ async function signOut() {
       <div class="flex-1 min-w-0">
         <!-- Mobile header -->
         <header
-          class="lg:hidden sticky top-0 z-30 bg-default/85 backdrop-blur-xl border-b border-default"
+          class="lg:hidden sticky top-0 z-30 bg-default/85 backdrop-blur-xl border-b border-default pt-[env(safe-area-inset-top,0px)]"
         >
           <div class="px-4 h-14 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
@@ -116,7 +116,9 @@ async function signOut() {
 
         <!-- Wide cap: each page sets its own content width (vault/generator 4xl,
              settings 5xl for the two-column layout). -->
-        <main class="px-4 lg:px-8 py-5 pb-24 lg:pb-8 max-w-6xl mx-auto w-full">
+        <main
+          class="px-4 lg:px-8 py-5 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 max-w-6xl mx-auto w-full"
+        >
           <slot />
         </main>
       </div>
