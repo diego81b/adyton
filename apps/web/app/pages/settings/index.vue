@@ -12,6 +12,13 @@ const toast = useToast();
 const router = useRouter();
 const { setChrome } = useAppChrome();
 
+const exportOpen = ref(false);
+const importOpen = ref(false);
+
+function onImported(count: number) {
+  toast.add({ title: `Imported ${count} ${count === 1 ? 'entry' : 'entries'}`, color: 'success' });
+}
+
 onMounted(() => setChrome({ title: 'Settings', subtitle: 'Account, security, and data' }));
 
 // --- Account ----------------------------------------------------------------
@@ -105,9 +112,45 @@ async function onDeleted() {
         </div>
         </SettingsSection>
 
-        <!-- ============== VAULT (auto-lock) ============== -->
+        <!-- ============== VAULT (auto-lock + export/import) ============== -->
         <SettingsSection id="settings-vault" title="Vault" icon="i-lucide-lock">
-          <AutoLockCard />
+          <div class="space-y-4">
+            <AutoLockCard />
+            <div class="rounded-2xl border border-default bg-elevated divide-y divide-default">
+              <div class="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div class="min-w-0">
+                  <div class="text-xs font-medium text-toned">Export vault</div>
+                  <p class="mt-0.5 text-[11px] text-muted">Download an encrypted backup of all entries</p>
+                </div>
+                <UButton
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  icon="i-lucide-download"
+                  aria-label="Export vault"
+                  @click="exportOpen = true"
+                >
+                  <span class="hidden sm:inline">Export</span>
+                </UButton>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div class="min-w-0">
+                  <div class="text-xs font-medium text-toned">Import vault</div>
+                  <p class="mt-0.5 text-[11px] text-muted">Restore from a <span class="font-mono">.adyton</span> export file — replaces current vault</p>
+                </div>
+                <UButton
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  icon="i-lucide-upload"
+                  aria-label="Import vault"
+                  @click="importOpen = true"
+                >
+                  <span class="hidden sm:inline">Import</span>
+                </UButton>
+              </div>
+            </div>
+          </div>
         </SettingsSection>
 
         <!-- ============== DANGER ZONE ============== -->
@@ -143,5 +186,7 @@ async function onDeleted() {
     </div>
 
     <DeleteAccountModal v-model="deleteOpen" @deleted="onDeleted" />
+    <VaultExportModal v-model="exportOpen" />
+    <VaultImportModal v-model="importOpen" @imported="onImported" />
   </div>
 </template>

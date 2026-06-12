@@ -27,7 +27,7 @@ import {
 import { loadTotpEncKey, encryptTotpSecret, decryptTotpSecret } from './totp-cipher';
 import { AuthenticateTwoFactorDto } from './dto/authenticate-two-factor.dto';
 
-const TOTP_ISSUER = 'Adyton';
+const TOTP_ISSUER = process.env.TOTP_ISSUER ?? 'Adyton';
 // ±30s tolerance = one RFC 6238 time-step of clock drift in each direction.
 const TOTP_EPOCH_TOLERANCE_SECONDS = 30;
 

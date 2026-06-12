@@ -25,12 +25,17 @@ services:
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
+      mailpit: { condition: service_started }
     environment:
       DATABASE_URL: postgres://adyton:${POSTGRES_PASSWORD:-devpassword}@db:5432/adyton
       REDIS_URL: redis://redis:6379
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       TOTP_ENC_KEY_PATH: /run/secrets/totp_enc_key
+      TOTP_ISSUER: "Adyton [DEV]"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: "Adyton [DEV] <noreply@adyton.local>"
       NODE_ENV: development
       PORT: "3001"
       # Dev migrates via the container command (dev:migrate → mikro-orm CLI on src), so
@@ -72,3 +77,10 @@ services:
       - /app/apps/web/node_modules
     ports:
       - "30000:3000"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"   # web UI — http://localhost:8025
+      - "1025:1025"   # SMTP (api → mailpit)
