@@ -24,8 +24,11 @@ export default defineConfig({
         'app/app.config.ts',
         'app/pages/**',
         'app/layouts/**',            // Nuxt composition surface; covered by e2e/manual
+        'app/plugins/**',            // Nuxt client plugins; runtime-only Capacitor/DOM side-effects
         'app/workers/**',               // Web Workers require browser runtime; covered by e2e
-        'app/composables/useArgon2Worker.ts',  // wraps Web Worker; covered by e2e
+        // useArgon2Worker.ts is no longer excluded: deriveRawKey and importVaultKey
+        // have unit tests (Worker is mocked). The worker glue itself (new Worker(...))
+        // is still integration/e2e territory but the testable units are now covered.
         '**/*.spec.ts',
         '**/*.config.ts',
       ],
