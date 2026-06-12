@@ -4,8 +4,8 @@
 // #footer (mono badge below card). Mockup reference: screen-login / register / unlock.
 withDefaults(
   defineProps<{
-    /** Column width. md for single-card auth pages; 5xl for the dual-state unlock layout. */
-    width?: 'md' | '5xl';
+    /** Column width. md for single-card auth pages; lg for wider forms; 5xl for the dual-state unlock layout. */
+    width?: 'md' | 'lg' | '5xl';
   }>(),
   { width: 'md' },
 );
@@ -13,7 +13,7 @@ withDefaults(
 
 <template>
   <div class="bg-grid radial-glow flex min-h-screen items-center justify-center px-5 py-12">
-    <div class="w-full" :class="width === '5xl' ? 'max-w-5xl' : 'max-w-md'">
+    <div class="w-full" :class="width === '5xl' ? 'max-w-5xl' : width === 'lg' ? 'max-w-lg' : 'max-w-md'">
       <div v-if="$slots.brand" class="mb-8">
         <slot name="brand" />
       </div>

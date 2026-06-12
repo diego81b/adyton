@@ -22,8 +22,11 @@ describe('AuthShell', () => {
     expect(withSlots.text()).toContain('badge text');
   });
 
-  it('uses max-w-md by default and max-w-5xl when width=5xl', () => {
+  it('uses max-w-md by default, max-w-lg when width=lg, and max-w-5xl when width=5xl', () => {
     expect(mount(AuthShell, { slots: { default: 'x' } }).find('.max-w-md').exists()).toBe(true);
+    expect(
+      mount(AuthShell, { props: { width: 'lg' }, slots: { default: 'x' } }).find('.max-w-lg').exists(),
+    ).toBe(true);
     expect(
       mount(AuthShell, { props: { width: '5xl' }, slots: { default: 'x' } }).find('.max-w-5xl').exists(),
     ).toBe(true);
