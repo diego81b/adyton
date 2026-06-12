@@ -8,7 +8,7 @@ the generated native projects (`android/`, `ios/`).
 
 - The WebView origin is pinned to `https://adyton.diegobaldeschi.dev` via
   `server.hostname` in `capacitor.config.ts`. Assets are served locally from the bundle;
-  the pinned origin makes the app same-site with `api.adyton.diegobaldeschi.dev`, so the
+  the pinned origin makes the app same-site with `api-adyton.diegobaldeschi.dev`, so the
   `SameSite=Lax` refresh cookie works and the existing API CORS allowlist
   (`ALLOWED_ORIGINS`) matches without any backend change.
 - Biometric unlock stores the **raw derived vault key bytes** (never the master
@@ -28,7 +28,7 @@ you build it.
 
 ```bash
 # 1. Build the web assets (API URL is baked in at build time — SPA static build)
-NUXT_PUBLIC_API_BASE_URL=https://api.adyton.diegobaldeschi.dev pnpm --filter @adyton/web generate
+NUXT_PUBLIC_API_BASE_URL=https://api-adyton.diegobaldeschi.dev pnpm --filter @adyton/web generate
 
 # 2. Sync assets + plugins into the native projects
 pnpm --filter @adyton/mobile sync

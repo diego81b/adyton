@@ -20,7 +20,7 @@ const config: CapacitorConfig = {
   server: {
     // The WebView origin becomes https://adyton.diegobaldeschi.dev (assets are still
     // served locally from the bundle — no network round-trip). This makes the app
-    // same-site with api.adyton.diegobaldeschi.dev, so the SameSite=Lax refresh
+    // same-site with api-adyton.diegobaldeschi.dev, so the SameSite=Lax refresh
     // cookie is sent on fetch and the existing CORS allowlist matches unchanged.
     // Without this the origin would be capacitor://localhost → cross-site → the
     // refresh cookie is silently dropped and sessions cannot be restored.
