@@ -115,7 +115,7 @@ function apply() {
     </template>
 
     <template #footer>
-      <div class="flex gap-2 w-full">
+      <div class="flex gap-2 w-full pb-[env(safe-area-inset-bottom,0px)]">
         <UButton
           color="neutral"
           variant="soft"
