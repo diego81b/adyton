@@ -61,7 +61,9 @@ describe('TrustedDevicesCard', () => {
     const w = mountCard();
     await flushPromises();
 
-    await w.findAll('button').find((b) => b.text() === 'Revoke')!.trigger('click');
+    await w.findAll('button')
+      .find((b) => b.attributes('aria-label')?.startsWith('Revoke trust'))!
+      .trigger('click');
     w.findComponent(ConfirmDialogStub).vm.$emit('confirm');
     await flushPromises();
 

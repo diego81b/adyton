@@ -40,8 +40,15 @@ describe('SettingRow', () => {
     expect(w.text()).not.toContain('fallback');
   });
 
-  it('uses flex-wrap so the action can never be squeezed out of the row', () => {
+  it('stacks the action to full width on mobile and rows it from sm up', () => {
     const w = mount(SettingRow, { props: { label: 'X' }, global });
-    expect(w.find('div').classes()).toContain('flex-wrap');
+    const root = w.find('div');
+    // Mobile: column layout so the action drops to its own full-width line.
+    expect(root.classes()).toContain('flex-col');
+    expect(root.classes()).toContain('sm:flex-row');
+    // The action wrapper is full-width on mobile, natural width from sm up.
+    const action = w.findAll('div').find((d) => d.classes().includes('sm:w-auto'));
+    expect(action).toBeDefined();
+    expect(action!.classes()).toContain('w-full');
   });
 });

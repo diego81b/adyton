@@ -114,50 +114,48 @@ watch(canManage, (can) => {
     <!-- Gating: TOTP required first, then browser support. -->
     <div
       v-if="!totpEnabled"
-      class="px-4 py-3 text-[13px] text-muted"
+      class="px-3 py-3 text-[13px] text-muted"
     >
       Enable two-factor authentication first to add passkeys.
     </div>
     <div
       v-else-if="!supported"
-      class="px-4 py-3 text-[13px] text-muted"
+      class="px-3 py-3 text-[13px] text-muted"
     >
       This browser does not support passkeys.
     </div>
 
     <template v-else>
-      <div v-if="loading" class="px-4 py-3 text-sm text-muted">Loading…</div>
+      <div v-if="loading" class="px-3 py-3 text-sm text-muted">Loading…</div>
       <div
         v-for="key in passkeys"
         v-else
         :key="key.id"
-        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3"
+        class="flex items-center justify-between gap-x-3 px-3 py-3"
       >
         <div class="flex min-w-0 items-center gap-2.5">
           <UIcon name="i-lucide-key-round" class="size-4 shrink-0 text-dimmed" />
           <div class="min-w-0">
             <div class="truncate text-sm font-medium text-default">{{ key.friendlyName }}</div>
-            <div class="text-[11px] tabular-nums text-dimmed">
+            <div class="truncate text-[11px] tabular-nums text-dimmed">
               Added {{ formatAdded(key.createdAt) }} · Last used {{ relativeTime(key.lastUsedAt) }}
             </div>
           </div>
         </div>
         <UButton
           color="error"
-          variant="ghost"
+          variant="subtle"
           size="sm"
           icon="i-lucide-trash-2"
           class="shrink-0"
           :aria-label="`Remove passkey ${key.friendlyName}`"
           @click="removeId = key.id"
-        >
-          <span class="hidden sm:inline">Remove</span>
-        </UButton>
+        />
       </div>
-      <p v-if="!loading && !passkeys.length" class="px-4 py-3 text-sm text-muted">No passkeys yet.</p>
+      <p v-if="!loading && !passkeys.length" class="px-3 py-3 text-sm text-muted">No passkeys yet.</p>
 
       <!-- Inline add form -->
-      <div v-if="adding" class="space-y-2 px-4 py-3">
+      <div v-if="adding" class="space-y-2 px-3 py-3">
         <UInput
           v-model="friendlyName"
           size="lg"
@@ -172,24 +170,33 @@ watch(canManage, (can) => {
             color="primary"
             variant="subtle"
             size="md"
+            class="flex-1 justify-center sm:flex-none"
             :loading="registering"
             :disabled="!nameValid"
             @click="confirmAdd"
           >
             Create passkey
           </UButton>
-          <UButton color="neutral" variant="ghost" size="md" :disabled="registering" @click="cancelAdd">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="md"
+            class="justify-center"
+            :disabled="registering"
+            @click="cancelAdd"
+          >
             Cancel
           </UButton>
         </div>
       </div>
-      <div v-else class="px-4 py-3">
+      <div v-else class="px-3 py-3">
         <UButton
           color="primary"
           variant="subtle"
-          size="sm"
+          size="md"
           icon="i-lucide-plus"
           aria-label="Add passkey"
+          class="w-full justify-center sm:w-auto"
           @click="openAdd"
         >
           Add passkey

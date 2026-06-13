@@ -35,12 +35,12 @@ const segments = computed<Segment[]>(() => {
 </script>
 
 <template>
-  <div class="relative overflow-hidden rounded-2xl border border-default bg-elevated p-5">
+  <div class="relative overflow-hidden rounded-xl border border-default bg-elevated p-3">
     <div
       class="pointer-events-none absolute top-0 right-0 h-32 w-32 -translate-y-12 translate-x-12 rounded-full bg-primary/10 blur-3xl"
     />
 
-    <div class="mb-3 font-mono text-[11px] uppercase tracking-wider text-dimmed">
+    <div class="mb-1.5 text-sm font-medium text-toned">
       Generated {{ words?.length ? 'Passphrase' : 'Password' }}
     </div>
 

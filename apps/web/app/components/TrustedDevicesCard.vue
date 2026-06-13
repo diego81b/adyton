@@ -42,15 +42,15 @@ onMounted(load);
 
 <template>
   <SettingsGroup title="Trusted devices" :subtitle="`${devices.length} trusted`">
-    <div v-if="loading" class="px-4 py-6 text-center text-sm text-muted">Loading…</div>
-    <div v-else-if="devices.length === 0" class="px-4 py-6 text-center text-sm text-muted">
+    <div v-if="loading" class="px-3 py-6 text-center text-sm text-muted">Loading…</div>
+    <div v-else-if="devices.length === 0" class="px-3 py-6 text-center text-sm text-muted">
       No trusted devices
     </div>
     <template v-else>
       <div
         v-for="d in devices"
         :key="d.id"
-        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3"
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-3"
       >
         <div class="flex min-w-0 items-center gap-2.5">
           <UIcon name="i-lucide-smartphone" class="size-4 shrink-0 text-dimmed" />
@@ -65,15 +65,13 @@ onMounted(load);
         </div>
         <UButton
           color="error"
-          variant="ghost"
+          variant="subtle"
           size="sm"
           icon="i-lucide-shield-off"
           class="shrink-0"
           :aria-label="`Revoke trust from ${describeUserAgent(d.userAgent)}`"
           @click="confirmId = d.id"
-        >
-          <span class="hidden sm:inline">Revoke</span>
-        </UButton>
+        />
       </div>
     </template>
   </SettingsGroup>

@@ -16,11 +16,11 @@ defineProps<{
 <template>
   <section :id="id" class="scroll-mt-20">
     <h2
-      class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider"
-      :class="danger ? 'text-error' : 'text-dimmed'"
+      class="mb-2 px-0.5 text-[13px] font-semibold uppercase tracking-wide"
+      :class="danger ? 'text-error' : 'text-muted'"
     >
       {{ title }}
-      <span v-if="subtitle" class="ml-1.5 font-normal normal-case tracking-normal text-dimmed">
+      <span v-if="subtitle" class="ml-1.5 text-xs font-normal normal-case tracking-normal text-dimmed">
         {{ subtitle }}
       </span>
     </h2>

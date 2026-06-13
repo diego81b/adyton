@@ -97,31 +97,34 @@ function mapPasswordError(err: unknown): string {
         <UButton
           color="neutral"
           variant="subtle"
-          size="sm"
+          size="md"
           icon="i-lucide-refresh-cw"
           aria-label="Regenerate recovery codes"
+          class="flex-1 justify-center sm:flex-none"
           @click="openRegenerate"
         >
-          <span class="hidden sm:inline">Recovery codes</span>
+          Recovery codes
         </UButton>
         <UButton
           color="error"
-          variant="ghost"
-          size="sm"
+          variant="subtle"
+          size="md"
           icon="i-lucide-shield-off"
           aria-label="Disable two-factor authentication"
+          class="flex-1 justify-center sm:flex-none"
           @click="openDisable"
         >
-          <span class="hidden sm:inline">Disable</span>
+          Disable
         </UButton>
       </template>
       <UButton
         v-else
         color="primary"
         variant="subtle"
-        size="sm"
+        size="md"
         icon="i-lucide-shield-plus"
         aria-label="Enable 2FA"
+        class="flex-1 justify-center sm:flex-none"
         @click="setupOpen = true"
       >
         Enable

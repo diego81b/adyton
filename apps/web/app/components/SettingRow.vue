@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Swiss-enterprise settings row: one consistent grammar reused by every settings item.
-// `flex-wrap` is load-bearing — on narrow widths the action drops below the label
-// instead of being squeezed out of the container (the bug that hid "Revoke").
+// Mobile: label stacks over a full-width action block (buttons stretch edge-to-edge,
+// never cramped). From `sm` up: single row, action right-aligned at its natural width.
 defineProps<{
   label: string;
   /** Terse one-line helper under the label. Keep it short. */
@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
+  <div class="flex flex-col gap-x-3 gap-y-2.5 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
     <div class="flex min-w-0 items-center gap-2.5">
       <UIcon v-if="icon" :name="icon" class="size-4 shrink-0 text-dimmed" />
       <span v-if="dot" class="size-2 shrink-0 rounded-full" :class="dot" aria-hidden="true" />
@@ -27,7 +27,7 @@ defineProps<{
         <p v-if="helper" class="mt-0.5 text-[13px] leading-snug text-muted">{{ helper }}</p>
       </div>
     </div>
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
       <slot name="action">
         <span
           v-if="value"

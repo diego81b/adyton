@@ -117,7 +117,7 @@ async function signOut() {
         <!-- Wide cap: each page sets its own content width (vault/generator 4xl,
              settings 5xl for the two-column layout). -->
         <main
-          class="px-4 lg:px-8 py-5 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 max-w-6xl mx-auto w-full"
+          class="px-3 sm:px-4 lg:px-8 py-5 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 max-w-6xl mx-auto w-full"
         >
           <slot />
         </main>

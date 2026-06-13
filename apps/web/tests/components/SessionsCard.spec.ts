@@ -71,7 +71,9 @@ describe('SessionsCard', () => {
     const w = mountCard();
     await flushPromises();
 
-    await w.findAll('button').find((b) => b.text() === 'Revoke')!.trigger('click');
+    await w.findAll('button')
+      .find((b) => b.attributes('aria-label')?.startsWith('Revoke session'))!
+      .trigger('click');
     const dialog = w.findComponent(ConfirmDialogStub);
     expect(dialog.props('open')).toBe(true);
 

@@ -60,16 +60,16 @@ async function onDeleted() {
 <template>
   <!-- Single dense scroll (Swiss enterprise): quiet section headers over hairline
        divided rows. One content column so wide rows (sessions) never get squeezed. -->
-  <div class="mx-auto w-full max-w-3xl space-y-8">
+  <div class="mx-auto w-full max-w-4xl space-y-4 sm:space-y-7">
     <!-- ============== ACCOUNT ============== -->
     <SettingsGroup id="settings-account" title="Account">
       <SettingRow label="Display name" helper="Shown in your avatar · synced across devices">
         <template #action>
-          <div class="flex items-center gap-2">
+          <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <UInput
               v-model="displayNameDraft"
               size="md"
-              class="w-40 sm:w-48"
+              class="w-full sm:w-64"
               placeholder="Your name"
               :maxlength="64"
             />
@@ -79,11 +79,12 @@ async function onDeleted() {
               size="md"
               icon="i-lucide-check"
               aria-label="Save display name"
+              class="w-full justify-center sm:w-auto"
               :loading="savingName"
               :disabled="displayNameDraft.trim() === settings.displayName"
               @click="saveDisplayName"
             >
-              <span class="hidden sm:inline">Save</span>
+              Save
             </UButton>
           </div>
         </template>
@@ -104,9 +105,10 @@ async function onDeleted() {
             size="md"
             icon="i-lucide-key-round"
             aria-label="Change master password"
+            class="flex-1 justify-center sm:flex-none"
             disabled
           >
-            <span class="hidden sm:inline">Change</span>
+            Change
           </UButton>
         </template>
       </SettingRow>
@@ -134,9 +136,10 @@ async function onDeleted() {
             size="md"
             icon="i-lucide-download"
             aria-label="Export vault"
+            class="flex-1 justify-center sm:flex-none"
             @click="exportOpen = true"
           >
-            <span class="hidden sm:inline">Export</span>
+            Export
           </UButton>
         </template>
       </SettingRow>
@@ -148,9 +151,10 @@ async function onDeleted() {
             size="md"
             icon="i-lucide-upload"
             aria-label="Import vault"
+            class="flex-1 justify-center sm:flex-none"
             @click="importOpen = true"
           >
-            <span class="hidden sm:inline">Import</span>
+            Import
           </UButton>
         </template>
       </SettingRow>
@@ -168,7 +172,13 @@ async function onDeleted() {
         helper="Permanently removes your account and every encrypted entry. Irreversible."
       >
         <template #action>
-          <UButton color="error" variant="subtle" size="md" @click="deleteOpen = true">
+          <UButton
+            color="error"
+            variant="subtle"
+            size="md"
+            class="flex-1 justify-center sm:flex-none"
+            @click="deleteOpen = true"
+          >
             Delete account
           </UButton>
         </template>

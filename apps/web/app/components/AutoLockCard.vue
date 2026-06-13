@@ -46,12 +46,12 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
 <template>
   <SettingRow label="Auto-lock timeout" :helper="timeoutHelper">
     <template #action>
-      <div class="flex flex-wrap gap-1 rounded-md bg-muted p-1">
+      <div class="flex w-full gap-1 rounded-md bg-muted p-1 sm:w-auto">
         <button
           v-for="d in DURATIONS"
           :key="d.ms"
           type="button"
-          class="rounded-md px-2.5 py-1.5 text-[13px] font-medium tabular-nums transition"
+          class="flex-1 rounded-md px-2.5 py-1.5 text-[13px] font-medium tabular-nums transition sm:flex-none sm:min-w-16"
           :class="
             settings.lockDurationMs === d.ms
               ? 'bg-primary/15 text-primary'
@@ -68,12 +68,12 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
 
   <SettingRow label="Lock mode" :helper="modeHelper">
     <template #action>
-      <div class="flex gap-1 rounded-md bg-muted p-1">
+      <div class="flex w-full gap-1 rounded-md bg-muted p-1 sm:w-auto">
         <button
           v-for="m in MODES"
           :key="m.value"
           type="button"
-          class="rounded-md px-2.5 py-1.5 text-[13px] font-medium transition"
+          class="flex-1 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition sm:flex-none sm:min-w-32"
           :class="
             settings.lockMode === m.value
               ? 'bg-primary/15 text-primary'

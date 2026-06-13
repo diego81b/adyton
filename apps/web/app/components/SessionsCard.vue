@@ -68,8 +68,8 @@ onMounted(load);
 
 <template>
   <SettingsGroup title="Active sessions" :subtitle="`${sessions.length} active`">
-    <div v-if="loading" class="px-4 py-6 text-center text-sm text-muted">Loading…</div>
-    <div v-else-if="sessions.length === 0" class="px-4 py-6 text-center text-sm text-muted">
+    <div v-if="loading" class="px-3 py-6 text-center text-sm text-muted">Loading…</div>
+    <div v-else-if="sessions.length === 0" class="px-3 py-6 text-center text-sm text-muted">
       No active sessions
     </div>
     <template v-else>
@@ -78,7 +78,7 @@ onMounted(load);
       <div
         v-for="s in sessions.slice(0, 5)"
         :key="s.id"
-        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3"
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-3"
       >
         <div class="flex min-w-0 items-center gap-2.5">
           <UIcon name="i-lucide-monitor" class="size-4 shrink-0 text-dimmed" />
@@ -90,22 +90,22 @@ onMounted(load);
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-3">
-          <span class="hidden font-mono text-[13px] tabular-nums text-muted sm:inline">{{ s.ipAddress }}</span>
-          <span class="text-[13px] tabular-nums text-dimmed">{{ relativeTime(s.createdAt) }}</span>
+          <div class="flex flex-col items-end text-[13px] leading-tight tabular-nums">
+            <span class="font-mono text-muted">{{ s.ipAddress }}</span>
+            <span class="text-dimmed">{{ relativeTime(s.createdAt) }}</span>
+          </div>
           <UButton
             color="error"
-            variant="ghost"
+            variant="subtle"
             size="sm"
             icon="i-lucide-shield-off"
             :aria-label="`Revoke session ${describeUserAgent(s.userAgent)}`"
             @click="confirmId = s.id"
-          >
-            <span class="hidden sm:inline">Revoke</span>
-          </UButton>
+          />
         </div>
       </div>
 
-      <div v-if="sessions.length > 5" class="px-4 py-2 text-[13px] text-dimmed">
+      <div v-if="sessions.length > 5" class="px-3 py-2 text-[13px] text-dimmed">
         Showing 5 of {{ sessions.length }} sessions
       </div>
 
@@ -113,7 +113,7 @@ onMounted(load);
         <UButton
           color="error"
           variant="subtle"
-          size="sm"
+          size="md"
           icon="i-lucide-shield-off"
           class="w-full justify-center"
           @click="confirmAllOpen = true"

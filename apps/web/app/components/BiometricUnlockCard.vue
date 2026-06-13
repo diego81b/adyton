@@ -114,25 +114,27 @@ async function disable() {
         <UButton
           v-if="enrolled"
           color="error"
-          variant="ghost"
-          size="sm"
+          variant="subtle"
+          size="md"
           icon="i-lucide-fingerprint"
           aria-label="Disable biometric unlock"
+          class="flex-1 justify-center sm:flex-none"
           :loading="disabling"
           @click="disable"
         >
-          <span class="hidden sm:inline">Disable</span>
+          Disable
         </UButton>
         <UButton
           v-else
           color="primary"
           variant="subtle"
-          size="sm"
+          size="md"
           icon="i-lucide-fingerprint"
           aria-label="Enable biometric unlock"
+          class="flex-1 justify-center sm:flex-none"
           @click="openEnable"
         >
-          <span class="hidden sm:inline">Enable</span>
+          Enable
         </UButton>
       </template>
     </SettingRow>
