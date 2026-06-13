@@ -39,52 +39,43 @@ const TRUST_POINTS = [
 
 <template>
   <div class="min-h-dvh lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] xl:grid-cols-2">
-    <!-- Desktop brand panel. Brand pairing rule, theme-aware: light theme shows a
-         Jet Stream panel with Blue Whale text; dark theme inverts to a Blue Whale
-         panel with Jet Stream text (8.8:1 pair both ways). -->
-    <!-- Dark panel is SOLID Blue Whale (#03363D): no gradient or glow overlays,
-         so the brand color renders exactly as specified. -->
+    <!-- Desktop brand/trust panel. Swiss-enterprise: a calm graphite/whale SURFACE
+         (not a saturated brand fill), separated from the form by a hairline; the
+         brand accent appears only on the mark and the trust-point icons. Uses
+         semantic surface tokens so it tracks the generated palette in both themes. -->
     <aside
-      class="relative hidden overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200 dark:bg-none dark:bg-brand-900 lg:flex lg:flex-col lg:justify-between lg:p-10 xl:p-14"
+      class="relative hidden overflow-hidden border-r border-default bg-surface-100 dark:bg-surface-900 lg:flex lg:flex-col lg:justify-between lg:p-10 xl:p-14"
     >
       <div class="relative flex items-center gap-3">
-        <!-- Fixed-pair mark: BrandMark uses bg-primary, which would wash out
-             against the panel in both themes. -->
         <div
           role="img"
           aria-label="Adyton"
-          class="size-9 bg-brand-900 dark:bg-brand-200 [mask:url(/logo.svg)_center/contain_no-repeat] [-webkit-mask:url(/logo.svg)_center/contain_no-repeat]"
+          class="size-9 bg-primary [mask:url(/logo.svg)_center/contain_no-repeat] [-webkit-mask:url(/logo.svg)_center/contain_no-repeat]"
         />
-        <span class="text-xl font-bold tracking-tight text-brand-950 dark:text-brand-50"
-          >Adyton</span
-        >
+        <span class="text-xl font-bold tracking-tight text-highlighted">Adyton</span>
       </div>
 
       <div class="relative max-w-md">
         <h1
-          class="text-3xl font-bold leading-tight tracking-tight text-brand-950 dark:text-brand-50 xl:text-4xl"
+          class="text-3xl font-bold leading-tight tracking-tight text-highlighted xl:text-4xl"
         >
           {{ headline }}
         </h1>
-        <p class="mt-4 text-sm leading-relaxed text-brand-800 dark:text-brand-200">{{ subline }}</p>
+        <p class="mt-4 text-sm leading-relaxed text-muted">{{ subline }}</p>
 
         <ul class="mt-10 space-y-4">
           <li v-for="point in TRUST_POINTS" :key="point.icon" class="flex items-start gap-3">
             <span
-              class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border border-brand-900/15 bg-brand-900/10 dark:border-brand-200/20 dark:bg-brand-200/10"
+              class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10"
             >
-              <UIcon :name="point.icon" class="size-3.5 text-brand-800 dark:text-brand-200" />
+              <UIcon :name="point.icon" class="size-3.5 text-primary" />
             </span>
-            <span class="text-sm leading-relaxed text-brand-900 dark:text-brand-100">{{
-              point.text
-            }}</span>
+            <span class="text-sm leading-relaxed text-toned">{{ point.text }}</span>
           </li>
         </ul>
       </div>
 
-      <p
-        class="relative font-mono text-[11px] uppercase tracking-widest text-brand-700 dark:text-brand-300"
-      >
+      <p class="relative font-mono text-[11px] uppercase tracking-widest text-dimmed">
         Zero-knowledge · End-to-end encrypted · Self-hosted
       </p>
     </aside>
