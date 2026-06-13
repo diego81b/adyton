@@ -10,17 +10,12 @@ vi.mock('~/stores/vault', () => ({
 
 import VersionHistory from '../../app/components/VersionHistory.vue';
 
-const UModalStub = {
-  name: 'UModal',
-  props: ['open'],
-  template: '<div class="umodal"><slot name="body" /></div>',
-};
 const USkeletonStub = { name: 'USkeleton', template: '<div class="uskeleton" />' };
 const UButtonStub = {
   name: 'UButton',
-  props: ['label', 'loading'],
+  props: ['label', 'loading', 'ariaLabel'],
   emits: ['click'],
-  template: '<button class="ubtn" @click="$emit(\'click\', $event)">{{ label }}</button>',
+  template: '<button class="ubtn" :aria-label="ariaLabel" @click="$emit(\'click\', $event)">{{ label }}<slot /></button>',
 };
 
 function version(v: number) {
@@ -40,39 +35,47 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function mountHistory() {
+function mountHistory(open = false) {
   return mount(VersionHistory, {
-    props: { modelValue: false, entryId: 'e1' },
-    global: { stubs: { UModal: UModalStub, USkeleton: USkeletonStub, UButton: UButtonStub } },
+    props: { modelValue: open, entryId: 'e1', version: 3 },
+    global: { stubs: { USkeleton: USkeletonStub, UButton: UButtonStub } },
   });
 }
 
 describe('VersionHistory', () => {
-  it('loads versions when opened and lists them newest-first', async () => {
+  it('loads versions on mount (not on open) so expanding is instant', async () => {
     const w = mountHistory();
-    expect(listVersions).not.toHaveBeenCalled();
-    await w.setProps({ modelValue: true });
     await flushPromises();
     expect(listVersions).toHaveBeenCalledWith('e1');
+    // Data is ready before the section is even opened.
+    await w.setProps({ modelValue: true });
     expect(w.text()).toContain('v3');
     expect(w.text()).toContain('v2');
   });
 
-  it('restores a version and emits the restored entry', async () => {
-    const w = mountHistory();
-    await w.setProps({ modelValue: true });
+  it('reloads when the entry version changes (after an edit)', async () => {
+    const w = mountHistory(true);
+    await flushPromises();
+    expect(listVersions).toHaveBeenCalledTimes(1);
+    await w.setProps({ version: 4 });
+    await flushPromises();
+    expect(listVersions).toHaveBeenCalledTimes(2);
+  });
+
+  it('restores a version and emits the restored entry, keeping the section open', async () => {
+    const w = mountHistory(true);
     await flushPromises();
     await w.findAll('.ubtn').find((b) => b.text() === 'Restore')!.trigger('click');
     await flushPromises();
     expect(restoreVersion).toHaveBeenCalledWith('e1', 'ver-3');
     expect(w.emitted('restored')?.[0]).toEqual([{ id: 'e1', label: 'GitHub' }]);
-    expect(w.emitted('update:modelValue')?.at(-1)).toEqual([false]);
+    // No longer auto-closes — the version watcher refreshes the list in place.
+    expect(w.emitted('update:modelValue')).toBeFalsy();
   });
 
   it('shows an empty state when there are no versions', async () => {
     listVersions.mockResolvedValue([]);
-    const w = mountHistory();
-    await w.setProps({ modelValue: true });
+    const w = mountHistory(true);
     await flushPromises();
     expect(w.text().toLowerCase()).toContain('no previous versions');
   });

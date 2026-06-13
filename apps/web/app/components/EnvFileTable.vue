@@ -64,6 +64,12 @@ function downloadEnv() {
 }
 
 defineExpose({ downloadEnv });
+
+// Tile-style action affordance shared with DetailField / VaultEntryCard (design-system §8):
+// bordered square, neutral by default, brand tint only as the reveal active state.
+const TILE = 'size-9 rounded-md border flex items-center justify-center shrink-0 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+const TILE_IDLE = 'bg-muted border-default text-toned hover:bg-primary/10 hover:text-primary hover:border-primary/40';
+const TILE_ACTIVE = 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20';
 </script>
 
 <template>
@@ -74,14 +80,15 @@ defineExpose({ downloadEnv });
         <span class="text-[11px] font-mono uppercase tracking-wider text-dimmed">
           {{ format === 'json' ? 'JSON file' : 'Raw file' }}
         </span>
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          :icon="isRevealed(RAW_KEY) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+        <button
+          type="button"
+          :class="[TILE, isRevealed(RAW_KEY) ? TILE_ACTIVE : TILE_IDLE]"
           :aria-label="isRevealed(RAW_KEY) ? 'Hide content' : 'Reveal content'"
+          :aria-pressed="isRevealed(RAW_KEY)"
           @click="toggle(RAW_KEY)"
-        />
+        >
+          <UIcon :name="isRevealed(RAW_KEY) ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="size-5" />
+        </button>
       </div>
       <pre
         v-if="isRevealed(RAW_KEY)"
@@ -100,7 +107,7 @@ defineExpose({ downloadEnv });
       >
         <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed">Key</div>
         <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed">Value</div>
-        <div class="w-[68px]" />
+        <div class="w-[76px]" />
       </div>
 
       <div v-if="rows.length" class="divide-y divide-default">
@@ -114,23 +121,26 @@ defineExpose({ downloadEnv });
             class="font-mono text-base text-muted truncate"
             :class="!isRevealed(key) && 'tracking-wider'"
           >{{ isRevealed(key) ? value : masked(value) }}</div>
+          <!-- Reveal then copy: copy is pinned last so it always sits at the far right,
+               matching DetailField. -->
           <div class="flex gap-1 mt-1 sm:mt-0 justify-end">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              icon="i-lucide-copy"
+            <button
+              type="button"
+              :class="[TILE, isRevealed(key) ? TILE_ACTIVE : TILE_IDLE]"
+              :aria-label="isRevealed(key) ? `Hide ${key}` : `Reveal ${key}`"
+              :aria-pressed="isRevealed(key)"
+              @click="toggle(key)"
+            >
+              <UIcon :name="isRevealed(key) ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="size-5" />
+            </button>
+            <button
+              type="button"
+              :class="[TILE, TILE_IDLE]"
               :aria-label="`Copy ${key}`"
               @click="copyValue(key, value)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              :icon="isRevealed(key) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-              :aria-label="isRevealed(key) ? `Hide ${key}` : `Reveal ${key}`"
-              @click="toggle(key)"
-            />
+            >
+              <UIcon name="i-lucide-copy" class="size-5" />
+            </button>
           </div>
         </div>
       </div>

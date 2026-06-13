@@ -24,6 +24,18 @@ const shown = computed(() =>
   !props.revealable || isRevealed('v') ? props.value : '•'.repeat(Math.min(16, props.value.length || 12)),
 );
 
+// The link is a user-controlled, client-decrypted value (LOGIN url). Bind only
+// http(s)/mailto to href — a javascript:/data: URI would otherwise execute on click.
+const safeLink = computed(() => {
+  if (!props.link) return null;
+  try {
+    const u = new URL(props.link, window.location.origin);
+    return ['http:', 'https:', 'mailto:'].includes(u.protocol) ? u.toString() : null;
+  } catch {
+    return null;
+  }
+});
+
 async function onCopy() {
   const ok = await copy(props.value);
   toast.add(
@@ -32,6 +44,13 @@ async function onCopy() {
       : { title: 'Copy failed', color: 'error' },
   );
 }
+
+// Tile-style action affordance shared with the vault list (VaultEntryCard): a
+// bordered square that matches the rest of the app, instead of a loose ghost icon.
+// Neutral by default — the page's single accent CTA is Edit (design-system §8).
+const TILE = 'size-9 rounded-md border flex items-center justify-center shrink-0 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+const TILE_IDLE = 'bg-muted border-default text-toned hover:bg-primary/10 hover:text-primary hover:border-primary/40';
+const TILE_ACTIVE = 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20';
 </script>
 
 <template>
@@ -43,35 +62,40 @@ async function onCopy() {
         :class="[mono && 'font-mono tabular-nums', revealable && !isRevealed('v') && 'tracking-wider']"
       >{{ shown }}</span>
 
-      <UButton
-        v-if="copyable"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        icon="i-lucide-copy"
-        :aria-label="`Copy ${label}`"
-        @click="onCopy"
-      />
-      <UButton
-        v-if="link"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        icon="i-lucide-external-link"
-        :to="link"
-        target="_blank"
-        rel="noopener noreferrer"
-        :aria-label="`Open ${label}`"
-      />
-      <UButton
-        v-if="revealable"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        :icon="isRevealed('v') ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-        :aria-label="isRevealed('v') ? `Hide ${label}` : `Reveal ${label}`"
-        @click="toggle('v')"
-      />
+      <!-- Action tiles sit tighter on mobile (gap-1) so reveal/redirect/copy read as a
+           single control group; they relax to gap-2 from sm up. -->
+      <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+        <button
+          v-if="revealable"
+          type="button"
+          :class="[TILE, isRevealed('v') ? TILE_ACTIVE : TILE_IDLE]"
+          :aria-label="isRevealed('v') ? `Hide ${label}` : `Reveal ${label}`"
+          :aria-pressed="isRevealed('v')"
+          @click="toggle('v')"
+        >
+          <UIcon :name="isRevealed('v') ? 'i-lucide-eye-off' : 'i-lucide-eye'" class="size-5" />
+        </button>
+        <a
+          v-if="safeLink"
+          :href="safeLink"
+          target="_blank"
+          rel="noopener noreferrer"
+          :class="[TILE, TILE_IDLE]"
+          :aria-label="`Open ${label}`"
+        >
+          <UIcon name="i-lucide-external-link" class="size-5" />
+        </a>
+        <!-- Copy is pinned last so it always sits at the row's far right. -->
+        <button
+          v-if="copyable"
+          type="button"
+          :class="[TILE, TILE_IDLE]"
+          :aria-label="`Copy ${label}`"
+          @click="onCopy"
+        >
+          <UIcon name="i-lucide-copy" class="size-5" />
+        </button>
+      </div>
     </div>
   </div>
 </template>

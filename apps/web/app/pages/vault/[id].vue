@@ -76,8 +76,18 @@ const metaLine = computed(() => {
   const e = entry.value;
   if (!e) return '';
   const added = `Added ${formatRelative(e.createdAt)}`;
-  const modified = `last modified ${formatRelative(e.updatedAt)}`;
-  return `${added} · ${modified}`;
+  // createdAt and updatedAt are set together on insert, so an unedited entry would
+  // otherwise print the same relative time twice ("Added yesterday · last modified
+  // yesterday"). Show "last modified" only once the entry has actually been edited.
+  const edited = e.updatedAt.getTime() - e.createdAt.getTime() > 1000;
+  return edited ? `${added} · last modified ${formatRelative(e.updatedAt)}` : added;
+});
+
+// Exact timestamps on hover — the relative line is approximate by design.
+const metaTitle = computed(() => {
+  const e = entry.value;
+  if (!e) return '';
+  return `Created ${e.createdAt.toLocaleString()}\nModified ${e.updatedAt.toLocaleString()}`;
 });
 
 watchEffect(() => {
@@ -86,6 +96,7 @@ watchEffect(() => {
 
 function formatRelative(date: Date): string {
   const diffMs = date.getTime() - Date.now();
+  if (Number.isNaN(diffMs)) return 'unknown';
   const abs = Math.abs(diffMs);
   const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
   const units: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -179,15 +190,67 @@ async function confirmDelete() {
           <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mt-2 break-words">
             {{ entry.label }}
           </h1>
-          <p class="text-sm text-dimmed mt-0.5 tabular-nums">{{ metaLine }}</p>
+          <p class="text-sm text-dimmed mt-0.5 tabular-nums" :title="metaTitle">{{ metaLine }}</p>
         </div>
+      </div>
+
+      <!-- Action bar (top) — Swiss hierarchy: one solid primary (Edit), secondary
+           actions neutral, Delete pushed apart as a destructive ghost. Icon-only on
+           mobile. History toggles the inline section below the content. -->
+      <div class="mb-5 flex items-center gap-2">
+        <UButton
+          size="lg"
+          color="primary"
+          icon="i-lucide-pencil"
+          aria-label="Edit"
+          @click="editOpen = true"
+        >
+          <span class="hidden sm:inline">Edit</span>
+        </UButton>
+        <UButton
+          v-if="entry.type === T.ENV_FILE"
+          size="lg"
+          color="neutral"
+          variant="subtle"
+          icon="i-lucide-download"
+          :aria-label="envDownloadLabel"
+          @click="envTable?.downloadEnv()"
+        >
+          <span class="hidden sm:inline">{{ envDownloadLabel }}</span>
+        </UButton>
+        <UButton
+          size="lg"
+          color="neutral"
+          variant="subtle"
+          icon="i-lucide-history"
+          :aria-label="historyOpen ? 'Hide history' : 'Show history'"
+          :aria-expanded="historyOpen"
+          @click="historyOpen = !historyOpen"
+        >
+          <span class="hidden sm:inline">{{ historyOpen ? 'Hide history' : 'Show history' }}</span>
+        </UButton>
+        <UButton
+          size="lg"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-trash-2"
+          aria-label="Delete"
+          class="ml-auto"
+          @click="deleteOpen = true"
+        >
+          <span class="hidden sm:inline">Delete</span>
+        </UButton>
       </div>
 
       <!-- ENV_FILE: key/value table -->
       <EnvFileTable v-if="entry.type === T.ENV_FILE" ref="envTable" :entry="entry" />
 
-      <!-- All other types: field card -->
-      <div v-else class="rounded-lg border border-default bg-elevated divide-y divide-default">
+      <!-- All other types: field card. SECURE_NOTE has no fields (the note IS the
+           content), so skip it here — otherwise it renders an empty bordered box. -->
+      <div
+        v-else-if="entry.type !== T.SECURE_NOTE"
+        class="rounded-lg border border-default bg-elevated divide-y divide-default"
+      >
         <!-- LOGIN -->
         <template v-if="entry.type === T.LOGIN">
           <DetailField v-if="entry.url" label="Site URL" :value="entry.url" :link="entry.url" />
@@ -265,52 +328,14 @@ async function confirmDelete() {
         </p>
       </div>
 
-      <!-- Action bar — Swiss hierarchy: one solid primary (Edit, matching the list's
-           "Add"), secondary actions ghost, and Delete pushed apart as a destructive
-           ghost. Icon-only on mobile. -->
-      <div class="mt-5 flex items-center gap-2">
-        <UButton
-          size="lg"
-          color="primary"
-          icon="i-lucide-pencil"
-          aria-label="Edit"
-          @click="editOpen = true"
-        >
-          <span class="hidden sm:inline">Edit</span>
-        </UButton>
-        <UButton
-          v-if="entry.type === T.ENV_FILE"
-          size="lg"
-          color="neutral"
-          variant="subtle"
-          icon="i-lucide-download"
-          :aria-label="envDownloadLabel"
-          @click="envTable?.downloadEnv()"
-        >
-          <span class="hidden sm:inline">{{ envDownloadLabel }}</span>
-        </UButton>
-        <UButton
-          size="lg"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-history"
-          aria-label="History"
-          @click="historyOpen = true"
-        >
-          <span class="hidden sm:inline">History</span>
-        </UButton>
-        <UButton
-          size="lg"
-          color="error"
-          variant="ghost"
-          icon="i-lucide-trash-2"
-          aria-label="Delete"
-          class="ml-auto"
-          @click="deleteOpen = true"
-        >
-          <span class="hidden sm:inline">Delete</span>
-        </UButton>
-      </div>
+      <!-- Version history — inline collapsible section below the content, toggled by
+           the History button in the top action bar. -->
+      <VersionHistory
+        v-model="historyOpen"
+        :entry-id="entry.id"
+        :version="entry.secretVersion"
+        class="mt-4"
+      />
 
       <!-- Encryption badge -->
       <div class="mt-6 flex items-center justify-center gap-2 text-xs text-dimmed">
@@ -325,9 +350,6 @@ async function confirmDelete() {
         :entry="entry"
         @save="onSave"
       />
-
-      <!-- Version history -->
-      <VersionHistory v-model="historyOpen" :entry-id="entry.id" />
 
       <!-- Delete confirm -->
       <UModal v-model:open="deleteOpen" title="Delete entry?">

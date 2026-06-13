@@ -84,8 +84,8 @@ const notesOpen = ref(false);
         class="size-10 rounded-lg border flex items-center justify-center shrink-0 transition"
         :class="
           notesOpen
-            ? 'bg-primary/10 border-primary/20 text-primary'
-            : 'bg-muted border-default text-toned hover:text-primary hover:border-primary/40'
+            ? 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
+            : 'bg-muted border-default text-toned hover:bg-primary/10 hover:text-primary hover:border-primary/40'
         "
         :aria-label="notesOpen ? `Hide notes for ${entry.label}` : `Show notes for ${entry.label}`"
         :aria-expanded="notesOpen"
