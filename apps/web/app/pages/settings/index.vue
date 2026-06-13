@@ -163,21 +163,9 @@ async function onDeleted() {
           </div>
         </SettingsSection>
 
-        <!-- ============== DANGER ZONE ============== -->
-        <SettingsSection id="settings-danger" title="Danger zone" icon="i-lucide-triangle-alert" danger>
-          <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="min-w-0 flex-1">
-                <h3 class="text-base font-semibold text-rose-300">Delete account</h3>
-                <p class="mt-0.5 text-[13px] text-muted">
-                  Permanently removes your account and every encrypted entry. Irreversible.
-                </p>
-              </div>
-              <UButton color="error" variant="subtle" size="md" @click="deleteOpen = true">
-                Delete account
-              </UButton>
-            </div>
-          </div>
+        <!-- ============== APPEARANCE ============== -->
+        <SettingsSection id="settings-appearance" title="Appearance" icon="i-lucide-sun-moon">
+          <AppearanceCard />
         </SettingsSection>
       </div>
 
@@ -194,6 +182,27 @@ async function onDeleted() {
           </div>
         </SettingsSection>
       </div>
+    </div>
+
+    <!-- ============== DANGER ZONE — full width, spatially separated from
+         everything else so the destructive action can't be mistaken for a
+         routine setting. ============== -->
+    <div class="mt-10">
+      <SettingsSection id="settings-danger" title="Danger zone" icon="i-lucide-triangle-alert" danger>
+        <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <h3 class="text-base font-semibold text-rose-700 dark:text-rose-300">Delete account</h3>
+              <p class="mt-0.5 text-[13px] text-muted">
+                Permanently removes your account and every encrypted entry. Irreversible.
+              </p>
+            </div>
+            <UButton color="error" variant="subtle" size="md" @click="deleteOpen = true">
+              Delete account
+            </UButton>
+          </div>
+        </div>
+      </SettingsSection>
     </div>
 
     <DeleteAccountModal v-model="deleteOpen" @deleted="onDeleted" />

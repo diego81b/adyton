@@ -111,7 +111,7 @@ watch(canManage, (can) => {
       <h3 class="text-base font-semibold">Passkeys</h3>
       <span
         v-if="canManage && passkeys.length"
-        class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-300"
+        class="rounded-full border border-brand-500/30 bg-brand-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-300"
       >
         {{ passkeys.length }}
       </span>
@@ -190,7 +190,7 @@ watch(canManage, (can) => {
           >
             Create passkey
           </UButton>
-          <UButton color="neutral" variant="soft" size="md" :disabled="registering" @click="cancelAdd">
+          <UButton color="neutral" variant="ghost" size="md" :disabled="registering" @click="cancelAdd">
             Cancel
           </UButton>
         </div>

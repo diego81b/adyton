@@ -31,9 +31,9 @@ function finish() {
       <div class="p-5">
         <div class="mb-3 flex items-center gap-2.5">
           <div
-            class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/15"
+            class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-500/15"
           >
-            <UIcon name="i-lucide-key-round" class="size-4 text-emerald-400" />
+            <UIcon name="i-lucide-key-round" class="size-4 text-brand-400" />
           </div>
           <h2 class="font-bold tracking-tight">New recovery codes</h2>
         </div>

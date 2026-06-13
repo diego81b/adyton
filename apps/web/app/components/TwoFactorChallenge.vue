@@ -137,7 +137,7 @@ function onSubmit() {
         block
         size="lg"
         trailing-icon="i-lucide-arrow-right"
-        class="accent-glow text-white"
+        class="accent-glow"
         :loading="loading"
         :disabled="!canSubmit"
       >

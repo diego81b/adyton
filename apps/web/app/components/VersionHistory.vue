@@ -76,7 +76,7 @@ watch(open, (v) => {
           </div>
           <UButton
             color="neutral"
-            variant="soft"
+            variant="subtle"
             size="xs"
             label="Restore"
             icon="i-lucide-history"

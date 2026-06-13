@@ -10,8 +10,8 @@ defineProps<{
 <template>
   <section :id="id" class="scroll-mt-20">
     <div class="mb-4 flex items-center gap-2">
-      <UIcon :name="icon" class="size-5" :class="danger ? 'text-rose-400' : 'text-primary'" />
-      <h2 class="text-lg font-bold tracking-tight" :class="danger ? 'text-rose-400' : ''">
+      <UIcon :name="icon" class="size-5" :class="danger ? 'text-rose-600 dark:text-rose-400' : 'text-primary'" />
+      <h2 class="text-lg font-bold tracking-tight" :class="danger ? 'text-rose-600 dark:text-rose-400' : ''">
         {{ title }}
       </h2>
     </div>

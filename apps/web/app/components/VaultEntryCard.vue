@@ -28,7 +28,7 @@ const notesOpen = ref(false);
 
 <template>
   <div
-    class="vault-card relative overflow-hidden bg-elevated border border-default rounded-xl cursor-pointer hover:border-primary/40 transition"
+    class="vault-card relative overflow-hidden bg-elevated border border-default rounded-xl cursor-pointer hover:border-primary/40 active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition"
     role="button"
     tabindex="0"
     @click="emit('open', entry.id)"
@@ -83,8 +83,8 @@ const notesOpen = ref(false);
         class="size-10 rounded-lg border flex items-center justify-center shrink-0 transition"
         :class="
           notesOpen
-            ? 'bg-yellow-400/25 border-yellow-400/40 text-yellow-200'
-            : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-300 hover:bg-yellow-400/20'
+            ? 'bg-yellow-500/25 border-yellow-500/40 text-yellow-800 dark:bg-yellow-400/25 dark:border-yellow-400/40 dark:text-yellow-200'
+            : 'bg-yellow-500/10 border-yellow-500/25 text-yellow-700 hover:bg-yellow-500/20 dark:bg-yellow-400/10 dark:border-yellow-400/20 dark:text-yellow-300 dark:hover:bg-yellow-400/20'
         "
         :aria-label="notesOpen ? `Hide notes for ${entry.label}` : `Show notes for ${entry.label}`"
         :aria-expanded="notesOpen"

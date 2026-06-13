@@ -143,7 +143,7 @@ async function copyEntry(entry: DecryptedEntry) {
         <UButton
           size="lg"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           icon="i-lucide-list-filter"
           aria-label="Filters"
           @click="filtersOpen = true"
@@ -154,7 +154,6 @@ async function copyEntry(entry: DecryptedEntry) {
       <UButton
         size="lg"
         icon="i-lucide-plus"
-        class="accent-glow text-white"
         aria-label="Add entry"
         @click="addOpen = true"
       >

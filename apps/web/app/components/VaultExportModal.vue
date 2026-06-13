@@ -44,8 +44,8 @@ async function onExport() {
     <template #content>
       <div class="p-5 space-y-4">
         <div class="flex items-center gap-2.5">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10">
-            <UIcon name="i-lucide-download" class="size-4 text-emerald-400" />
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-500/10">
+            <UIcon name="i-lucide-download" class="size-4 text-brand-400" />
           </div>
           <h2 class="font-bold tracking-tight">Export vault</h2>
         </div>
@@ -82,7 +82,7 @@ async function onExport() {
           <div class="flex gap-2 pt-1">
             <UButton
               color="neutral"
-              variant="soft"
+              variant="ghost"
               size="lg"
               class="flex-1 justify-center"
               @click="open = false"
@@ -105,12 +105,12 @@ async function onExport() {
         </template>
 
         <template v-else>
-          <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300 leading-relaxed">
+          <div class="rounded-xl border border-brand-500/30 bg-brand-500/10 p-4 text-sm text-brand-700 dark:text-brand-300 leading-relaxed">
             <UIcon name="i-lucide-check-circle" class="inline size-4 mr-1 align-text-bottom" />
             Export downloaded. Store it safely together with the export password — both are required to restore.
           </div>
           <div class="flex gap-2">
-            <UButton color="neutral" variant="soft" size="lg" class="flex-1 justify-center" @click="open = false">
+            <UButton color="neutral" variant="ghost" size="lg" class="flex-1 justify-center" @click="open = false">
               Close
             </UButton>
             <UButton color="neutral" variant="subtle" size="lg" class="flex-1 justify-center" @click="done = false">

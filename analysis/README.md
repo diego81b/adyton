@@ -21,6 +21,7 @@ Analisi completa frammentata per ambito. Documento originale monolitico: [`../AN
 
 ### Frontend
 - [Nuxt 4 + NuxtUI 4 + Pinia](./frontend/nuxt.md) (sez. 6)
+- [Design System — brand palette & tokens](./frontend/design-system.md) (added 2026-06-12)
 - [UX Design — Mobile First](./frontend/ux-mobile.md) (sez. 14)
 - [PWA vs Desktop App (Tauri)](./frontend/pwa-vs-tauri.md) (sez. 15)
 

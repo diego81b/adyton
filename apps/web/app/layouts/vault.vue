@@ -39,7 +39,7 @@ async function signOut() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-default text-default bg-grid">
+  <div class="min-h-screen bg-default text-default">
     <div class="lg:flex">
       <AppSidebar />
 

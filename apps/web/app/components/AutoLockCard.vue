@@ -59,7 +59,7 @@ async function apply(patch: Partial<{ lockDurationMs: number; lockMode: LockMode
         {{ d.label }}
       </button>
     </div>
-    <p v-if="settings.lockDurationMs === 0" class="mt-2 text-[13px] text-amber-400">
+    <p v-if="settings.lockDurationMs === 0" class="mt-2 text-[13px] text-amber-700 dark:text-amber-400">
       The vault stays unlocked until you lock it, close the tab, or reload.
     </p>
 

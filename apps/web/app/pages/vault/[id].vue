@@ -5,7 +5,13 @@ import { useVaultStore } from '~/stores/vault';
 import { useAppChrome } from '~/composables/useAppChrome';
 import { useLockDeferral } from '~/composables/useLockDeferral';
 import { detectEnvFormat, type EntryDraft } from '~/utils/vault-crypto';
-import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, VERSION_TAG_CLASS, cardBrand } from '~/utils/entry-display';
+import {
+  TYPE_META,
+  TILE_CLASS,
+  ENVIRONMENT_META,
+  VERSION_TAG_CLASS,
+  cardBrand,
+} from '~/utils/entry-display';
 
 definePageMeta({ ssr: false, layout: 'vault', middleware: 'auth' });
 
@@ -147,7 +153,7 @@ async function confirmDelete() {
     <div v-else-if="notFound || !entry" class="py-16 text-center">
       <UIcon name="i-lucide-file-question" class="size-10 text-dimmed mx-auto mb-3" />
       <p class="text-sm text-muted">This entry does not exist or is not available.</p>
-      <UButton class="mt-4" variant="soft" color="neutral" to="/vault" label="Back to vault" />
+      <UButton class="mt-4" variant="subtle" color="neutral" to="/vault" label="Back to vault" />
     </div>
 
     <template v-else>
@@ -164,18 +170,15 @@ async function confirmDelete() {
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <UBadge
-              v-if="envMeta"
-              color="neutral"
-              variant="soft"
-              size="md"
-            >
+            <UBadge v-if="envMeta" color="neutral" variant="soft" size="md">
               <span class="w-1.5 h-1.5 rounded-full mr-1" :class="envMeta.dot" />
               {{ envMeta.label }}
             </UBadge>
             <span :class="VERSION_TAG_CLASS">v{{ entry.secretVersion }}</span>
           </div>
-          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mt-2 break-words">{{ entry.label }}</h1>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mt-2 break-words">
+            {{ entry.label }}
+          </h1>
           <p class="text-sm text-dimmed mt-0.5">{{ metaLine }}</p>
         </div>
       </div>
@@ -188,7 +191,12 @@ async function confirmDelete() {
         <!-- LOGIN -->
         <template v-if="entry.type === T.LOGIN">
           <DetailField v-if="entry.url" label="Site URL" :value="entry.url" :link="entry.url" />
-          <DetailField v-if="entry.username" label="Username" :value="entry.username" :mono="false" />
+          <DetailField
+            v-if="entry.username"
+            label="Username"
+            :value="entry.username"
+            :mono="false"
+          />
           <DetailField v-if="entry.password" label="Password" :value="entry.password" revealable />
           <EntryTotp v-if="entry.totpSecret" :secret="entry.totpSecret" />
         </template>
@@ -196,7 +204,12 @@ async function confirmDelete() {
         <!-- SECRET -->
         <template v-else-if="entry.type === T.SECRET">
           <DetailField v-if="entry.secretKey" label="Key" :value="entry.secretKey" />
-          <DetailField v-if="entry.secretValue" label="Value" :value="entry.secretValue" revealable />
+          <DetailField
+            v-if="entry.secretValue"
+            label="Value"
+            :value="entry.secretValue"
+            revealable
+          />
           <DetailField
             v-if="entry.secretDescription"
             label="Description"
@@ -214,29 +227,42 @@ async function confirmDelete() {
             :value="entry.cardholderName"
             :mono="false"
           />
-          <DetailField v-if="entry.cardNumber" :label="cardNumberLabel" :value="entry.cardNumber" revealable />
+          <DetailField
+            v-if="entry.cardNumber"
+            :label="cardNumberLabel"
+            :value="entry.cardNumber"
+            revealable
+          />
           <DetailField v-if="entry.cardExpiry" label="Expiry" :value="entry.cardExpiry" />
           <DetailField v-if="entry.cardCvv" label="CVV" :value="entry.cardCvv" revealable />
         </template>
 
         <!-- IDENTITY -->
         <template v-else-if="entry.type === T.IDENTITY">
-          <DetailField v-if="entry.firstName" label="First name" :value="entry.firstName" :mono="false" />
-          <DetailField v-if="entry.lastName" label="Last name" :value="entry.lastName" :mono="false" />
+          <DetailField
+            v-if="entry.firstName"
+            label="First name"
+            :value="entry.firstName"
+            :mono="false"
+          />
+          <DetailField
+            v-if="entry.lastName"
+            label="Last name"
+            :value="entry.lastName"
+            :mono="false"
+          />
           <DetailField v-if="entry.email" label="Email" :value="entry.email" :mono="false" />
           <DetailField v-if="entry.phone" label="Phone" :value="entry.phone" :mono="false" />
         </template>
-
       </div>
 
       <!-- Notes — standalone card so EVERY type shows them (the old block lived
            inside the field card above, which ENV_FILE never renders). -->
-      <div
-        v-if="entry.notes"
-        class="mt-4 bg-elevated/40 border border-default rounded-2xl p-4"
-      >
+      <div v-if="entry.notes" class="mt-4 bg-elevated/40 border border-default rounded-2xl p-4">
         <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed mb-1.5">Notes</div>
-        <p class="text-base text-default leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
+        <p class="text-base text-default leading-relaxed whitespace-pre-wrap break-words">
+          {{ entry.notes }}
+        </p>
       </div>
 
       <!-- Action bar. Icon-only on mobile (labels appear from sm up) so all actions fit
@@ -245,7 +271,7 @@ async function confirmDelete() {
         <UButton
           v-if="entry.type === T.ENV_FILE"
           size="lg"
-          class="flex-1 accent-glow text-white justify-center"
+          class="flex-1 justify-center"
           icon="i-lucide-download"
           :aria-label="envDownloadLabel"
           @click="envTable?.downloadEnv()"
@@ -255,8 +281,7 @@ async function confirmDelete() {
         <UButton
           size="lg"
           class="flex-1 justify-center"
-          color="neutral"
-          variant="soft"
+          color="primary"
           icon="i-lucide-pencil"
           aria-label="Edit"
           @click="editOpen = true"
@@ -267,7 +292,7 @@ async function confirmDelete() {
           size="lg"
           class="flex-1 justify-center"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           icon="i-lucide-history"
           aria-label="History"
           @click="historyOpen = true"
@@ -278,7 +303,7 @@ async function confirmDelete() {
           size="lg"
           class="flex-1 justify-center"
           color="error"
-          variant="soft"
+          variant="subtle"
           icon="i-lucide-trash-2"
           aria-label="Delete"
           @click="deleteOpen = true"
@@ -294,7 +319,12 @@ async function confirmDelete() {
       </div>
 
       <!-- Edit modal -->
-      <VaultEntryModal v-model="editOpen" v-model:dirty="entryDirty" :entry="entry" @save="onSave" />
+      <VaultEntryModal
+        v-model="editOpen"
+        v-model:dirty="entryDirty"
+        :entry="entry"
+        @save="onSave"
+      />
 
       <!-- Version history -->
       <VersionHistory v-model="historyOpen" :entry-id="entry.id" />
@@ -309,7 +339,7 @@ async function confirmDelete() {
         </template>
         <template #footer>
           <div class="flex gap-2 justify-end w-full">
-            <UButton color="neutral" variant="soft" label="Cancel" @click="deleteOpen = false" />
+            <UButton color="neutral" variant="ghost" label="Cancel" @click="deleteOpen = false" />
             <UButton color="error" label="Delete" :loading="deleting" @click="confirmDelete" />
           </div>
         </template>

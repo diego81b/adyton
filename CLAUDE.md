@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Phases 1–4 + 4.1 complete** (2026-06-01). Monorepo scaffold, Docker dev stack, NestJS auth, vault API, shared crypto, and Nuxt auth flows are implemented and tested.
 
 **Phase 5 (Nuxt vault UI) in progress** on `feature/phase-5-vault-ui`. Steps 0–2 complete (2026-06-03):
+
 - **Step 0** — auth-UI foundation + mockup retrofit of login/register/unlock: emerald visual system (`bg-grid`/`radial-glow`/`accent-glow` as Tailwind v4 `@utility`, Inter + JetBrains Mono via `@nuxt/fonts`, dark-default); `AuthShell`/`AuthCard`/`BrandLogo`/`PasswordInput`/`PasswordStrengthMeter`/`KeyDerivationStatus` + `usePasswordStrength`.
 - **Step 1** — vault data layer (`vault-crypto.ts`, `useVaultStore`), entry list (`/vault`), app shell (`vault` layout, sidebar/bottom-nav, `LockOverlay`, auto-lock).
 - **Step 2** — entry detail (`/vault/[id]`), `VaultEntryModal` (add/edit all 6 types, responsive **slideover**), version history + restore, per-LOGIN **TOTP** (RFC 6238 in `packages/shared/src/totp.ts`), reveal/copy (`useReveal` separate from clipboard clear), `.env` export. Plus: `fetchAll` loads the whole vault on unlock (client search is complete — server can't search ciphertext); `VaultFilters` slideover (type + environment; environment shown only for ENV_FILE/SECRET); dedicated `/environments` view **dropped** (folded into filters); nav now Vault/Generator/Settings.
@@ -19,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Post-Phase-5 UI polish (2026-06-04, browser-verified):** JSON env files (`detectEnvFormat` → raw viewer + `.json` download; dotenv table otherwise); card brand detection (`cardBrand`, simple-icons) + expiry auto-slash; vault cards: type tooltip on tile (no text badge), fixed fuchsia `vN` tag before the title, env as left color stripe, expandable notes section (`@click.stop` everywhere — card click opens detail), two fixed action columns (notes yellow / copy emerald, tile-style); filters apply on Done (draft semantics); chips derive tones from `TILE_CLASS` (sync pinned by test); `apiFetch` non-auth 401 → silent refresh+retry once, dead session → hard redirect `/login`; settings two-column desktop (Account/Vault/Danger left, Security right); width system: layout `max-w-6xl`, pages pin 4xl (vault/detail/generator) or 5xl (settings). Backlog: type/env color legend.
 
 **Phase 6 (2FA) COMPLETE** on `feature/phase-6-2fa` (off the phase-5 tip; phase-5 pushed to origin, phase-6 NOT pushed yet). All 4 steps done (2026-06-06):
+
 - **Step 0 — backend TOTP:** `TwoFactorModule` (`/auth/2fa/setup|enable|disable|recovery-codes|authenticate`). 2FA login issues an **opaque Redis `mfaToken`** (SHA-256-hashed key, TTL 300s, 5-attempt budget) and NO JWT — nothing partial can pass `JwtAuthGuard`; tokens only from `authenticate` via `AuthService.completeLogin()` (extracted, public). TOTP secret AES-256-GCM at rest, key `secrets/totp_enc.key` (gitignored; gen-keys scripts produce it; compose secret `totp_enc_key`, env `TOTP_ENC_KEY_PATH`) — sanctioned ZK exception (architecture.md §3.5); losing the key forces global 2FA re-enrollment. 8 recovery codes Argon2id `m=19456,t=2,p=1`, row deleted on use. `RecoveryCode` entity + migration. otplib v13 functional API; `epochTolerance:30` is SECONDS (pinned by stale-code regression test). jest transforms otplib's ESM-only deps (`transformIgnorePatterns` + `allowJs` — keep).
 - **Step 1 — frontend TOTP:** two-phase login (password kept in memory until second factor — needed for vault-key derivation; expired/exhausted token resets to credentials), `TwoFactorChallenge`, settings `TwoFactorCard` + `TwoFactorSetupModal` (QR → verify → recovery codes w/ mandatory ack, modal locked at step c) + `RecoveryCodesList/Modal` + `PasswordPromptModal`. 'View recovery codes' deliberately omitted (server stores hashes only).
 - **Step 2 — WebAuthn passkeys:** `WebauthnModule` (`/auth/webauthn/register/*`, `/credentials`, `/authenticate/*`), same mfaToken flow + shared attempt budget, Redis in-flight challenges keyed by user (reg) / token hash (auth). **Passkey registration requires TOTP enabled first** (recovery-code story; V1 constraint). `MfaRequired.methods[]` (webauthn first). Frontend: `useWebAuthn` composable (@simplewebauthn/browser), `PasskeysCard`, passkey button in challenge. rpID/origin: `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` env (dev defaults localhost/30000).
@@ -30,12 +32,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **WebAuthn rpID display:** passkey label on device shows `rpID` (domain), not `rpName`. In dev always shows "localhost" — correct, unchangeable (rpID is bound to hostname by the WebAuthn spec). In prod set `WEBAUTHN_RP_ID` + `WEBAUTHN_ORIGIN` to the real domain.
 
 **Phase 8 (Capacitor mobile) CODE-COMPLETE** on `feature/phase-8-capacitor-mobile` (2026-06-12, 3 commits da8f9f9→38a3510; branched off develop after the 7.5 merge). Device builds NOT yet run (no Android SDK/Xcode on the dev machine — see `apps/mobile/README.md`).
+
 - **apps/mobile:** Capacitor 8 shell, `webDir` → `apps/web/.output/public` (`pnpm --filter @adyton/web generate`, `NUXT_PUBLIC_API_BASE_URL` must be ABSOLUTE — baked at build time). **`server.hostname` pinned to `adyton.diegobaldeschi.dev` + https schemes** → WebView origin is same-site with the api subdomain → SameSite=Lax refresh cookie + existing CORS allowlist work unchanged (without this, `capacitor://localhost` is cross-site and sessions silently break). Live reload via `CAP_SERVER_URL` env (guarded: throws if set with NODE_ENV=production — `cleartext:true` must not ship). Android: `USE_BIOMETRIC` permission added manually (plugin doesn't merge it), `allowBackup=false`. iOS: `NSFaceIDUsageDescription`.
 - **Biometric unlock (sanctioned ZK exception, phases.md Phase 8):** raw Argon2id key bytes (NEVER the master password) stored in iOS Keychain / Android Keystore via `@aparajita/capacitor-secure-storage`, gated app-side by `@aparajita/capacitor-biometric-auth`. Web platform refuses enrollment. `useArgon2Worker` split into `deriveRawKey`/`importVaultKey` (public signature unchanged); crypto store += `unlockWithRawKey`. `useBiometricUnlock`: enroll (password re-derive cross-checked vs live key via encrypt/decrypt round-trip — no exportKey), unlock (stored-value validated 64-hex before OS prompt; corrupt → auto-unenroll), zeroize raw bytes after import. Settings `BiometricUnlockCard` (native-only, self-gating); unlock page auto-attempts + retry button. **Stale-key unenroll fires ONLY when biometric succeeded but vault decrypt failed** — network errors (err has `status`) and plugin hardware errors keep the enrollment (regression tests pin all three paths).
 - **Lock-on-background:** `app/plugins/native-lock.client.ts` — `App.addListener('appStateChange')` → `lock()`; `removeAllListeners()` first (dev live-reload stacking).
 - **Verified:** web 411 tests green, typecheck + lint clean, `nuxt generate` + `cap sync` both platforms OK. **Android device-verified (2026-06-12):** debug APK builds + installs (OPPO via adb); edge-to-edge insets fixed (`@capacitor-community/safe-area` + `EdgeToEdge.enable` + CSS env() consumers incl. slideover footers and toaster viewport); branded launcher icons + splash (`pnpm --filter @adyton/mobile assets`, source `apps/web/public/favicon.svg`); staging API domain is **`api-adyton.diegobaldeschi.dev`** (dash — `api.adyton` is NXDOMAIN; health at `/health`, not `/api/health`).
 - **AGP 9 landmine:** Android Studio suggests upgrading to AGP 9 / Gradle 9 — REFUSE. Every Capacitor plugin's build.gradle uses `getDefaultProguardFile('proguard-android.txt')` (removed in AGP 9) and lives in node_modules. Stay on the template AGP 8.13; Gradle 8.14.x patch bumps are fine.
 - Remaining for phase closure: biometric smoke on device, iOS build (needs macOS), README roadmap flip, merge to develop.
+
+**Design-system coherence pass (2026-06-13, browser-verified both themes):** button hierarchy unified (see `design-system.md` §5 — primary solid one-per-screen, secondary `neutral subtle`, cancel/back `ghost`, destructive trigger `error subtle` / confirm solid; `variant="soft"` retired for buttons; `text-white` removed from primary CTAs per pairing rule; `accent-glow` now auth-screens-only). All hard-coded dark-only accent classes made theme-adaptive (light `*-700` + `dark:*-300` shapes, §6): `TILE_CLASS`/`VERSION_TAG_CLASS`, notes button, generator char/badge colors, rose danger texts across settings/modals. Settings: new **Appearance** section with light/dark/system selector (`AppearanceCard`, `useColorMode`, per-device localStorage — NOT DB settings; `useColorMode` added to eslint globals), danger zone moved out of the grid to separated full-width bottom. Vault cards: `focus-visible` ring + press scale feedback. Detail action bar: Edit = primary subtle leading action.
+
+**Brand rebrand emerald → Jet Stream / Blue Whale (2026-06-12, browser-verified both themes):** sanctioned deviation from the emerald mockup. Custom Tailwind scale `brand` in `main.css` (`@theme static` — REQUIRED: Tailwind v4 tree-shakes unused @theme vars and shades referenced only via NuxtUI's `--ui-color-primary-*` aliases would be pruned, breaking light mode), anchors 200=`#bdd9d7` Jet Stream, 900=`#03363d` Blue Whale, 950=`#011a1f`; NuxtUI `primary: 'brand'`. **Pairing rule (user-mandated): Blue Whale surfaces carry Jet Stream text and vice versa** — dark `--ui-primary`=brand-200 (CTA = Jet Stream fill + inverted whale text), light =brand-600 (white text 5.8:1); dark surface tokens whale-tinted (`--ui-bg`=950, elevated=900), light text tokens whale-family on white/brand-50, light input borders brand-400; dark inputs `dark:bg-brand-800/30` via app.config slots (input/textarea/select). Auth screens: enterprise **split-panel** `AuthShell` (lg+: brand/trust panel — light theme Jet Stream solid-ish, dark theme SOLID `#03363d` no gradient/glow so the hex renders true; mobile keeps single column, brand slot `lg:hidden`, pages restate context in card header), emoji footers → lucide SVG. Icon gotcha: `i-lucide-database-zap` not in client bundle — trust list uses pinned icons (`shield-check`/`key-round`/`eye-off`). favicon.svg fill `#4c8887`, raster icons + favicon.ico regenerated, mobile splash/launcher BG `#011a1f` (= theme-color meta), `pnpm --filter @adyton/mobile assets` re-run. Width prop `5xl` dropped from AuthShell (md|lg).
+
+**Single-source color system (2026-06-13, browser-verified both themes):** fixed "dark too monochrome" + made rebrand a 1-command operation. Palette is **generated from two anchors** (one light, one dark), not hand-authored. `scripts/lib/palette.mjs` (pure OKLCH engine, vitest-tested, 17 tests) + `scripts/gen-palette.mjs` (CLI: anchors → rewrites the `=== ADYTON PALETTE — GENERATED ===` block in `main.css`, prints WCAG table, **exits 1 on any AA miss**). `pnpm palette` / `palette:check` / `test:palette`. **COLOUR-AGNOSTIC RULE (user-mandated): never name a specific colour or hex in comments/docs — describe roles (light/dark anchor, brand, surface, accent). The only concrete colour values live in `DEFAULT_ANCHORS` + the generated CSS block.** Three derived ramps in `@theme static`: `--color-brand-*` (accents/primary ONLY; chroma scaled to the light anchor's own saturation so a vivid anchor stays vivid), `--color-surface-*` (near-neutral graphite, chroma cut hard vs brand — **all surfaces draw from this, so dark mode is never a wall of one hue**), `--color-success/error/warning/info-*` (semantic hues pinned away from brand so `success` doesn't blend into a same-hue surface; wired in `app.config.ts colors`). Light/dark `--ui-*` role tokens **mirrored on a FIXED lightness axis** — only hue rotates on rebrand, so contrast (a function of L) survives any anchor swap (spec proves via an unrelated pair). Brand hue derives from the LIGHT anchor (not an average — lets warm/cool pairs hold). Dark headings/`--ui-text-highlighted` carry the brand accent so the light anchor recurs beyond the CTA. Dark inputs `dark:bg-surface-800/40`. **DO NOT hand-edit the generated block** — change `DEFAULT_ANCHORS` (or `--light/--dark`) and re-run. Also this pass: `bg-grid` utility removed (flat backgrounds), `VERSION_TAG_CLASS` → quiet neutral chip (`bg-accented text-toned`, was fuchsia), vault detail Edit button → solid primary (matches list "Add"; was subtle — all-subtle read too dark/discordant with the list). Backlog: resync raster assets/splash + APK rebuild to the generated ramp (cosmetic). Dev throwaway account `darktest@adyton.local` in dev DB from verification.
 
 Integration contracts (do not regress): API uses `setGlobalPrefix('api')` → `NUXT_PUBLIC_API_BASE_URL` is the bare origin (no `/api` suffix) — `getBaseUrl()` in `auth.ts` appends `/api` internally; refresh cookie path `/api/auth`; `apiFetch` must not send `Content-Type: application/json` on no-body POSTs; `.npmrc` `public-hoist-pattern` lifts shared's client deps (hash-wasm, zxcvbn) and is `COPY`d into dev Dockerfiles. **Migrations:** auto-applied only when `RUN_MIGRATIONS=true` (dev: via container `dev:migrate` CLI on `src`; staging: built image on boot; prod: never — extract SQL with `pnpm --filter @adyton/api migration:sql` and apply manually). Editing `apps/api` source needs `docker compose restart api` (tsc watch misses Windows bind-mount changes).
 
@@ -51,23 +60,24 @@ Product, repo, and working directory all share the name **Adyton** (Greek ἄδ�
 
 The full technical analysis (~5000 lines) is fragmented by scope under `analysis/`. Read `analysis/README.md` first — it is the index. Do not edit `ANALYSIS.original.md`: it is the immutable backup of the monolithic source document.
 
-| Concern | File |
-|---|---|
-| Exec summary + system architecture | `analysis/00-overview.md` |
-| Crypto, JWT, rate limiting, fail2ban | `analysis/security/architecture.md` |
-| What the system does / does not guarantee | `analysis/security/guarantees.md` |
-| Threat model | `analysis/security/attack-vectors.md` |
-| Pentest plan | `analysis/security/pentest.md` |
-| NestJS 10 + Fastify backend | `analysis/backend/nestjs.md` |
-| MikroORM 6 entities, indexes, migrations | `analysis/backend/database.md` |
-| Nuxt 4 + NuxtUI 4 + Pinia | `analysis/frontend/nuxt.md` |
-| Mobile-first UX | `analysis/frontend/ux-mobile.md` |
-| PWA vs Tauri trade-off | `analysis/frontend/pwa-vs-tauri.md` |
-| Manifest V3 browser extension | `analysis/extension.md` |
-| `packages/shared` (crypto + types) | `analysis/shared.md` |
-| Docker, Coolify, Cloudflare, backup | `analysis/infrastructure.md` |
-| Phases 1–9 (V1 scope) | `analysis/roadmap/phases.md` |
-| Phone-as-Key (future, post V1) | `analysis/roadmap/device-as-key.md` |
+| Concern                                            | File                                  |
+| -------------------------------------------------- | ------------------------------------- |
+| Exec summary + system architecture                 | `analysis/00-overview.md`             |
+| Crypto, JWT, rate limiting, fail2ban               | `analysis/security/architecture.md`   |
+| What the system does / does not guarantee          | `analysis/security/guarantees.md`     |
+| Threat model                                       | `analysis/security/attack-vectors.md` |
+| Pentest plan                                       | `analysis/security/pentest.md`        |
+| NestJS 10 + Fastify backend                        | `analysis/backend/nestjs.md`          |
+| MikroORM 6 entities, indexes, migrations           | `analysis/backend/database.md`        |
+| Nuxt 4 + NuxtUI 4 + Pinia                          | `analysis/frontend/nuxt.md`           |
+| Design system — brand palette, tokens, sync points | `analysis/frontend/design-system.md`  |
+| Mobile-first UX                                    | `analysis/frontend/ux-mobile.md`      |
+| PWA vs Tauri trade-off                             | `analysis/frontend/pwa-vs-tauri.md`   |
+| Manifest V3 browser extension                      | `analysis/extension.md`               |
+| `packages/shared` (crypto + types)                 | `analysis/shared.md`                  |
+| Docker, Coolify, Cloudflare, backup                | `analysis/infrastructure.md`          |
+| Phases 1–9 (V1 scope)                              | `analysis/roadmap/phases.md`          |
+| Phone-as-Key (future, post V1)                     | `analysis/roadmap/device-as-key.md`   |
 
 **Always consult the relevant scope file before proposing architectural changes.** If you propose deviating from the design, surface the trade-off explicitly — do not silently diverge.
 
@@ -125,7 +135,7 @@ When multiple agents/scopes work in parallel after Phase 1 lands:
 
 ## Frontend conventions (Nuxt `apps/web`) — MANDATORY
 
-The mockup at `analysis/frontend/mockups/adyton.html` is the authoritative UI source. Read the relevant `screen-*` section before building any page. The mockup names the accent `violet` but overrides it to **emerald** (`#10b981`); NuxtUI uses `primary: 'emerald'`.
+The mockup at `analysis/frontend/mockups/adyton.html` is the authoritative UI source for layout/structure. Read the relevant `screen-*` section before building any page. **Color: the mockup's emerald accent is superseded (2026-06-12)** by the Jet Stream/Blue Whale brand palette (`--color-brand-*` in `main.css`, NuxtUI `primary: 'brand'`); follow the pairing rule (whale surfaces ↔ jet stream text) instead of the mockup's colors.
 
 1. **Tailwind-first. No plain CSS scattered around.** Use Tailwind utilities and NuxtUI semantic tokens (`bg-elevated`, `border-default`, `text-muted`, `bg-accented`) that flip with the theme. When a primitive doesn't exist in Tailwind (e.g. `bg-grid`, `radial-glow`, `accent-glow`), define it as a Tailwind v4 `@utility` in `app/assets/css/main.css` — never a loose `.class {}` rule, never `html:not(.dark) .x` selectors. Component-specific styling goes as Tailwind classes in the `.vue`. Maximum concreteness, no over-abstraction.
 
@@ -178,6 +188,7 @@ Branches are per **phase** (and, in future, per issue) — NOT per step.
 `README.md` is the public face of the project. Keep it current whenever you change something user-visible.
 
 **On every phase completion**, update `README.md` if any of these changed:
+
 - Roadmap table (`| N | … | Status |`) — flip to `Done` when the phase lands
 - Stack table — new technology added or removed
 - Setup instructions — new prerequisites, new scripts, changed ports
@@ -193,17 +204,20 @@ Do not rewrite sections unrelated to the current change.
 Before declaring any step or phase done, always do **all three** of these in order:
 
 **1. Automated verification** — run the relevant test suite and confirm it passes:
+
 - `pnpm --filter @adyton/web test:cov` for frontend changes
 - `pnpm --filter @adyton/shared test:cov` for shared changes
 - `pnpm --filter @adyton/api test:cov` for backend changes
 - TypeScript check: `pnpm --filter <package> typecheck`
 
 **2. Memory update** — write or update memory files under `~/.claude/projects/C--varie-adyton/memory/`:
+
 - Update `project_phase2_plan.md` with current phase/step status and what's next
 - Add any new feedback memories for non-obvious decisions made during the work
 - Update `MEMORY.md` index if new files were added
 
 **3. Manual test plan** — output a numbered, actionable test plan covering:
+
 - Golden path (register → login → vault unlock flow end-to-end)
 - Key edge cases (wrong password, reload, auto-lock timeout)
 - Security invariants (ciphertext not readable, cookie httpOnly, AAD rejection)

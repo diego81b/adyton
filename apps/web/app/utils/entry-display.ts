@@ -24,13 +24,22 @@ export const TYPE_META: Record<VaultEntryType, TypeMeta> = {
 // and aligned with CHIP_ACTIVE_CLASS below so the icon tiles and the filter chips
 // share one well-separated palette (semantic tokens made SECRET/ENV/IDENTITY all
 // green-ish — too similar to tell apart at a glance).
+// Each tile is theme-adaptive: *-700 text on a faint *-500 tint in light mode
+// (≥4.5:1 on white), *-300 text on a *-400 tint in dark mode. The old dark-only
+// strings (`text-*-300` on every theme) were illegible on light surfaces.
 export const TILE_CLASS: Record<VaultEntryType, string> = {
-  [VaultEntryType.LOGIN]: 'bg-blue-400/10 border-blue-400/20 text-blue-300',
-  [VaultEntryType.ENV_FILE]: 'bg-orange-400/10 border-orange-400/20 text-orange-300',
-  [VaultEntryType.SECRET]: 'bg-red-400/10 border-red-400/20 text-red-300',
-  [VaultEntryType.SECURE_NOTE]: 'bg-yellow-400/10 border-yellow-400/20 text-yellow-300',
-  [VaultEntryType.CREDIT_CARD]: 'bg-purple-400/10 border-purple-400/20 text-purple-300',
-  [VaultEntryType.IDENTITY]: 'bg-teal-400/10 border-teal-400/20 text-teal-300',
+  [VaultEntryType.LOGIN]:
+    'bg-blue-500/10 border-blue-500/25 text-blue-700 dark:bg-blue-400/10 dark:border-blue-400/20 dark:text-blue-300',
+  [VaultEntryType.ENV_FILE]:
+    'bg-orange-500/10 border-orange-500/25 text-orange-700 dark:bg-orange-400/10 dark:border-orange-400/20 dark:text-orange-300',
+  [VaultEntryType.SECRET]:
+    'bg-red-500/10 border-red-500/25 text-red-700 dark:bg-red-400/10 dark:border-red-400/20 dark:text-red-300',
+  [VaultEntryType.SECURE_NOTE]:
+    'bg-yellow-500/10 border-yellow-500/25 text-yellow-700 dark:bg-yellow-400/10 dark:border-yellow-400/20 dark:text-yellow-300',
+  [VaultEntryType.CREDIT_CARD]:
+    'bg-purple-500/10 border-purple-500/25 text-purple-700 dark:bg-purple-400/10 dark:border-purple-400/20 dark:text-purple-300',
+  [VaultEntryType.IDENTITY]:
+    'bg-teal-500/10 border-teal-500/25 text-teal-700 dark:bg-teal-400/10 dark:border-teal-400/20 dark:text-teal-300',
 };
 
 // Filter chips, in display order (mockup order). 'all' is handled separately.
@@ -45,7 +54,7 @@ export const TYPE_FILTERS: { type: VaultEntryType; label: string }[] = [
 
 // Per-chip ACTIVE style — DERIVED from TILE_CLASS so filter chips and icon tiles can
 // never drift apart in tone (they used to: mockup chips were `*-900/40`, tiles
-// `*-400/10`). 'all' uses the emerald accent in the same tinted-tile shape.
+// `*-400/10`). 'all' uses the brand accent in the same tinted-tile shape.
 export type ChipKey = VaultEntryType | 'all';
 export const CHIP_ACTIVE_CLASS: Record<ChipKey, string> = {
   all: 'border bg-primary/10 border-primary/20 text-primary',
@@ -70,11 +79,11 @@ export const ENVIRONMENT_META: Record<EnvironmentTag, { label: string; dot: stri
   custom: { label: 'Custom', dot: 'bg-slate-500' },
 };
 
-// Version tag (vN) — one fixed color everywhere, deliberately OUTSIDE every palette
-// already in use (type tiles, env dots, emerald accent, rose danger): fuchsia.
-// Rounded corners (not a pill), shown BEFORE the title.
+// Version tag (vN) — low-importance metadata, so it reads as a quiet neutral chip
+// rather than a loud accent. Uses semantic surface/text tokens only, so it tracks
+// the generated palette and flips with the theme. Rounded (not a pill), before the title.
 export const VERSION_TAG_CLASS =
-  'text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded-md bg-fuchsia-400/10 text-fuchsia-300 border border-fuchsia-400/20';
+  'text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded-md bg-accented text-toned border border-default';
 
 export interface CardBrand {
   id: 'visa' | 'mastercard' | 'amex' | 'discover';
@@ -86,7 +95,12 @@ export interface CardBrand {
 const CARD_BRANDS: Array<{ re: RegExp } & CardBrand> = [
   { re: /^4/, id: 'visa', label: 'Visa', icon: 'i-simple-icons-visa' },
   // 51–55 plus the 2221–2720 range introduced in 2017.
-  { re: /^(5[1-5]|222[1-9]|22[3-9]\d|2[3-6]\d\d|27[01]\d|2720)/, id: 'mastercard', label: 'Mastercard', icon: 'i-simple-icons-mastercard' },
+  {
+    re: /^(5[1-5]|222[1-9]|22[3-9]\d|2[3-6]\d\d|27[01]\d|2720)/,
+    id: 'mastercard',
+    label: 'Mastercard',
+    icon: 'i-simple-icons-mastercard',
+  },
   { re: /^3[47]/, id: 'amex', label: 'Amex', icon: 'i-simple-icons-americanexpress' },
   { re: /^(6011|65|64[4-9])/, id: 'discover', label: 'Discover', icon: 'i-simple-icons-discover' },
 ];

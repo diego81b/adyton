@@ -57,12 +57,17 @@ async function onSubmit() {
 </script>
 
 <template>
-  <AuthShell>
+  <AuthShell width="lg" headline="Create your vault in under a minute.">
     <template #brand>
       <BrandLogo size="md" tagline="Your master password never leaves this device" />
     </template>
 
     <AuthCard>
+      <h2 class="text-lg font-semibold">Create your account</h2>
+      <p class="mb-5 mt-1 text-sm text-muted">
+        One master password encrypts everything, on this device.
+      </p>
+
       <UForm
         :state="{ email, password, confirmPassword }"
         class="space-y-5"
@@ -155,7 +160,7 @@ async function onSubmit() {
           type="submit"
           block
           size="lg"
-          class="accent-glow text-white"
+          class="accent-glow"
           :loading="loading"
           :disabled="!canSubmit"
         >
@@ -170,5 +175,10 @@ async function onSubmit() {
         </NuxtLink>
       </p>
     </AuthCard>
+
+    <template #footer>
+      <UIcon name="i-lucide-lock" class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <span>Encrypted client-side · Argon2id + AES-256-GCM</span>
+    </template>
   </AuthShell>
 </template>

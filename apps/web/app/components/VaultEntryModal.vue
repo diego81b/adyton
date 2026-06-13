@@ -330,7 +330,7 @@ function close() {
                   />
                   <UButton
                     color="neutral"
-                    variant="soft"
+                    variant="subtle"
                     size="lg"
                     icon="i-lucide-refresh-cw"
                     class="shrink-0"
@@ -501,7 +501,7 @@ function close() {
         <div
           class="sticky bottom-0 z-10 bg-default px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-default flex gap-2"
         >
-          <UButton color="neutral" variant="soft" size="lg" class="flex-1 justify-center" @click="close">
+          <UButton color="neutral" variant="ghost" size="lg" class="flex-1 justify-center" @click="close">
             Cancel
           </UButton>
           <UButton

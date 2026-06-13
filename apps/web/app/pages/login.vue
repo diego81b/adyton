@@ -126,7 +126,8 @@ function onMfaBack() {
 
     <AuthCard>
       <template v-if="phase === 'credentials'">
-        <h2 class="mb-5 text-lg font-semibold">Welcome back</h2>
+        <h2 class="text-lg font-semibold">Welcome back</h2>
+        <p class="mb-5 mt-1 text-sm text-muted">Sign in to unlock your vault.</p>
 
         <UForm :state="{ email, password }" class="space-y-5" @submit.prevent="onSubmit">
           <UFormField
@@ -165,7 +166,7 @@ function onMfaBack() {
             block
             size="lg"
             trailing-icon="i-lucide-arrow-right"
-            class="accent-glow text-white"
+            class="accent-glow"
             :loading="loading"
             :disabled="!email || !password"
           >
@@ -193,7 +194,8 @@ function onMfaBack() {
     </AuthCard>
 
     <template #footer>
-      🔐 Encrypted client-side · Argon2id + AES-256-GCM
+      <UIcon name="i-lucide-lock" class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <span>Encrypted client-side · Argon2id + AES-256-GCM</span>
     </template>
   </AuthShell>
 </template>

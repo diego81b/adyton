@@ -25,7 +25,7 @@ const emit = defineEmits<{ confirm: [] }>();
           <div
             class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/15"
           >
-            <UIcon name="i-lucide-triangle-alert" class="size-4 text-rose-400" />
+            <UIcon name="i-lucide-triangle-alert" class="size-4 text-rose-600 dark:text-rose-400" />
           </div>
           <h2 class="font-bold tracking-tight">{{ title }}</h2>
         </div>
@@ -33,7 +33,7 @@ const emit = defineEmits<{ confirm: [] }>();
         <div class="mt-4 flex gap-2">
           <UButton
             color="neutral"
-            variant="soft"
+            variant="ghost"
             size="lg"
             class="flex-1 justify-center"
             @click="open = false"
@@ -42,7 +42,6 @@ const emit = defineEmits<{ confirm: [] }>();
           </UButton>
           <UButton
             color="error"
-            variant="subtle"
             size="lg"
             class="flex-1 justify-center"
             :loading="loading"

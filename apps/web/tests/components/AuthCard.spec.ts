@@ -8,7 +8,7 @@ describe('AuthCard', () => {
     expect(wrapper.find('.x').text()).toBe('hi');
     const root = wrapper.find('div');
     expect(root.classes()).toEqual(
-      expect.arrayContaining(['rounded-2xl', 'border', 'border-default', 'backdrop-blur']),
+      expect.arrayContaining(['rounded-2xl', 'border', 'border-default', 'backdrop-blur-sm']),
     );
   });
 });

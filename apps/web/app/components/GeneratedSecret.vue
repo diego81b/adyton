@@ -27,8 +27,8 @@ const segments = computed<Segment[]>(() => {
   }
   return [...props.value].map((c) => {
     if (/[0-9]/.test(c)) return { text: c, class: 'text-primary' };
-    if (/[A-Z]/.test(c)) return { text: c, class: 'text-amber-300' };
-    if (/[^a-zA-Z0-9]/.test(c)) return { text: c, class: 'text-rose-300' };
+    if (/[A-Z]/.test(c)) return { text: c, class: 'text-amber-700 dark:text-amber-300' };
+    if (/[^a-zA-Z0-9]/.test(c)) return { text: c, class: 'text-rose-700 dark:text-rose-300' };
     return { text: c, class: '' };
   });
 });
@@ -55,7 +55,7 @@ const segments = computed<Segment[]>(() => {
 
     <div class="flex gap-2">
       <UButton
-        class="flex-1 justify-center text-white"
+        class="flex-1 justify-center"
         color="primary"
         size="lg"
         icon="i-lucide-copy"

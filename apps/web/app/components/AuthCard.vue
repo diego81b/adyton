@@ -5,7 +5,7 @@
 </script>
 
 <template>
-  <div class="rounded-2xl border border-default bg-elevated/60 p-7 backdrop-blur">
+  <div class="rounded-2xl border border-default bg-elevated/80 p-7 backdrop-blur-sm">
     <slot />
   </div>
 </template>

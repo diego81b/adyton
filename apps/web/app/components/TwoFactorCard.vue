@@ -91,9 +91,9 @@ function mapPasswordError(err: unknown): string {
       <h3 class="text-base font-semibold">Two-factor authentication</h3>
       <span
         v-if="enabled"
-        class="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-300"
+        class="flex items-center gap-1 rounded-full border border-brand-500/30 bg-brand-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-300"
       >
-        <span class="size-1.5 rounded-full bg-emerald-400" />
+        <span class="size-1.5 rounded-full bg-brand-400" />
         Enabled
       </span>
       <span

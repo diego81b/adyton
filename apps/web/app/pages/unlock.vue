@@ -156,6 +156,18 @@ async function onSubmit() {
     </template>
 
     <AuthCard>
+      <!-- Desktop header: the brand block (logo + email) above the card is mobile-only
+           in the split-panel shell, so the card restates the context on lg+. -->
+      <div class="hidden lg:block">
+        <h2 class="text-lg font-semibold">Vault locked</h2>
+        <p class="mb-5 mt-1 text-sm text-muted">
+          <template v-if="authStore.user?.email">
+            Unlocking <span class="font-medium text-default">{{ authStore.user.email }}</span>
+          </template>
+          <template v-else>Enter your master password to continue.</template>
+        </p>
+      </div>
+
       <!-- Biometric retry button: shown on native when a key is enrolled, so the
            user can re-trigger the prompt after cancelling or after auto-attempt. -->
       <div v-if="biometricAvailable" class="mb-5">
@@ -199,7 +211,7 @@ async function onSubmit() {
           type="submit"
           block
           size="lg"
-          class="accent-glow text-white"
+          class="accent-glow"
           :loading="loading"
           :disabled="!password"
         >
@@ -221,13 +233,14 @@ async function onSubmit() {
       </p>
     </AuthCard>
 
-    <p class="mt-4 max-w-xs text-center text-xs text-muted">
+    <p class="mx-auto mt-4 max-w-xs text-center text-xs text-muted">
       If you forget your master password, your vault cannot be recovered.
       There is no reset link — encryption keys are derived only from your password.
     </p>
 
     <template #footer>
-      🛡️ Zero-knowledge · Your data stays encrypted, even from us
+      <UIcon name="i-lucide-shield-check" class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <span>Zero-knowledge · Your data stays encrypted, even from us</span>
     </template>
   </AuthShell>
 </template>
