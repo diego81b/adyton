@@ -67,7 +67,7 @@ defineExpose({ downloadEnv });
 </script>
 
 <template>
-  <div class="bg-elevated/40 border border-default rounded-2xl overflow-hidden">
+  <div class="bg-elevated border border-default rounded-lg overflow-hidden">
     <!-- Raw viewer: JSON or unparseable content -->
     <template v-if="showRaw">
       <div class="flex items-center justify-between px-4 py-2.5 bg-elevated/60 border-b border-default">

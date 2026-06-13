@@ -116,7 +116,7 @@ describe('BiometricUnlockCard — native, no device biometrics', () => {
   it('shows the "no biometrics on device" hint and no enable button', async () => {
     const w = mountCard();
     await flushPromises();
-    expect(w.text()).toContain('No biometrics are enrolled on this device');
+    expect(w.text()).toContain('Set up Face ID, Touch ID, or a fingerprint on this device first');
     expect(w.find('[aria-label="Enable biometric unlock"]').exists()).toBe(false);
   });
 });
@@ -129,10 +129,9 @@ describe('BiometricUnlockCard — native, supported, not enrolled', () => {
     mockIsEnrolled.mockResolvedValue(false);
   });
 
-  it('renders "Not configured" badge and "Enable biometric unlock" button', async () => {
+  it('renders the not-enrolled state with an "Enable biometric unlock" button', async () => {
     const w = mountCard();
     await flushPromises();
-    expect(w.text()).toContain('Not configured');
     expect(w.find('[aria-label="Enable biometric unlock"]').exists()).toBe(true);
     expect(w.find('[aria-label="Disable biometric unlock"]').exists()).toBe(false);
   });
@@ -155,10 +154,9 @@ describe('BiometricUnlockCard — native, supported, enrolled', () => {
     mockIsEnrolled.mockResolvedValue(true);
   });
 
-  it('renders "Enabled" badge and "Disable biometric unlock" button', async () => {
+  it('renders the enrolled state with a "Disable biometric unlock" button', async () => {
     const w = mountCard();
     await flushPromises();
-    expect(w.text()).toContain('Enabled');
     expect(w.find('[aria-label="Disable biometric unlock"]').exists()).toBe(true);
     expect(w.find('[aria-label="Enable biometric unlock"]').exists()).toBe(false);
   });
@@ -174,7 +172,7 @@ describe('BiometricUnlockCard — native, supported, enrolled', () => {
     await flushPromises();
 
     expect(mockUnenroll).toHaveBeenCalledWith('user-1');
-    expect(w.text()).toContain('Not configured');
+    expect(w.find('[aria-label="Enable biometric unlock"]').exists()).toBe(true);
     expect(toastAdd).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Biometric unlock disabled', color: 'success' }),
     );
@@ -227,7 +225,7 @@ describe('BiometricUnlockCard — enable flow (password prompt)', () => {
     expect(toastAdd).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Biometric unlock enabled', color: 'success' }),
     );
-    expect(w.text()).toContain('Enabled');
+    expect(w.find('[aria-label="Disable biometric unlock"]').exists()).toBe(true);
   });
 
   it('wrong password: verifyRawKeyMatches returns false → shows inline error, no enroll', async () => {
@@ -245,7 +243,7 @@ describe('BiometricUnlockCard — enable flow (password prompt)', () => {
     expect(mockEnroll).not.toHaveBeenCalled();
     expect(w.findComponent(PromptStub).props('error')).toBe('Wrong master password.');
     // Still not enrolled
-    expect(w.text()).toContain('Not configured');
+    expect(w.find('[aria-label="Enable biometric unlock"]').exists()).toBe(true);
   });
 
   it('locked vault: cryptoKey null → inline error, no derive, no enroll', async () => {

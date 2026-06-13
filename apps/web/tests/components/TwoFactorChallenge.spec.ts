@@ -21,6 +21,28 @@ const UInputStub = {
   template:
     '<input class="uinput" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
 };
+// OtpInput is driven via a single underlying input; the stub mirrors its public
+// contract (digit-filtered model + `complete` on full length) so the challenge
+// spec exercises its own logic without depending on OtpInput internals.
+const OtpInputStub = {
+  name: 'OtpInput',
+  props: ['modelValue', 'length', 'invalid'],
+  emits: ['update:modelValue', 'complete'],
+  template:
+    '<input class="otp" :value="modelValue" @input="onInput($event)" />',
+  methods: {
+    onInput(e: Event) {
+      const len = (this as unknown as { length: number }).length ?? 6;
+      const next = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, len);
+      (this as unknown as { $emit: (n: string, ...a: unknown[]) => void }).$emit(
+        'update:modelValue',
+        next,
+      );
+      if (next.length === len)
+        (this as unknown as { $emit: (n: string, ...a: unknown[]) => void }).$emit('complete', next);
+    },
+  },
+};
 const UButtonStub = {
   name: 'UButton',
   props: ['disabled', 'loading', 'type'],
@@ -44,6 +66,7 @@ function mountChallenge(
         UForm: UFormStub,
         UFormField: UFormFieldStub,
         UInput: UInputStub,
+        OtpInput: OtpInputStub,
         UButton: UButtonStub,
         UAlert: UAlertStub,
       },
@@ -63,16 +86,16 @@ describe('TwoFactorChallenge', () => {
     const submit = w.find('button[type="submit"]');
     expect(submit.attributes('disabled')).toBeDefined();
 
-    await w.find('.uinput').setValue('123'); // too short
+    await w.find('.otp').setValue('123'); // too short
     expect(submit.attributes('disabled')).toBeDefined();
 
-    await w.find('.uinput').setValue('123456');
+    await w.find('.otp').setValue('123456');
     expect(submit.attributes('disabled')).toBeUndefined();
   });
 
   it('emits submit with the code payload', async () => {
     const w = mountChallenge();
-    await w.find('.uinput').setValue('123456');
+    await w.find('.otp').setValue('123456');
 
     // Auto-submit fires when the 6th digit is entered — no need to press the button.
     expect(w.emitted('submit')).toHaveLength(1);
@@ -81,7 +104,7 @@ describe('TwoFactorChallenge', () => {
 
   it('auto-submits when a complete 6-digit code is entered', async () => {
     const w = mountChallenge();
-    await w.find('.uinput').setValue('654321');
+    await w.find('.otp').setValue('654321');
     expect(w.emitted('submit')).toHaveLength(1);
     expect(w.emitted('submit')![0]).toEqual([{ code: '654321' }]);
   });

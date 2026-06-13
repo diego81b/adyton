@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useSecureClipboard } from '~/composables/useSecureClipboard';
 import RecoveryCodesList from './RecoveryCodesList.vue';
+import OtpInput from './OtpInput.vue';
 
 // Three-step TOTP enrollment wizard:
 //   scan     — POST /auth/2fa/setup on open, show QR + manual secret
@@ -89,15 +90,6 @@ async function verify() {
   }
 }
 
-function onlyDigits(value: string) {
-  code.value = value.replace(/\D/g, '').slice(0, 6);
-}
-
-// Auto-submit when a complete 6-digit code is entered — no need to press Enter.
-watch(code, (v) => {
-  if (v.length === 6 && !verifyLoading.value) void verify();
-});
-
 function finish() {
   if (!acknowledged.value) return;
   emit('enabled');
@@ -178,17 +170,13 @@ function finish() {
 
           <div class="mt-4">
             <UFormField label="Verification code" name="code">
-              <UInput
-                :model-value="code"
-                size="lg"
-                class="w-full text-center font-mono tracking-[0.4em]"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                placeholder="123456"
-                maxlength="6"
+              <OtpInput
+                v-model="code"
+                :length="6"
                 autofocus
-                @update:model-value="onlyDigits($event as string)"
-                @keydown.enter="verify"
+                :invalid="!!verifyError"
+                aria-label="Verification code"
+                @complete="verify"
               />
             </UFormField>
             <UAlert

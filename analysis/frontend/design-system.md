@@ -162,3 +162,25 @@ Settings → Appearance via `AppearanceCard`), deliberately not in DB-backed set
 | brand-600 on white | 5.8:1 | light muted/link text |
 | brand-800 on brand-200 | ~6.5:1 | light panel body text |
 | brand-400 on white | 2.9:1 | light input borders (non-text, ~3:1) |
+
+## 8. Swiss-enterprise layout layer (2026-06-13 — mandatory for app screens)
+
+The app screens (vault list, vault detail, settings) share ONE layout grammar so nothing
+looks foreign. Grounded in `ui-ux-pro-max` → Swiss/Minimal enterprise. The generated palette
+is unchanged; coherence comes from token discipline + shared primitives.
+
+- **Radius — single scale.** Containers/rows `rounded-lg`; chips/tiles/small controls
+  `rounded-md`. Do NOT use `rounded-xl`/`rounded-2xl` on app screens.
+- **Surface elevation.** L0 page `bg-default`; L1 group = ONE hairline container
+  (`border border-default rounded-lg`, `bg-elevated` only to lift); rows inside split by
+  `divide-y divide-default`. No card-in-card. Shadow none (≤ `shadow-xs`).
+- **Type roles.** Section header `text-[11px] font-semibold uppercase tracking-wider text-dimmed`;
+  row label `text-sm font-medium text-default`; value/helper `text-sm`/`text-[13px] text-muted`;
+  data values `font-mono tabular-nums`.
+- **Accent discipline (brand/gold).** Only on: the single primary CTA per screen, the active
+  nav/segment, `focus-visible` ring, and a status dot. Everything else neutral/surface.
+  Destructive = `error`, spatially separated.
+- **Numbers** (counts, IPs, dates, vN, TOTP): `tabular-nums`.
+- **Shared primitives:** `SettingsGroup.vue` (uppercase header + hairline `divide-y` container)
+  and `SettingRow.vue` (`flex-wrap` label/helper/value/`#action` row — wrap is load-bearing so a
+  long value can never squeeze the action out of the container).

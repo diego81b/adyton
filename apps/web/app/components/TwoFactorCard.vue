@@ -4,6 +4,7 @@ import { useAuthStore } from '~/stores/auth';
 import TwoFactorSetupModal from './TwoFactorSetupModal.vue';
 import PasswordPromptModal from './PasswordPromptModal.vue';
 import RecoveryCodesModal from './RecoveryCodesModal.vue';
+import SettingRow from './SettingRow.vue';
 
 // Account-level 2FA management. The auth store's `user.totpEnabled` is the source
 // of truth (it refreshes on the next /auth/me); we flip it locally after enable /
@@ -86,90 +87,68 @@ function mapPasswordError(err: unknown): string {
 </script>
 
 <template>
-  <div class="rounded-2xl border border-default bg-elevated p-4">
-    <div class="mb-0.5 flex items-center gap-2">
-      <h3 class="text-base font-semibold">Two-factor authentication</h3>
-      <span
-        v-if="enabled"
-        class="flex items-center gap-1 rounded-full border border-brand-500/30 bg-brand-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-300"
-      >
-        <span class="size-1.5 rounded-full bg-brand-400" />
-        Enabled
-      </span>
-      <span
-        v-else
-        class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted"
-      >
-        Not configured
-      </span>
-    </div>
-
-    <!-- Enabled state -->
-    <template v-if="enabled">
-      <p class="text-[13px] text-muted">Required at every login</p>
-      <div class="mt-4 flex flex-wrap gap-2">
+  <SettingRow
+    label="Two-factor authentication"
+    :helper="enabled ? 'Required at every login' : 'One-time code from your authenticator app'"
+    :dot="enabled ? 'bg-success' : 'bg-surface-400'"
+  >
+    <template #action>
+      <template v-if="enabled">
         <UButton
           color="neutral"
           variant="subtle"
-          size="md"
+          size="sm"
           icon="i-lucide-refresh-cw"
           aria-label="Regenerate recovery codes"
           @click="openRegenerate"
         >
-          Regenerate recovery codes
+          <span class="hidden sm:inline">Recovery codes</span>
         </UButton>
         <UButton
           color="error"
-          variant="subtle"
-          size="md"
+          variant="ghost"
+          size="sm"
           icon="i-lucide-shield-off"
           aria-label="Disable two-factor authentication"
           @click="openDisable"
         >
-          Disable
+          <span class="hidden sm:inline">Disable</span>
         </UButton>
-      </div>
-    </template>
-
-    <!-- Disabled state -->
-    <template v-else>
-      <p class="text-[13px] text-muted">
-        Add a one-time code from your authenticator app at every login.
-      </p>
+      </template>
       <UButton
+        v-else
         color="primary"
         variant="subtle"
-        size="md"
+        size="sm"
         icon="i-lucide-shield-plus"
         aria-label="Enable 2FA"
-        class="mt-4"
         @click="setupOpen = true"
       >
-        Enable 2FA
+        Enable
       </UButton>
     </template>
+  </SettingRow>
 
-    <TwoFactorSetupModal v-model:open="setupOpen" @enabled="onEnabled" />
+  <TwoFactorSetupModal v-model:open="setupOpen" @enabled="onEnabled" />
 
-    <PasswordPromptModal
-      v-model:open="disableOpen"
-      title="Disable two-factor authentication"
-      confirm-label="Disable 2FA"
-      danger
-      :loading="disableLoading"
-      :error="disableError"
-      @confirm="confirmDisable"
-    />
+  <PasswordPromptModal
+    v-model:open="disableOpen"
+    title="Disable two-factor authentication"
+    confirm-label="Disable 2FA"
+    danger
+    :loading="disableLoading"
+    :error="disableError"
+    @confirm="confirmDisable"
+  />
 
-    <PasswordPromptModal
-      v-model:open="regenPromptOpen"
-      title="Regenerate recovery codes"
-      confirm-label="Regenerate"
-      :loading="regenLoading"
-      :error="regenError"
-      @confirm="confirmRegenerate"
-    />
+  <PasswordPromptModal
+    v-model:open="regenPromptOpen"
+    title="Regenerate recovery codes"
+    confirm-label="Regenerate"
+    :loading="regenLoading"
+    :error="regenError"
+    @confirm="confirmRegenerate"
+  />
 
-    <RecoveryCodesModal v-model:open="codesOpen" :codes="newCodes" />
-  </div>
+  <RecoveryCodesModal v-model:open="codesOpen" :codes="newCodes" />
 </template>

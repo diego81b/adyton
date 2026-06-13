@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { describeUserAgent, relativeTime, type ApiTrustedDevice } from '~/utils/account';
+import SettingsGroup from './SettingsGroup.vue';
 
 const auth = useAuthStore();
 const toast = useToast();
@@ -40,58 +41,50 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="rounded-2xl border border-default bg-elevated">
-    <div class="flex items-center justify-between px-4 pb-3 pt-4">
-      <div>
-        <h3 class="text-base font-semibold">Trusted devices</h3>
-        <p class="mt-0.5 text-[13px] text-muted">
-          Skip new-device verification on these — revoke immediately if lost
-        </p>
-      </div>
-      <span class="font-mono text-[11px] text-dimmed">{{ devices.length }} trusted</span>
+  <SettingsGroup title="Trusted devices" :subtitle="`${devices.length} trusted`">
+    <div v-if="loading" class="px-4 py-6 text-center text-sm text-muted">Loading…</div>
+    <div v-else-if="devices.length === 0" class="px-4 py-6 text-center text-sm text-muted">
+      No trusted devices
     </div>
-
-    <div class="border-t border-default">
-      <div v-if="loading" class="px-4 py-6 text-center text-sm text-muted">Loading…</div>
-      <div v-else-if="devices.length === 0" class="px-4 py-6 text-center text-sm text-muted">
-        No trusted devices
-      </div>
-      <div v-else class="divide-y divide-default">
-        <div v-for="d in devices" :key="d.id" class="flex items-center gap-3 px-4 py-3">
-          <div
-            class="flex size-8 shrink-0 items-center justify-center rounded-md border border-default bg-accented"
-          >
-            <UIcon name="i-lucide-smartphone" class="size-3.5 text-muted" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="text-sm font-semibold text-highlighted">
+    <template v-else>
+      <div
+        v-for="d in devices"
+        :key="d.id"
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3"
+      >
+        <div class="flex min-w-0 items-center gap-2.5">
+          <UIcon name="i-lucide-smartphone" class="size-4 shrink-0 text-dimmed" />
+          <div class="min-w-0">
+            <div class="truncate text-sm font-medium text-default">
               {{ describeUserAgent(d.userAgent) }}
             </div>
             <div class="text-[11px] text-dimmed">
               trusted {{ relativeTime(d.createdAt) }} · last seen {{ relativeTime(d.lastSeenAt) }}
             </div>
           </div>
-          <UButton
-            color="error"
-            variant="subtle"
-            size="sm"
-            :aria-label="`Revoke trust from ${describeUserAgent(d.userAgent)}`"
-            @click="confirmId = d.id"
-          >
-            Revoke
-          </UButton>
         </div>
+        <UButton
+          color="error"
+          variant="ghost"
+          size="sm"
+          icon="i-lucide-shield-off"
+          class="shrink-0"
+          :aria-label="`Revoke trust from ${describeUserAgent(d.userAgent)}`"
+          @click="confirmId = d.id"
+        >
+          <span class="hidden sm:inline">Revoke</span>
+        </UButton>
       </div>
-    </div>
+    </template>
+  </SettingsGroup>
 
-    <ConfirmDialog
-      :open="confirmId !== null"
-      title="Remove trust from this device?"
-      message="The device will require verification at the next sign-in. Do this if the device is lost or compromised."
-      confirm-label="Revoke trust"
-      :loading="revoking"
-      @update:open="(v: boolean) => { if (!v) confirmId = null; }"
-      @confirm="confirmId && revoke(confirmId)"
-    />
-  </div>
+  <ConfirmDialog
+    :open="confirmId !== null"
+    title="Remove trust from this device?"
+    message="The device will require verification at the next sign-in. Do this if the device is lost or compromised."
+    confirm-label="Revoke trust"
+    :loading="revoking"
+    @update:open="(v: boolean) => { if (!v) confirmId = null; }"
+    @confirm="confirmId && revoke(confirmId)"
+  />
 </template>

@@ -40,10 +40,9 @@ describe('AppearanceCard', () => {
     expect(wrapper.find('[data-testid="theme-light"]').attributes('aria-pressed')).toBe('true');
   });
 
-  it('shows the hint for the active option', async () => {
+  it('renders inside a labelled setting row', () => {
     const { wrapper } = mountCard('system');
-    expect(wrapper.text()).toContain('follows your OS preference');
-    await wrapper.find('[data-testid="theme-dark"]').trigger('click');
-    expect(wrapper.text()).toContain('Blue Whale surfaces, Jet Stream text');
+    expect(wrapper.text()).toContain('Theme');
+    expect(wrapper.text()).toContain('Stored on this device only');
   });
 });

@@ -40,7 +40,7 @@ async function onCopy() {
     <div class="flex items-center gap-2">
       <span
         class="flex-1 text-base text-default truncate"
-        :class="[mono && 'font-mono', revealable && !isRevealed('v') && 'tracking-wider']"
+        :class="[mono && 'font-mono tabular-nums', revealable && !isRevealed('v') && 'tracking-wider']"
       >{{ shown }}</span>
 
       <UButton

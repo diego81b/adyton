@@ -55,155 +55,125 @@ async function onDeleted() {
   toast.add({ title: 'Account deleted', color: 'success' });
   router.push('/login');
 }
-
 </script>
 
 <template>
-  <!-- Two balanced columns on desktop (static account/vault prefs left, growing
-       security lists right), single column on mobile in the natural order; the
-       danger zone always spans full width at the bottom. -->
-  <div class="mx-auto w-full max-w-5xl">
-    <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-8 lg:space-y-0">
-      <div class="min-w-0 space-y-8">
-        <!-- ============== ACCOUNT ============== -->
-        <SettingsSection id="settings-account" title="Account" icon="i-lucide-user">
-        <div class="divide-y divide-default rounded-2xl border border-default bg-elevated">
-          <div class="p-4">
-            <label class="block">
-              <span class="text-sm font-medium text-toned">Display name</span>
-              <p class="mb-2 text-[13px] text-muted">Shown in the avatar — synced across devices</p>
-              <div class="flex gap-2">
-                <UInput
-                  v-model="displayNameDraft"
-                  size="lg"
-                  class="flex-1"
-                  placeholder="Your name"
-                  :maxlength="64"
-                />
-                <UButton
-                  color="primary"
-                  size="lg"
-                  icon="i-lucide-check"
-                  aria-label="Save display name"
-                  :loading="savingName"
-                  :disabled="displayNameDraft.trim() === settings.displayName"
-                  @click="saveDisplayName"
-                >
-                  <span class="hidden sm:inline">Save</span>
-                </UButton>
-              </div>
-            </label>
-          </div>
-
-          <div class="p-4">
-            <span class="text-sm font-medium text-toned">Email</span>
-            <p class="mb-2 text-[13px] text-muted">Used for sign-in · cannot be changed in V1</p>
-            <p class="font-mono text-base text-highlighted">{{ auth.user?.email }}</p>
-          </div>
-
-          <div class="flex items-center justify-between gap-3 p-4">
-            <div class="min-w-0">
-              <div class="text-sm font-medium text-toned">Master password</div>
-              <p class="mt-0.5 text-[13px] text-muted">
-                Changing re-encrypts your entire vault — available in a later release
-              </p>
-            </div>
+  <!-- Single dense scroll (Swiss enterprise): quiet section headers over hairline
+       divided rows. One content column so wide rows (sessions) never get squeezed. -->
+  <div class="mx-auto w-full max-w-3xl space-y-8">
+    <!-- ============== ACCOUNT ============== -->
+    <SettingsGroup id="settings-account" title="Account">
+      <SettingRow label="Display name" helper="Shown in your avatar · synced across devices">
+        <template #action>
+          <div class="flex items-center gap-2">
+            <UInput
+              v-model="displayNameDraft"
+              size="md"
+              class="w-40 sm:w-48"
+              placeholder="Your name"
+              :maxlength="64"
+            />
             <UButton
               color="primary"
               variant="subtle"
               size="md"
-              icon="i-lucide-key-round"
-              aria-label="Change master password"
-              disabled
+              icon="i-lucide-check"
+              aria-label="Save display name"
+              :loading="savingName"
+              :disabled="displayNameDraft.trim() === settings.displayName"
+              @click="saveDisplayName"
             >
-              <span class="hidden sm:inline">Change</span>
+              <span class="hidden sm:inline">Save</span>
             </UButton>
           </div>
-        </div>
-        </SettingsSection>
+        </template>
+      </SettingRow>
 
-        <!-- ============== VAULT (auto-lock + export/import) ============== -->
-        <SettingsSection id="settings-vault" title="Vault" icon="i-lucide-lock">
-          <div class="space-y-4">
-            <AutoLockCard />
-            <div class="rounded-2xl border border-default bg-elevated divide-y divide-default">
-              <div class="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-toned">Export vault</div>
-                  <p class="mt-0.5 text-[13px] text-muted">Download an encrypted backup of all entries</p>
-                </div>
-                <UButton
-                  color="neutral"
-                  variant="subtle"
-                  size="md"
-                  icon="i-lucide-download"
-                  aria-label="Export vault"
-                  @click="exportOpen = true"
-                >
-                  Export
-                </UButton>
-              </div>
-              <div class="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-toned">Import vault</div>
-                  <p class="mt-0.5 text-[13px] text-muted">Restore from a <span class="font-mono">.adyton</span> export file — replaces current vault</p>
-                </div>
-                <UButton
-                  color="neutral"
-                  variant="subtle"
-                  size="md"
-                  icon="i-lucide-upload"
-                  aria-label="Import vault"
-                  @click="importOpen = true"
-                >
-                  Import
-                </UButton>
-              </div>
-            </div>
-          </div>
-        </SettingsSection>
+      <SettingRow
+        label="Email"
+        helper="Used for sign-in · cannot be changed in V1"
+        :value="auth.user?.email"
+        mono
+      />
 
-        <!-- ============== APPEARANCE ============== -->
-        <SettingsSection id="settings-appearance" title="Appearance" icon="i-lucide-sun-moon">
-          <AppearanceCard />
-        </SettingsSection>
-      </div>
+      <SettingRow label="Master password" helper="Changing re-encrypts your vault · available later">
+        <template #action>
+          <UButton
+            color="neutral"
+            variant="subtle"
+            size="md"
+            icon="i-lucide-key-round"
+            aria-label="Change master password"
+            disabled
+          >
+            <span class="hidden sm:inline">Change</span>
+          </UButton>
+        </template>
+      </SettingRow>
+    </SettingsGroup>
 
-      <div class="min-w-0 space-y-8">
-        <!-- ============== SECURITY ============== -->
-        <SettingsSection id="settings-security" title="Security" icon="i-lucide-shield">
-          <div class="space-y-4">
-            <TwoFactorCard />
-            <PasskeysCard />
-            <BiometricUnlockCard />
+    <!-- ============== SECURITY ============== -->
+    <SettingsGroup id="settings-security" title="Security">
+      <TwoFactorCard />
+      <BiometricUnlockCard />
+    </SettingsGroup>
 
-            <SessionsCard />
-            <TrustedDevicesCard />
-          </div>
-        </SettingsSection>
-      </div>
-    </div>
+    <!-- Credential lists — each owns its group (dynamic count subtitle). -->
+    <PasskeysCard />
+    <SessionsCard />
+    <TrustedDevicesCard />
 
-    <!-- ============== DANGER ZONE — full width, spatially separated from
-         everything else so the destructive action can't be mistaken for a
-         routine setting. ============== -->
-    <div class="mt-10">
-      <SettingsSection id="settings-danger" title="Danger zone" icon="i-lucide-triangle-alert" danger>
-        <div class="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <h3 class="text-base font-semibold text-rose-700 dark:text-rose-300">Delete account</h3>
-              <p class="mt-0.5 text-[13px] text-muted">
-                Permanently removes your account and every encrypted entry. Irreversible.
-              </p>
-            </div>
-            <UButton color="error" variant="subtle" size="md" @click="deleteOpen = true">
-              Delete account
-            </UButton>
-          </div>
-        </div>
-      </SettingsSection>
-    </div>
+    <!-- ============== VAULT ============== -->
+    <SettingsGroup id="settings-vault" title="Vault">
+      <AutoLockCard />
+      <SettingRow label="Export vault" helper="Download an encrypted backup of all entries">
+        <template #action>
+          <UButton
+            color="neutral"
+            variant="subtle"
+            size="md"
+            icon="i-lucide-download"
+            aria-label="Export vault"
+            @click="exportOpen = true"
+          >
+            <span class="hidden sm:inline">Export</span>
+          </UButton>
+        </template>
+      </SettingRow>
+      <SettingRow label="Import vault" helper="Restore from a .adyton file · replaces current vault">
+        <template #action>
+          <UButton
+            color="neutral"
+            variant="subtle"
+            size="md"
+            icon="i-lucide-upload"
+            aria-label="Import vault"
+            @click="importOpen = true"
+          >
+            <span class="hidden sm:inline">Import</span>
+          </UButton>
+        </template>
+      </SettingRow>
+    </SettingsGroup>
+
+    <!-- ============== APPEARANCE ============== -->
+    <SettingsGroup id="settings-appearance" title="Appearance">
+      <AppearanceCard />
+    </SettingsGroup>
+
+    <!-- ============== DANGER ZONE ============== -->
+    <SettingsGroup id="settings-danger" title="Danger zone" danger>
+      <SettingRow
+        label="Delete account"
+        helper="Permanently removes your account and every encrypted entry. Irreversible."
+      >
+        <template #action>
+          <UButton color="error" variant="subtle" size="md" @click="deleteOpen = true">
+            Delete account
+          </UButton>
+        </template>
+      </SettingRow>
+    </SettingsGroup>
 
     <DeleteAccountModal v-model="deleteOpen" @deleted="onDeleted" />
     <VaultExportModal v-model="exportOpen" />

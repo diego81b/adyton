@@ -6,6 +6,7 @@ import { useNativeRuntime } from '~/composables/useNativeRuntime';
 import { useBiometricUnlock } from '~/composables/useBiometricUnlock';
 import { deriveRawKey } from '~/composables/useArgon2Worker';
 import PasswordPromptModal from './PasswordPromptModal.vue';
+import SettingRow from './SettingRow.vue';
 
 // Biometric unlock management — visible only on native (iOS / Android).
 // The parent settings page does not need to gate this card: it self-gates via
@@ -98,80 +99,51 @@ async function disable() {
 <template>
   <!-- Self-gate: render nothing on web — this feature is native-only. -->
   <template v-if="isNative">
-    <div class="rounded-2xl border border-default bg-elevated p-4">
-      <div class="mb-0.5 flex items-center gap-2">
-        <h3 class="text-base font-semibold">Biometric unlock</h3>
-        <span
+    <SettingRow
+      label="Biometric unlock"
+      :helper="
+        supported === false
+          ? 'Set up Face ID, Touch ID, or a fingerprint on this device first'
+          : supported === undefined
+            ? 'Checking availability…'
+            : 'Unlock with Face ID, Touch ID, or fingerprint instead of your master password'
+      "
+      :dot="enrolled ? 'bg-success' : supported ? 'bg-surface-400' : undefined"
+    >
+      <template v-if="supported" #action>
+        <UButton
           v-if="enrolled"
-          class="flex items-center gap-1 rounded-full border border-brand-500/30 bg-brand-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-brand-300"
+          color="error"
+          variant="ghost"
+          size="sm"
+          icon="i-lucide-fingerprint"
+          aria-label="Disable biometric unlock"
+          :loading="disabling"
+          @click="disable"
         >
-          <span class="size-1.5 rounded-full bg-brand-400" />
-          Enabled
-        </span>
-        <span
-          v-else-if="supported !== undefined && supported"
-          class="rounded-full border border-default bg-accented px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted"
+          <span class="hidden sm:inline">Disable</span>
+        </UButton>
+        <UButton
+          v-else
+          color="primary"
+          variant="subtle"
+          size="sm"
+          icon="i-lucide-fingerprint"
+          aria-label="Enable biometric unlock"
+          @click="openEnable"
         >
-          Not configured
-        </span>
-      </div>
-
-      <!-- Device has no biometrics enrolled -->
-      <p
-        v-if="supported === false"
-        class="mt-1 text-[13px] text-muted"
-      >
-        No biometrics are enrolled on this device. Set up Face ID, Touch ID, or a fingerprint
-        in your device settings first.
-      </p>
-
-      <template v-else-if="supported !== undefined">
-        <p class="text-[13px] text-muted">
-          Unlock your vault with Face ID, Touch ID, or fingerprint instead of typing your
-          master password.
-        </p>
-
-        <div class="mt-4">
-          <!-- Enabled: show disable button -->
-          <UButton
-            v-if="enrolled"
-            color="error"
-            variant="subtle"
-            size="md"
-            icon="i-lucide-fingerprint"
-            aria-label="Disable biometric unlock"
-            :loading="disabling"
-            @click="disable"
-          >
-            Disable
-          </UButton>
-
-          <!-- Not enrolled: show enable button -->
-          <UButton
-            v-else
-            color="primary"
-            variant="subtle"
-            size="md"
-            icon="i-lucide-fingerprint"
-            aria-label="Enable biometric unlock"
-            @click="openEnable"
-          >
-            Enable biometric unlock
-          </UButton>
-        </div>
+          <span class="hidden sm:inline">Enable</span>
+        </UButton>
       </template>
+    </SettingRow>
 
-      <!-- Loading state while probing support/enrollment -->
-      <p v-else class="mt-2 text-[13px] text-muted">Checking biometric availability…</p>
-
-      <PasswordPromptModal
-        v-model:open="promptOpen"
-        title="Enable biometric unlock"
-        confirm-label="Enable"
-        :loading="promptLoading"
-        :error="promptError"
-        @confirm="confirmEnable"
-      />
-    </div>
+    <PasswordPromptModal
+      v-model:open="promptOpen"
+      title="Enable biometric unlock"
+      confirm-label="Enable"
+      :loading="promptLoading"
+      :error="promptError"
+      @confirm="confirmEnable"
+    />
   </template>
 </template>

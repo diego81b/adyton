@@ -141,9 +141,13 @@ describe('VaultEntryCard — fixed action columns', () => {
     expect(copyOnly.findAll('span[aria-hidden="true"].size-10')).toHaveLength(1);
   });
 
-  it('action buttons are tinted tile-style (bg + border)', () => {
+  it('action buttons are tile-style (bg + border): notes neutral, copy brand accent', () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'x' }));
-    expect(w.find('[data-testid="notes-toggle"]').classes().join(' ')).toContain('yellow');
+    // Enterprise: notes toggle is calm/token-based at rest (no hard yellow), copy keeps
+    // the brand accent.
+    const notes = w.find('[data-testid="notes-toggle"]').classes().join(' ');
+    expect(notes).toContain('bg-muted');
+    expect(notes).not.toContain('yellow');
     expect(w.find('[data-testid="copy-action"]').classes().join(' ')).toContain('primary');
   });
 

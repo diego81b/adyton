@@ -59,19 +59,18 @@ beforeEach(() => {
 describe('TwoFactorCard', () => {
   it('renders the disabled state and opens the setup wizard', async () => {
     const w = mountCard();
-    expect(w.text()).toContain('Not configured');
+    expect(w.find('[aria-label="Enable 2FA"]').exists()).toBe(true);
 
     const setup = w.findComponent(SetupStub);
     expect(setup.props('open')).toBe(false);
 
-    await w.findAll('button').find((b) => b.text() === 'Enable 2FA')!.trigger('click');
+    await w.find('[aria-label="Enable 2FA"]').trigger('click');
     expect(setup.props('open')).toBe(true);
   });
 
   it('renders the enabled state with disable + regenerate actions', () => {
     mockUser.totpEnabled = true;
     const w = mountCard();
-    expect(w.text()).toContain('Enabled');
     expect(w.text()).toContain('Required at every login');
     expect(w.find('[aria-label="Disable two-factor authentication"]').exists()).toBe(true);
     expect(w.find('[aria-label="Regenerate recovery codes"]').exists()).toBe(true);
@@ -82,7 +81,7 @@ describe('TwoFactorCard', () => {
     w.findComponent(SetupStub).vm.$emit('enabled');
     await flushPromises();
     expect(mockUser.totpEnabled).toBe(true);
-    expect(w.text()).toContain('Enabled');
+    expect(w.text()).toContain('Required at every login');
   });
 
   it('disables 2FA: posts password and flips state to false', async () => {
@@ -104,7 +103,7 @@ describe('TwoFactorCard', () => {
       body: { password: 'masterpw' },
     });
     expect(mockUser.totpEnabled).toBe(false);
-    expect(w.text()).toContain('Not configured');
+    expect(w.find('[aria-label="Enable 2FA"]').exists()).toBe(true);
   });
 
   it('maps a 401 on disable to an Invalid credentials error', async () => {

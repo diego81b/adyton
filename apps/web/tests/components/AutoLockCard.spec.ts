@@ -54,10 +54,10 @@ describe('AutoLockCard', () => {
   it('shows the "never" warning only when duration is 0', async () => {
     const settings = useSettingsStore();
     const w = mountCard();
-    expect(w.text()).not.toContain('stays unlocked');
+    expect(w.text()).not.toContain('Stays unlocked');
     settings.settings.lockDurationMs = 0;
     await w.vm.$nextTick();
-    expect(w.text()).toContain('stays unlocked');
+    expect(w.text()).toContain('Stays unlocked');
   });
 
   it('persists a mode change', async () => {

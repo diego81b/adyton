@@ -146,8 +146,8 @@ async function confirmDelete() {
     </NuxtLink>
 
     <div v-if="loading" class="space-y-4">
-      <USkeleton class="h-16 w-2/3 rounded-2xl" />
-      <USkeleton class="h-48 rounded-2xl" />
+      <USkeleton class="h-16 w-2/3 rounded-lg" />
+      <USkeleton class="h-48 rounded-lg" />
     </div>
 
     <div v-else-if="notFound || !entry" class="py-16 text-center">
@@ -157,11 +157,11 @@ async function confirmDelete() {
     </div>
 
     <template v-else>
-      <!-- Title block -->
+      <!-- Title block — same neutral tile geometry as the vault list, so detail
+           reads as the same product. -->
       <div class="flex items-start gap-4 mb-6">
-        <!-- Tile is the type indicator (tooltip), matching the list — no duplicate text badge. -->
         <div
-          class="w-14 h-14 rounded-2xl border flex items-center justify-center shrink-0"
+          class="size-12 rounded-lg border flex items-center justify-center shrink-0"
           :class="TILE_CLASS[entry.type]"
           :title="typeMeta?.label"
           :aria-label="typeMeta?.label"
@@ -174,12 +174,12 @@ async function confirmDelete() {
               <span class="w-1.5 h-1.5 rounded-full mr-1" :class="envMeta.dot" />
               {{ envMeta.label }}
             </UBadge>
-            <span :class="VERSION_TAG_CLASS">v{{ entry.secretVersion }}</span>
+            <span :class="VERSION_TAG_CLASS" class="tabular-nums">v{{ entry.secretVersion }}</span>
           </div>
           <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mt-2 break-words">
             {{ entry.label }}
           </h1>
-          <p class="text-sm text-dimmed mt-0.5">{{ metaLine }}</p>
+          <p class="text-sm text-dimmed mt-0.5 tabular-nums">{{ metaLine }}</p>
         </div>
       </div>
 
@@ -187,7 +187,7 @@ async function confirmDelete() {
       <EnvFileTable v-if="entry.type === T.ENV_FILE" ref="envTable" :entry="entry" />
 
       <!-- All other types: field card -->
-      <div v-else class="bg-elevated/40 border border-default rounded-2xl divide-y divide-default">
+      <div v-else class="rounded-lg border border-default bg-elevated divide-y divide-default">
         <!-- LOGIN -->
         <template v-if="entry.type === T.LOGIN">
           <DetailField v-if="entry.url" label="Site URL" :value="entry.url" :link="entry.url" />
@@ -258,29 +258,19 @@ async function confirmDelete() {
 
       <!-- Notes — standalone card so EVERY type shows them (the old block lived
            inside the field card above, which ENV_FILE never renders). -->
-      <div v-if="entry.notes" class="mt-4 bg-elevated/40 border border-default rounded-2xl p-4">
+      <div v-if="entry.notes" class="mt-4 rounded-lg border border-default bg-elevated p-4">
         <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed mb-1.5">Notes</div>
         <p class="text-base text-default leading-relaxed whitespace-pre-wrap break-words">
           {{ entry.notes }}
         </p>
       </div>
 
-      <!-- Action bar. Icon-only on mobile (labels appear from sm up) so all actions fit
-           one row; labels keep them clear on larger screens. -->
-      <div class="flex gap-2 mt-5">
-        <UButton
-          v-if="entry.type === T.ENV_FILE"
-          size="lg"
-          class="flex-1 justify-center"
-          icon="i-lucide-download"
-          :aria-label="envDownloadLabel"
-          @click="envTable?.downloadEnv()"
-        >
-          <span class="hidden sm:inline">{{ envDownloadLabel }}</span>
-        </UButton>
+      <!-- Action bar — Swiss hierarchy: one solid primary (Edit, matching the list's
+           "Add"), secondary actions ghost, and Delete pushed apart as a destructive
+           ghost. Icon-only on mobile. -->
+      <div class="mt-5 flex items-center gap-2">
         <UButton
           size="lg"
-          class="flex-1 justify-center"
           color="primary"
           icon="i-lucide-pencil"
           aria-label="Edit"
@@ -289,10 +279,20 @@ async function confirmDelete() {
           <span class="hidden sm:inline">Edit</span>
         </UButton>
         <UButton
+          v-if="entry.type === T.ENV_FILE"
           size="lg"
-          class="flex-1 justify-center"
           color="neutral"
           variant="subtle"
+          icon="i-lucide-download"
+          :aria-label="envDownloadLabel"
+          @click="envTable?.downloadEnv()"
+        >
+          <span class="hidden sm:inline">{{ envDownloadLabel }}</span>
+        </UButton>
+        <UButton
+          size="lg"
+          color="neutral"
+          variant="ghost"
           icon="i-lucide-history"
           aria-label="History"
           @click="historyOpen = true"
@@ -301,11 +301,11 @@ async function confirmDelete() {
         </UButton>
         <UButton
           size="lg"
-          class="flex-1 justify-center"
           color="error"
-          variant="subtle"
+          variant="ghost"
           icon="i-lucide-trash-2"
           aria-label="Delete"
+          class="ml-auto"
           @click="deleteOpen = true"
         >
           <span class="hidden sm:inline">Delete</span>

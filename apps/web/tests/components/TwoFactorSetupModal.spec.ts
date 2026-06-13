@@ -22,12 +22,22 @@ const UButtonStub = {
   emits: ['click'],
   template: '<button :disabled="disabled || undefined" @click="$emit(\'click\')"><slot /></button>',
 };
-const UInputStub = {
-  name: 'UInput',
-  props: ['modelValue'],
-  emits: ['update:modelValue'],
-  template:
-    '<input class="uinput" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+// OtpInput stub mirrors its public contract: digit-filtered model + `complete`
+// on full length. The verify step relies on `@complete` to auto-submit.
+const OtpInputStub = {
+  name: 'OtpInput',
+  props: ['modelValue', 'length', 'invalid'],
+  emits: ['update:modelValue', 'complete'],
+  template: '<input class="otp" :value="modelValue" @input="onInput($event)" />',
+  methods: {
+    onInput(e: Event) {
+      const len = (this as unknown as { length: number }).length ?? 6;
+      const next = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, len);
+      const self = this as unknown as { $emit: (n: string, ...a: unknown[]) => void };
+      self.$emit('update:modelValue', next);
+      if (next.length === len) self.$emit('complete', next);
+    },
+  },
 };
 const UFormFieldStub = {
   name: 'UFormField',
@@ -54,7 +64,7 @@ function mountModal() {
       stubs: {
         UModal: UModalStub,
         UButton: UButtonStub,
-        UInput: UInputStub,
+        OtpInput: OtpInputStub,
         UFormField: UFormFieldStub,
         UCheckbox: UCheckboxStub,
         UAlert: { props: ['title'], template: '<div class="ualert">{{ title }}</div>' },
@@ -88,7 +98,7 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('123456');
+    await w.find('.otp').setValue('123456');
     // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
@@ -109,7 +119,7 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('000000');
+    await w.find('.otp').setValue('000000');
     // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
@@ -124,7 +134,7 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('123456');
+    await w.find('.otp').setValue('123456');
     await flushPromises();
 
     expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/enable', {
@@ -141,7 +151,7 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('123456');
+    await w.find('.otp').setValue('123456');
     // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
