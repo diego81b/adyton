@@ -71,7 +71,7 @@ export default defineNuxtConfig({
         // viewport-fit=cover so env(safe-area-inset-*) works in PWA standalone mode.
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'description', content: 'Adyton — zero-knowledge password manager' },
-        { name: 'theme-color', content: '#011a1f' },
+        { name: 'theme-color', content: '#0c1318' },
         // Installed/standalone display → no browser chrome, no pull-to-refresh on mobile.
         { name: 'mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },

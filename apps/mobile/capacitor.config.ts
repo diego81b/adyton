@@ -28,7 +28,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       // Brand dark behind the logo while the WebView boots; auto-hides as soon
       // as the app is ready (no artificial minimum duration).
-      backgroundColor: '#0a0e0f',
+      backgroundColor: '#0c1318',
       launchAutoHide: true,
       launchShowDuration: 0,
       androidScaleType: 'CENTER_INSIDE',

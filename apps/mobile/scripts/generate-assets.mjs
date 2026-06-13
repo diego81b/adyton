@@ -2,8 +2,8 @@
 // (assets/icon*.png, assets/splash*.png), then `pnpm assets` turns those into the
 // platform-specific launcher icons and splash screens.
 //
-// Source of truth: apps/web/public/favicon.svg (emerald #09c989 logo, transparent bg).
-// Brand background: #0a0e0f (app theme-color).
+// Source of truth: apps/web/public/favicon.svg (brand-300 #c8bc76 logo, transparent bg).
+// Brand background: #0c1318 (generated surface-950, app dark --ui-bg).
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -12,7 +12,7 @@ import sharp from 'sharp';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const logoSvg = path.resolve(here, '../../web/public/favicon.svg');
 const outDir = path.resolve(here, '../assets');
-const BG = '#0a0e0f';
+const BG = '#0c1318';
 
 await mkdir(outDir, { recursive: true });
 
