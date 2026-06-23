@@ -72,9 +72,13 @@ export function useBiometricUnlock() {
    * i.e. a vault key is stored under `adyton.vaultKey.<userId>`.
    */
   async function isEnrolled(userId: string): Promise<boolean> {
-    const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
-    const value = await SecureStorage.get(KEY_PREFIX + userId);
-    return value !== null;
+    try {
+      const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
+      const value = await SecureStorage.get(KEY_PREFIX + userId);
+      return value !== null;
+    } catch {
+      return false;
+    }
   }
 
   /**
