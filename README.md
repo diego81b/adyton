@@ -187,7 +187,7 @@ Defense layers: Cloudflare WAF → `@fastify/rate-limit` per-IP caps → `Progre
 | 5 | Nuxt vault UI | Done |
 | 6 | 2FA (TOTP + WebAuthn passkeys) | Done |
 | 7 | Production hardening (Dockerfiles, CI/CD, backup, security audit) | Done |
-| 8 | Capacitor mobile (iOS + Android) | — |
+| 8 | Capacitor mobile (iOS + Android) | Done |
 | — | Browser extension (MV3) | Post-V1 — security design pending |
 
 ## License
