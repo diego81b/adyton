@@ -14,7 +14,9 @@ let package = Package(
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.4.0"),
         .package(name: "AparajitaCapacitorBiometricAuth", path: "..\..\..\..\..\node_modules\.pnpm\@aparajita+capacitor-biometric-auth@10.0.0\node_modules\@aparajita\capacitor-biometric-auth"),
         .package(name: "AparajitaCapacitorSecureStorage", path: "..\..\..\..\..\node_modules\.pnpm\@aparajita+capacitor-secure-storage@8.0.0\node_modules\@aparajita\capacitor-secure-storage"),
-        .package(name: "CapacitorApp", path: "..\..\..\..\..\node_modules\.pnpm\@capacitor+app@8.1.0_@capacitor+core@8.4.0\node_modules\@capacitor\app")
+        .package(name: "CapacitorCommunitySafeArea", path: "..\..\..\..\..\node_modules\.pnpm\@capacitor-community+safe-area@8.0.1_@capacitor+core@8.4.0\node_modules\@capacitor-community\safe-area"),
+        .package(name: "CapacitorApp", path: "..\..\..\..\..\node_modules\.pnpm\@capacitor+app@8.1.0_@capacitor+core@8.4.0\node_modules\@capacitor\app"),
+        .package(name: "CapacitorSplashScreen", path: "..\..\..\..\..\node_modules\.pnpm\@capacitor+splash-screen@8.0.1_@capacitor+core@8.4.0\node_modules\@capacitor\splash-screen")
     ],
     targets: [
         .target(
@@ -24,7 +26,9 @@ let package = Package(
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "AparajitaCapacitorBiometricAuth", package: "AparajitaCapacitorBiometricAuth"),
                 .product(name: "AparajitaCapacitorSecureStorage", package: "AparajitaCapacitorSecureStorage"),
-                .product(name: "CapacitorApp", package: "CapacitorApp")
+                .product(name: "CapacitorCommunitySafeArea", package: "CapacitorCommunitySafeArea"),
+                .product(name: "CapacitorApp", package: "CapacitorApp"),
+                .product(name: "CapacitorSplashScreen", package: "CapacitorSplashScreen")
             ]
         )
     ]

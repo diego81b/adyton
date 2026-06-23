@@ -56,10 +56,14 @@ onMounted(async () => {
   // On native: check enrollment and auto-attempt biometric unlock. The password form
   // is always rendered as the fallback — biometrics only supplement it.
   if (isNative && authStore.user?.id) {
-    const enrolled = await biometric.isEnrolled(authStore.user.id);
-    if (enrolled) {
-      biometricAvailable.value = true;
-      await attemptBiometric();
+    try {
+      const enrolled = await biometric.isEnrolled(authStore.user.id);
+      if (enrolled) {
+        biometricAvailable.value = true;
+        await attemptBiometric();
+      }
+    } catch {
+      // Plugin error — fall back to password form silently.
     }
   }
 });
