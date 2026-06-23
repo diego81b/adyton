@@ -4,24 +4,47 @@ import { createPinia, setActivePinia } from 'pinia';
 
 vi.mock('../../app/composables/useArgon2Worker', () => ({ useArgon2Worker: vi.fn() }));
 
+// --- useNativeRuntime mock ---------------------------------------------------
+let mockIsNative = false;
+vi.mock('../../app/composables/useNativeRuntime', () => ({
+  useNativeRuntime: () => ({ isNative: mockIsNative }),
+}));
+
+// --- useBiometricUnlock mock -------------------------------------------------
+const mockIsEnrolled = vi.fn<[string], Promise<boolean>>();
+const mockUnlockWithBiometrics = vi.fn<[string], Promise<boolean>>();
+const mockUnenroll = vi.fn<[string], Promise<void>>();
+vi.mock('../../app/composables/useBiometricUnlock', () => ({
+  useBiometricUnlock: () => ({
+    isEnrolled: mockIsEnrolled,
+    unlockWithBiometrics: mockUnlockWithBiometrics,
+    unenroll: mockUnenroll,
+  }),
+}));
+
 const { default: LockOverlay } = await import('../../app/components/LockOverlay.vue');
 const { useAuthStore } = await import('../../app/stores/auth');
 const { useCryptoStore } = await import('../../app/stores/crypto');
 const { useVaultStore } = await import('../../app/stores/vault');
 
-// Render slot content directly so we can drive the form; ignore modal chrome.
 const passthrough = (name: string) => ({ name, template: '<div><slot /><slot name="content" /></div>' });
+
+// UButton stub passes through click handler via $attrs so @click bindings work.
+const UButtonStub = {
+  name: 'UButton',
+  template: '<button v-bind="$attrs"><slot /></button>',
+};
+
 const stubs = {
   UModal: passthrough('UModal'),
   UForm: {
     name: 'UForm',
     emits: ['submit'],
-    // Emit a payload carrying preventDefault so the parent's @submit.prevent works.
     template: '<form @submit.prevent="$emit(\'submit\', { preventDefault() {} })"><slot /></form>',
   },
   UFormField: passthrough('UFormField'),
   UAlert: { name: 'UAlert', props: ['description'], template: '<div class="ualert">{{ description }}</div>' },
-  UButton: { name: 'UButton', template: '<button type="submit"><slot /></button>' },
+  UButton: UButtonStub,
   PasswordInput: {
     name: 'PasswordInput',
     props: ['modelValue'],
@@ -32,19 +55,25 @@ const stubs = {
   KeyDerivationStatus: passthrough('KeyDerivationStatus'),
 };
 
+const FAKE_KEY = { type: 'secret' } as unknown as CryptoKey;
+
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
+  mockIsNative = false;
   const auth = useAuthStore();
   auth.user = { id: 'u1', email: 'a@b.com', kdfSalt: 'a'.repeat(64), totpEnabled: false };
 });
 
-describe('LockOverlay', () => {
+// ---------------------------------------------------------------------------
+// Password form (existing behaviour)
+// ---------------------------------------------------------------------------
+describe('LockOverlay — password form', () => {
   it('unlocks on the correct password (derive + verify both succeed)', async () => {
     const crypto = useCryptoStore();
     const vault = useVaultStore();
     const deriveKey = vi.spyOn(crypto, 'deriveKey').mockImplementation(async () => {
-      crypto.cryptoKey = { type: 'secret' } as unknown as CryptoKey;
+      crypto.cryptoKey = FAKE_KEY;
     });
     const fetchEntries = vi.spyOn(vault, 'fetchEntries').mockResolvedValue();
 
@@ -63,7 +92,7 @@ describe('LockOverlay', () => {
     const crypto = useCryptoStore();
     const vault = useVaultStore();
     vi.spyOn(crypto, 'deriveKey').mockImplementation(async () => {
-      crypto.cryptoKey = { type: 'secret' } as unknown as CryptoKey;
+      crypto.cryptoKey = FAKE_KEY;
     });
     vi.spyOn(vault, 'fetchEntries').mockRejectedValue(new Error('OperationError'));
     const lock = vi.spyOn(crypto, 'lock');
@@ -76,5 +105,151 @@ describe('LockOverlay', () => {
     expect(lock).toHaveBeenCalled();
     expect(crypto.isUnlocked).toBe(false);
     expect(w.find('.ualert').text()).toContain('Wrong master password');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Biometric button visibility
+// ---------------------------------------------------------------------------
+describe('LockOverlay — biometric button visibility', () => {
+  it('hides biometric button on web platform (isNative=false)', async () => {
+    mockIsNative = false;
+    mockIsEnrolled.mockResolvedValue(true);
+
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = FAKE_KEY; // start unlocked so watch fires on lock
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    crypto.lock();
+    await flushPromises();
+
+    expect(w.find('[aria-label="Unlock with biometrics"]').exists()).toBe(false);
+    expect(mockIsEnrolled).not.toHaveBeenCalled();
+  });
+
+  it('hides biometric button when not enrolled', async () => {
+    mockIsNative = true;
+    mockIsEnrolled.mockResolvedValue(false);
+
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = FAKE_KEY;
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    crypto.lock();
+    await flushPromises();
+
+    expect(w.find('[aria-label="Unlock with biometrics"]').exists()).toBe(false);
+  });
+
+  it('shows biometric button when native + enrolled', async () => {
+    mockIsNative = true;
+    mockIsEnrolled.mockResolvedValue(true);
+
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = FAKE_KEY;
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    crypto.lock();
+    await flushPromises();
+
+    expect(w.find('[aria-label="Unlock with biometrics"]').exists()).toBe(true);
+  });
+
+  it('hides biometric button when isEnrolled throws (plugin error)', async () => {
+    mockIsNative = true;
+    mockIsEnrolled.mockRejectedValue(new Error('storage unavailable'));
+
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = FAKE_KEY;
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    crypto.lock();
+    await flushPromises();
+
+    expect(w.find('[aria-label="Unlock with biometrics"]').exists()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Biometric unlock attempt
+// ---------------------------------------------------------------------------
+describe('LockOverlay — biometric attempt', () => {
+  async function mountWithBiometricReady() {
+    mockIsNative = true;
+    mockIsEnrolled.mockResolvedValue(true);
+
+    const crypto = useCryptoStore();
+    const vault = useVaultStore();
+    crypto.cryptoKey = FAKE_KEY;
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    crypto.lock();
+    await flushPromises();
+    return { w, crypto, vault };
+  }
+
+  it('unlocks vault when biometric auth succeeds', async () => {
+    const { w, crypto, vault } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockImplementation(async () => {
+      crypto.cryptoKey = FAKE_KEY;
+      return true;
+    });
+    vi.spyOn(vault, 'fetchEntries').mockResolvedValue();
+
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+
+    expect(vault.fetchEntries).toHaveBeenCalledWith(true);
+    expect(crypto.isUnlocked).toBe(true);
+    expect(w.find('.ualert').exists()).toBe(false);
+  });
+
+  it('stays on overlay when user cancels biometric (returns false)', async () => {
+    const { w, crypto } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockResolvedValue(false);
+
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+
+    expect(crypto.isUnlocked).toBe(false);
+    expect(w.find('[aria-label="Unlock with biometrics"]').exists()).toBe(true);
+    expect(w.find('.ualert').exists()).toBe(false);
+  });
+
+  it('unenrolls + shows error when biometric ok but vault decrypt fails (stale key)', async () => {
+    const { w, crypto, vault } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockImplementation(async () => {
+      crypto.cryptoKey = FAKE_KEY;
+      return true;
+    });
+    vi.spyOn(vault, 'fetchEntries').mockRejectedValue(new Error('OperationError'));
+    // Simulate real behaviour: unenroll removes the key so subsequent isEnrolled calls return false.
+    mockUnenroll.mockImplementation(async () => {
+      mockIsEnrolled.mockResolvedValue(false);
+    });
+
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+    // Extra flush: lock() triggers watch which re-checks isEnrolled (now false after unenroll).
+    await flushPromises();
+
+    expect(mockUnenroll).toHaveBeenCalledWith('u1');
+    expect(w.find('[aria-label="Unlock with biometrics"]').exists()).toBe(false);
+    expect(w.find('.ualert').text()).toContain('out of date');
+  });
+
+  it('keeps enrollment + shows network error when fetch fails with status (API down)', async () => {
+    const { w, crypto, vault } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockImplementation(async () => {
+      crypto.cryptoKey = FAKE_KEY;
+      return true;
+    });
+    vi.spyOn(vault, 'fetchEntries').mockRejectedValue({ status: 503, message: 'Service Unavailable' });
+
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+
+    expect(mockUnenroll).not.toHaveBeenCalled();
+    expect(w.find('.ualert').text()).toContain('server');
   });
 });

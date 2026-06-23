@@ -51,15 +51,20 @@ async function attemptBiometric() {
     await vaultStore.fetchEntries(true);
     // overlay closes automatically when cryptoStore.isUnlocked becomes true
   } catch (err: unknown) {
-    cryptoStore.lock();
     if (err !== null && typeof err === 'object' && 'status' in err) {
+      // Network error — key may be fine, keep enrollment.
+      cryptoStore.lock();
       error.value = 'Could not reach the server. Check your connection and retry.';
     } else if (biometricOk) {
       // Stale key: biometric succeeded but vault decrypt failed.
+      // Unenroll BEFORE locking so the watch triggered by lock() sees isEnrolled=false.
       await biometric.unenroll(authStore.user.id);
       biometricAvailable.value = false;
+      cryptoStore.lock();
       error.value = 'Biometric key is out of date. Please unlock with your master password to re-enroll.';
     } else {
+      // Plugin error before key was used — keep enrollment.
+      cryptoStore.lock();
       error.value = 'Biometric authentication failed. Please try again or use your master password.';
     }
     biometricLoading.value = false;
