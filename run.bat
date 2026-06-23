@@ -41,6 +41,21 @@ if "%1"=="shell-api"       ( docker compose -f docker-compose.yml -f docker-comp
 if "%1"=="shell-web"       ( docker compose -f docker-compose.yml -f docker-compose.dev.yml exec web sh ) & exit /b
 if "%1"=="shell-db"        ( docker compose -f docker-compose.yml -f docker-compose.dev.yml exec db psql -U adyton -d adyton ) & exit /b
 
+REM mobile-build: generate static web assets (API URL baked in) + cap sync → ready for Android Studio
+if "%1"=="mobile-build" (
+    set NUXT_PUBLIC_API_BASE_URL=https://api-adyton.diegobaldeschi.dev
+    pnpm --filter @adyton/web generate && pnpm --filter @adyton/mobile sync
+) & exit /b
+
+REM mobile-open-android: open Android Studio for APK/AAB build
+if "%1"=="mobile-open-android" ( pnpm --filter @adyton/mobile open:android ) & exit /b
+
+REM mobile-dev: live reload against local dev server (replace IP with your LAN address)
+if "%1"=="mobile-dev" (
+    set CAP_SERVER_URL=http://192.168.1.10:30000
+    pnpm --filter @adyton/mobile sync && pnpm --filter @adyton/mobile run:android
+) & exit /b
+
 if "%1"=="prod-up"         ( docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d ) & exit /b
 if "%1"=="prod-down"       ( docker compose -f docker-compose.yml -f docker-compose.prod.yml down ) & exit /b
 if "%1"=="prod-build"      ( docker compose -f docker-compose.yml -f docker-compose.prod.yml build ) & exit /b
@@ -57,4 +72,5 @@ echo Test:         test-api test-api-cov test-api-e2e test-web test-web-cov test
 echo               test-shared test-shared-cov test-all test-all-cov
 echo Shell:        shell-api shell-web shell-db
 echo Prod:         prod-up prod-down prod-build prod-logs (stub until Phase 8)
+echo Mobile:       mobile-build ^<-- generate web + cap sync (staging API); mobile-open-android ^<-- open Android Studio; mobile-dev ^<-- live reload (edit LAN IP first)
 echo Misc:         ps clean
