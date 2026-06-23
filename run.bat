@@ -50,9 +50,13 @@ if "%1"=="mobile-build" (
 REM mobile-open-android: open Android Studio for APK/AAB build
 if "%1"=="mobile-open-android" ( pnpm --filter @adyton/mobile open:android ) & exit /b
 
-REM mobile-dev: live reload against local dev server (replace IP with your LAN address)
+REM mobile-dev: live reload via USB tunnel (adb reverse — no LAN IP needed).
+REM Requires device connected via USB with USB debugging enabled.
+REM Tunnels device:30000→PC:30000 (Nuxt) and device:3000→PC:3000 (API).
 if "%1"=="mobile-dev" (
-    set CAP_SERVER_URL=http://192.168.1.10:30000
+    adb reverse tcp:30000 tcp:30000
+    adb reverse tcp:3000 tcp:3000
+    set CAP_SERVER_URL=http://localhost:30000
     pnpm --filter @adyton/mobile sync && pnpm --filter @adyton/mobile run:android
 ) & exit /b
 
@@ -72,5 +76,5 @@ echo Test:         test-api test-api-cov test-api-e2e test-web test-web-cov test
 echo               test-shared test-shared-cov test-all test-all-cov
 echo Shell:        shell-api shell-web shell-db
 echo Prod:         prod-up prod-down prod-build prod-logs (stub until Phase 8)
-echo Mobile:       mobile-build ^<-- generate web + cap sync (staging API); mobile-open-android ^<-- open Android Studio; mobile-dev ^<-- live reload (edit LAN IP first)
+echo Mobile:       mobile-build ^<-- generate web + cap sync (staging API); mobile-open-android ^<-- open Android Studio; mobile-dev ^<-- live reload via USB (adb reverse, device on USB)
 echo Misc:         ps clean
