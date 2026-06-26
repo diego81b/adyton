@@ -160,9 +160,63 @@ The following features are architecturally sound but outside current V1 implemen
 | **Phone-as-Key Sub-model A (enforced)** | Phase 6 (WebAuthn) | S | enforce `authenticatorAttachment: 'cross-platform'` + device-bound passkeys |
 | **Phone-as-Key Sub-model B (relay)** | Tauri or Phase 8 | L | VPS relay API, Capacitor key-only app, ECDH key exchange, ntfy.sh push |
 | **Emergency access (trusted contact)** | Phase 3 | M | time-locked delegated access, zero-knowledge grant flow |
-| **VaultEntry sharing** | Phase 3 | L | asymmetric re-encryption for sharing between users on same instance |
 | **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
 | **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |
+
+---
+
+### V2 — Enterprise Multi-User (post-V1, target ~150 users on-premise)
+
+Full design: [`analysis/roadmap/v2-enterprise.md`](./v2-enterprise.md)
+
+Transforms Adyton from a personal vault into a multi-user on-premise product. Personal vaults are fully preserved; team group vaults are layered on top via asymmetric ECDH key wrapping.
+
+**Key capabilities:**
+- Organisation tenant with roles (owner / admin / member)
+- Group vaults: ECDH key distribution, one `WrappedGroupKey` per member
+- SSO as authentication plugin: OIDC (Microsoft Entra, Google Workspace, Okta) + SAML — SSO proves identity only; Vault PIN still required for crypto
+- Backoffice admin UI at `/admin/**` (member management, group management, SSO config, audit log)
+- Kick (destructive, deletes wrapped keys) and Suspend (reversible, keeps wrapped keys)
+- Optional group key rotation post-kick
+
+**ZK guarantee:** server never sees group key or personal vault key in plaintext. Admin can revoke group access but cannot read personal vault content.
+
+| Component | Complexity |
+|---|---|
+| EC key pairs per user + ECDH wrapping | M |
+| Group vault API + entities | M |
+| SSO OIDC + SAML plugins | M |
+| Backoffice UI | M |
+| Kick / suspend flows | S |
+| **Total** | **L** |
+
+---
+
+### V3 — Federation and Cross-Instance Sharing (post-V2)
+
+Full design: [`analysis/roadmap/v3-federation.md`](./v3-federation.md)
+
+Enables multiple independent on-premise Adyton deployments to collaborate. A self-hosted **federation hub** (itself an Adyton instance with `FEDERATION_HUB=true`) acts as an identity registry. Vault data never leaves its home instance.
+
+**Key capabilities:**
+- Universal User Code (UUC): `urn:adyton:user:<uuid>` — stable identity across deployments, paired with EC public key
+- Hub-and-spoke: hub holds only identity metadata (UUID → pubkey → instance URL), zero vault data
+- Spoke registration: instance registers with hub; hub admin approves; mutual trust established
+- Cross-instance group sharing: ECDH wrap group key for remote user → push wrapped key to their instance → user decrypts locally
+- Cross-instance access assertions: short-lived JWTs signed by user's EC private key, verified by home instance without hub contact
+- Device binding: per-device EC keypair in OS keychain, revocable independently of user account
+
+**ZK guarantee:** hub never sees vault ciphertext. Cross-instance operations are purely key-wrapping exchanges. Remote vault access is authenticated by cryptographic proof of key possession, not by password transmission.
+
+| Component | Complexity |
+|---|---|
+| UUC (trivial add on V2 registration) | XS |
+| Hub mode + spoke mode modules | M |
+| Identity publication + hub registry | S |
+| Cross-instance key routing | M |
+| Cross-instance assertion sign/verify | M |
+| Cross-org group backoffice UI | M |
+| **Total** | **L** |
 
 ---
 
