@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
 import { PakService } from './pak.service';
 import { AuditAction } from '../entities/audit-log.entity';
 import { PakEnrollmentMethod, PakPlatform, PakRevocationReason } from '../entities/device-vault-key.entity';
@@ -26,6 +26,13 @@ const mockRedis = {
   set: jest.fn(),
   del: jest.fn(),
   ttl: jest.fn(),
+  incr: jest.fn(),
+  expire: jest.fn(),
+};
+
+const mockEmailNotifier = {
+  sendNewDeviceAlert: jest.fn(),
+  sendPakDeviceEnrolledAlert: jest.fn(),
 };
 
 // ---- Fixtures ---------------------------------------------------------------
@@ -111,15 +118,20 @@ describe('PakService', () => {
       (_entity: unknown, data: Record<string, unknown>) => ({ id: DEVICE_ID, ...data }),
     );
     mockEm.getReference.mockImplementation((_entity: unknown, id: string) => ({ id }));
+    mockEm.findOne.mockResolvedValue(null);
     mockRedis.setex.mockResolvedValue('OK');
     mockRedis.set.mockResolvedValue('OK');
     mockRedis.del.mockResolvedValue(1);
     mockRedis.ttl.mockResolvedValue(45);
+    mockRedis.incr.mockResolvedValue(1); // default: first enrollment attempt
+    mockRedis.expire.mockResolvedValue(1);
+    mockEmailNotifier.sendPakDeviceEnrolledAlert.mockResolvedValue(undefined);
 
     service = new PakService(
       mockEm as never,
       mockAuditService as never,
       mockRedis as never,
+      mockEmailNotifier as never,
     );
   });
 
@@ -216,7 +228,7 @@ describe('PakService', () => {
       mockRedis.get.mockResolvedValue(null);
 
       await expect(
-        service.submitRelayPayload(SESSION_ID, makeRelayPayload()),
+        service.submitRelayPayload(SESSION_ID, makeRelayPayload(), USER_ID, '1.2.3.4', 'test-ua'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -225,7 +237,7 @@ describe('PakService', () => {
       mockRedis.get.mockResolvedValue(session);
 
       await expect(
-        service.submitRelayPayload(SESSION_ID, makeRelayPayload()),
+        service.submitRelayPayload(SESSION_ID, makeRelayPayload(), USER_ID, '1.2.3.4', 'test-ua'),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -233,8 +245,10 @@ describe('PakService', () => {
       const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now(), consumed: false });
       mockRedis.get.mockResolvedValue(session);
       mockRedis.ttl.mockResolvedValue(45);
+      // device lookup returns null — non-fatal
+      mockEm.findOne.mockResolvedValueOnce(null);
 
-      await service.submitRelayPayload(SESSION_ID, makeRelayPayload());
+      await service.submitRelayPayload(SESSION_ID, makeRelayPayload(), USER_ID, '1.2.3.4', 'test-ua');
 
       // The session should be updated with consumed=true
       expect(mockRedis.setex).toHaveBeenCalledWith(
@@ -247,6 +261,23 @@ describe('PakService', () => {
         `pak_qr_payload:${SESSION_ID}`,
         30,
         expect.stringContaining('phone-eph-pub'),
+      );
+    });
+
+    it('logs PAK_QR_APPROVED audit event on success', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'spki', challengeHex: 'a'.repeat(64), createdAt: Date.now(), consumed: false });
+      mockRedis.get.mockResolvedValueOnce(session);
+      mockRedis.ttl.mockResolvedValueOnce(45);
+      mockEm.findOne.mockResolvedValueOnce(null); // device lookup returns null — non-fatal
+
+      await service.submitRelayPayload(SESSION_ID, makeRelayPayload(), USER_ID, '1.2.3.4', 'ua');
+
+      expect(mockAuditService.persistLog).toHaveBeenCalledWith(
+        USER_ID,
+        AuditAction.PAK_QR_APPROVED,
+        '1.2.3.4',
+        'ua',
+        expect.objectContaining({ deviceId: expect.any(String) }),
       );
     });
   });
@@ -266,7 +297,8 @@ describe('PakService', () => {
   // --------------------------------------------------------------------------
   describe('enrollDevice', () => {
     it('throws ConflictException when fingerprint already exists', async () => {
-      mockEm.findOne.mockResolvedValue(makeDevice());
+      // first findOne = duplicate device found; second = user email lookup (irrelevant, won't reach it)
+      mockEm.findOne.mockResolvedValueOnce(makeDevice());
 
       await expect(
         service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'ua'),
@@ -275,7 +307,8 @@ describe('PakService', () => {
     });
 
     it('creates the device, audits PAK_DEVICE_ENROLLED, flushes, and returns the entity', async () => {
-      mockEm.findOne.mockResolvedValue(null);
+      // first findOne = no duplicate; second findOne = user email lookup
+      mockEm.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({ email: 'test@adyton.test' });
 
       const device = await service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'agent');
 
@@ -297,10 +330,17 @@ describe('PakService', () => {
       );
       expect(mockEm.flush).toHaveBeenCalledTimes(1);
       expect(device.id).toBe(DEVICE_ID);
+      expect(mockEmailNotifier.sendPakDeviceEnrolledAlert).toHaveBeenCalledWith(
+        'test@adyton.test',
+        'Test Phone',
+        '127.0.0.1',
+        'agent',
+      );
     });
 
     it('stores pak_enroll_phone when enrollmentSessionId is provided', async () => {
-      mockEm.findOne.mockResolvedValue(null);
+      // first findOne = no duplicate; second = user email lookup
+      mockEm.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
       const dto = makeEnrollDto({ enrollmentSessionId: SESSION_ID });
 
       await service.enrollDevice(USER_ID, dto, '127.0.0.1', 'ua');
@@ -321,7 +361,8 @@ describe('PakService', () => {
     });
 
     it('does not touch ENROLL_PHONE key when enrollmentSessionId is absent', async () => {
-      mockEm.findOne.mockResolvedValue(null);
+      // first findOne = no duplicate; second = user email lookup
+      mockEm.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
       await service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'ua');
 
@@ -329,6 +370,23 @@ describe('PakService', () => {
         (c: string[]) => c[0].startsWith('pak_enroll_phone:'),
       );
       expect(enrollPhoneCall).toBeUndefined();
+    });
+
+    it('throws 429 when enrollment rate limit is exceeded', async () => {
+      mockRedis.incr.mockResolvedValue(6); // exceeds ENROLL_RATE_LIMIT=5
+
+      await expect(
+        service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'ua'),
+      ).rejects.toThrow(HttpException);
+    });
+
+    it('does not send email alert when user entity is not found', async () => {
+      // first findOne = no duplicate; second = user email lookup returns null
+      mockEm.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+      await service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'ua');
+
+      expect(mockEmailNotifier.sendPakDeviceEnrolledAlert).not.toHaveBeenCalled();
     });
   });
 

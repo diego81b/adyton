@@ -1,5 +1,6 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/core';
+import { EmailNotifier, EMAIL_NOTIFIER } from '../notifications/email-notifier.interface';
 import { Redis } from 'ioredis';
 import * as crypto from 'crypto';
 import { DeviceVaultKey, PakEnrollmentMethod, PakPlatform, PakRevocationReason } from '../entities/device-vault-key.entity';
@@ -21,6 +22,10 @@ const ENROLL_PHONE_PREFIX = 'pak_enroll_phone:';
 const ENROLL_VAULT_PREFIX = 'pak_enroll_vault:';
 const ENROLL_TTL_SECONDS = 300;
 const ENROLL_VAULT_TTL_SECONDS = 60;
+
+const ENROLL_RATE_PREFIX = 'pak_enroll_rate:';
+const ENROLL_RATE_LIMIT = 5;
+const ENROLL_RATE_WINDOW_SECONDS = 3600; // 1 hour
 
 interface QrSessionData {
   desktopPublicKeySpki: string;
@@ -73,6 +78,7 @@ export class PakService {
     private readonly em: EntityManager,
     private readonly auditService: AuditService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(EMAIL_NOTIFIER) private readonly emailNotifier: EmailNotifier,
   ) {}
 
   async issueQrSession(desktopPublicKeySpki: string, challengeHex: string): Promise<{ sessionId: string }> {
@@ -140,6 +146,9 @@ export class PakService {
   async submitRelayPayload(
     sessionId: string,
     dto: { phoneEphemeralPub: string; ciphertext: string; iv: string; deviceId: string; signature: string },
+    userId: string,
+    ip: string,
+    ua: string,
   ): Promise<void> {
     const raw = await this.redis.get(`${QR_SESSION_PREFIX}${sessionId}`);
     if (!raw) {
@@ -174,6 +183,24 @@ export class PakService {
       QR_PAYLOAD_TTL_SECONDS,
       JSON.stringify(payload),
     );
+
+    // Audit the QR approval
+    this.auditService.persistLog(userId, AuditAction.PAK_QR_APPROVED, ip, ua, { deviceId: dto.deviceId });
+
+    // Best-effort: update lastUsedAt on the approving device — don't fail the relay if lookup fails
+    try {
+      const device = await this.em.findOne(DeviceVaultKey, {
+        publicKeyFingerprint: dto.deviceId,
+        user: userId,
+      });
+      if (device) {
+        device.lastUsedAt = new Date();
+        device.lastUsedIp = ip;
+        await this.em.flush();
+      }
+    } catch {
+      // Non-fatal: relay payload is already stored
+    }
   }
 
   async cancelQrSession(sessionId: string): Promise<void> {
@@ -278,6 +305,14 @@ export class PakService {
     ip: string,
     ua: string,
   ): Promise<DeviceVaultKey> {
+    // Per-user enrollment rate limit: 5 per hour
+    const rateKey = `${ENROLL_RATE_PREFIX}${userId}`;
+    const enrollCount = await this.redis.incr(rateKey);
+    await this.redis.expire(rateKey, ENROLL_RATE_WINDOW_SECONDS); // unconditional — prevents permanent lockout
+    if (enrollCount > ENROLL_RATE_LIMIT) {
+      throw new HttpException('Too many enrollment attempts. Try again in an hour.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     // Derive fingerprint server-side — never trust the client-supplied value.
     const fingerprint = crypto
       .createHash('sha256')
@@ -323,6 +358,17 @@ export class PakService {
         `${ENROLL_PHONE_PREFIX}${dto.enrollmentSessionId}`,
         ENROLL_TTL_SECONDS,
         JSON.stringify(phoneData),
+      );
+    }
+
+    // Fire-and-forget enrollment alert — fetch full user entity for email
+    const userForAlert = await this.em.findOne(User, { id: userId });
+    if (userForAlert?.email) {
+      void this.emailNotifier.sendPakDeviceEnrolledAlert(
+        userForAlert.email,
+        dto.deviceName,
+        ip,
+        ua,
       );
     }
 

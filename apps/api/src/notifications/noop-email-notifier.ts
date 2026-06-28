@@ -10,4 +10,13 @@ export class NoOpEmailNotifier implements EmailNotifier {
   ): Promise<void> {
     // No-op: used when SMTP_HOST is not configured
   }
+
+  async sendPakDeviceEnrolledAlert(
+    _to: string,
+    _deviceName: string,
+    _ip: string,
+    _ua: string,
+  ): Promise<void> {
+    // No-op: used when SMTP_HOST is not configured
+  }
 }

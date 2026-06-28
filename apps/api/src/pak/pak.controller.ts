@@ -66,8 +66,10 @@ export class PakController {
   async submitRelayPayload(
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @Body() dto: SubmitRelayDto,
+    @Req() req: RequestWithUser,
+    @Headers('user-agent') ua: string,
   ): Promise<void> {
-    await this.pakService.submitRelayPayload(sessionId, dto);
+    await this.pakService.submitRelayPayload(sessionId, dto, req.user.userId, req.ip, ua ?? '');
   }
 
   @Delete('auth/qr-relay/:sessionId')

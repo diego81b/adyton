@@ -27,6 +27,8 @@ interface QrPayload {
 
 type ApprovePhase = 'loading' | 'ready' | 'approving' | 'success' | 'error' | 'not-enrolled';
 
+const PAK_DEVICE_KEY_PREFIX = 'adyton_pak_device_';
+
 const authStore = useAuthStore();
 const { isNative } = useNativeRuntime();
 const router = useRouter();
@@ -35,6 +37,7 @@ const route = useRoute();
 const approvePhase = ref<ApprovePhase>('loading');
 const approveError = ref<string | null>(null);
 
+/* global localStorage */
 // Parsed data — populated once decoding succeeds
 let qrData: QrPayload | null = null;
 let enrolledDevice: DeviceResponseDto | null = null;
@@ -97,12 +100,17 @@ onMounted(async () => {
 
 async function approve() {
   if (!qrData || !enrolledDevice) return;
+  const localDeviceId = localStorage.getItem(PAK_DEVICE_KEY_PREFIX + authStore.user!.id);
+  if (!localDeviceId) {
+    approvePhase.value = 'not-enrolled';
+    return;
+  }
   approvePhase.value = 'approving';
   approveError.value = null;
 
   try {
     // Verify keys are still present in Keystore before attempting biometric prompt
-    const { exists } = await AdytonKeystore.hasKeys({ deviceId: enrolledDevice.id });
+    const { exists } = await AdytonKeystore.hasKeys({ deviceId: localDeviceId });
     if (!exists) {
       approvePhase.value = 'not-enrolled';
       return;
@@ -110,13 +118,13 @@ async function approve() {
 
     // Sign the sessionId to prove possession of the Keystore SIGN key
     const signResult = await AdytonKeystore.sign({
-      deviceId: enrolledDevice.id,
+      deviceId: localDeviceId,
       dataBase64: btoa(qrData.s),
     });
 
     // ECDH with the desktop's ephemeral key, AES-GCM encrypt the vault key
     const relayResult = await AdytonKeystore.encryptForRelay({
-      deviceId: enrolledDevice.id,
+      deviceId: localDeviceId,
       remotePublicKeySpki: qrData.p,
       challengeHex: qrData.c,
       sessionId: qrData.s,
@@ -129,7 +137,7 @@ async function approve() {
         phoneEphemeralPub: relayResult.phoneEphemeralPub,
         ciphertext: relayResult.ciphertext,
         iv: relayResult.iv,
-        deviceId: enrolledDevice.id,
+        deviceId: enrolledDevice.publicKeyFingerprint,
         signature: signResult.signatureBase64,
       },
     });

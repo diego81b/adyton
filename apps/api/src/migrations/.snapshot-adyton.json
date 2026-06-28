@@ -80,6 +80,7 @@
             "PAK_QR_DENIED",
             "PAK_RECOVERY_KIT_CREATED",
             "PAK_RECOVERY_KIT_USED",
+            "PAK_RECOVERY_KIT_REVOKED",
             "EMERGENCY_FALLBACK"
           ],
           "mappedType": "enum"
