@@ -27,6 +27,8 @@ type EnrollPhase =
   | 'phone-connected'
   | 'confirming'
   | 'sending'
+  | 'recovery-kit-pending'
+  | 'finalizing'
   | 'enrolled'
   | 'error';
 
@@ -34,9 +36,11 @@ const mockPhase = ref<EnrollPhase>('idle');
 const mockQrUrl = ref<string | null>(null);
 const mockError = ref<string | null>(null);
 const mockConnectedDeviceId = ref<string | null>(null);
+const mockPendingMnemonic = ref<string[] | null>(null);
 
 const mockStart = vi.fn();
 const mockConfirmAndSend = vi.fn();
+const mockFinalizeEnrollment = vi.fn();
 const mockCancel = vi.fn();
 const mockReset = vi.fn();
 
@@ -46,8 +50,10 @@ vi.mock('../../app/composables/usePakEnrollment', () => ({
     qrUrl: mockQrUrl,
     error: mockError,
     connectedDeviceId: mockConnectedDeviceId,
+    pendingMnemonic: mockPendingMnemonic,
     start: mockStart,
     confirmAndSend: mockConfirmAndSend,
+    finalizeEnrollment: mockFinalizeEnrollment,
     cancel: mockCancel,
     reset: mockReset,
   }),
@@ -98,6 +104,13 @@ const SettingRowStub = {
   template: '<div :data-label="label" :data-helper="helper" :data-dot="dot"><slot name="action" /></div>',
 };
 
+const RecoveryKitSetupStepStub = {
+  name: 'RecoveryKitSetupStep',
+  props: ['mnemonic', 'loading'],
+  emits: ['confirm'],
+  template: '<div data-testid="recovery-kit-step" :data-loading="loading" @click="$emit(\'confirm\')" />',
+};
+
 function mountCard() {
   return mount(PakEnrollCard, {
     global: {
@@ -108,6 +121,7 @@ function mountCard() {
         UAlert: UAlertStub,
         UFormField: UFormFieldStub,
         SettingRow: SettingRowStub,
+        RecoveryKitSetupStep: RecoveryKitSetupStepStub,
       },
     },
   });
@@ -119,8 +133,10 @@ beforeEach(() => {
   mockQrUrl.value = null;
   mockError.value = null;
   mockConnectedDeviceId.value = null;
+  mockPendingMnemonic.value = null;
   mockStart.mockReset();
   mockConfirmAndSend.mockReset();
+  mockFinalizeEnrollment.mockReset();
   mockCancel.mockReset();
   mockReset.mockReset();
 });
@@ -227,6 +243,49 @@ describe('PakEnrollCard — phone-connected', () => {
     expect(cancelButton).toBeTruthy();
     await cancelButton!.trigger('click');
     expect(mockCancel).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// recovery-kit-pending
+// ---------------------------------------------------------------------------
+describe('PakEnrollCard — recovery-kit-pending', () => {
+  beforeEach(() => {
+    mockPhase.value = 'recovery-kit-pending';
+    mockPendingMnemonic.value = Array.from({ length: 24 }, (_, i) => `word${i + 1}`);
+  });
+
+  it('shows the warning dot and recovery-kit header', () => {
+    const wrapper = mountCard();
+    expect(wrapper.find('[data-dot="bg-warning"]').exists()).toBe(true);
+  });
+
+  it('renders RecoveryKitSetupStep when pendingMnemonic is set', () => {
+    const wrapper = mountCard();
+    expect(wrapper.find('[data-testid="recovery-kit-step"]').exists()).toBe(true);
+  });
+
+  it('calls finalizeEnrollment when RecoveryKitSetupStep emits confirm', async () => {
+    mockFinalizeEnrollment.mockResolvedValue(undefined);
+    const wrapper = mountCard();
+    await wrapper.find('[data-testid="recovery-kit-step"]').trigger('click');
+    expect(mockFinalizeEnrollment).toHaveBeenCalledOnce();
+  });
+
+  it('passes loading=false when phase is recovery-kit-pending', () => {
+    const wrapper = mountCard();
+    const step = wrapper.find('[data-testid="recovery-kit-step"]');
+    expect(step.attributes('data-loading')).toBe('false');
+  });
+});
+
+describe('PakEnrollCard — finalizing', () => {
+  it('passes loading=true to RecoveryKitSetupStep when phase is finalizing', () => {
+    mockPhase.value = 'finalizing';
+    mockPendingMnemonic.value = Array.from({ length: 24 }, (_, i) => `word${i + 1}`);
+    const wrapper = mountCard();
+    const step = wrapper.find('[data-testid="recovery-kit-step"]');
+    expect(step.attributes('data-loading')).toBe('true');
   });
 });
 

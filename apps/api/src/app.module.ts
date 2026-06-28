@@ -13,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { VaultModule } from './vault/vault.module';
 import { AuditModule } from './audit/audit.module';
 import { PakModule } from './pak/pak.module';
+import { RecoveryModule } from './recovery/recovery.module';
 import mikroOrmBaseConfig from './mikro-orm.config';
 
 @Module({
@@ -39,6 +40,7 @@ import mikroOrmBaseConfig from './mikro-orm.config';
     AuditModule,
     VaultModule,
     PakModule,
+    RecoveryModule,
   ],
   controllers: [HealthController],
   providers: [],

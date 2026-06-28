@@ -246,6 +246,16 @@ async function onSubmit() {
             @retry="retryQr"
           />
         </div>
+
+        <!-- Recovery fallback link — shown below the PAK block when phone is unavailable -->
+        <div class="mb-5 text-center text-sm">
+          <NuxtLink
+            to="/pak/recover"
+            class="text-muted hover:text-default underline-offset-2 hover:underline"
+          >
+            Lost your phone? Use recovery kit
+          </NuxtLink>
+        </div>
       </template>
 
       <UForm v-show="!showQr" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">

@@ -11,6 +11,7 @@ const mockExportPublicKeySpki = vi.fn();
 const mockImportPublicKeySpki = vi.fn();
 const mockDeriveQrSessionKey = vi.fn();
 const mockEncryptForTransport = vi.fn();
+const mockWrapVaultKeyForRecovery = vi.fn();
 
 vi.mock('@adyton/shared', async (orig) => {
   const real = await orig<typeof import('@adyton/shared')>();
@@ -21,6 +22,7 @@ vi.mock('@adyton/shared', async (orig) => {
     importPublicKeySpki: (...args: unknown[]) => mockImportPublicKeySpki(...args),
     deriveQrSessionKey: (...args: unknown[]) => mockDeriveQrSessionKey(...args),
     encryptForTransport: (...args: unknown[]) => mockEncryptForTransport(...args),
+    wrapVaultKeyForRecovery: (...args: unknown[]) => mockWrapVaultKeyForRecovery(...args),
   };
 });
 
@@ -118,6 +120,15 @@ function fakeKeypair() {
   };
 }
 
+function fakeKitResult() {
+  return {
+    mnemonic: 'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24',
+    recoverySalt: 'salt-b64',
+    recoveryWrappedVaultKey: 'wrapped-b64',
+    wrapIv: 'iv-b64',
+  };
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   setActivePinia(createPinia());
@@ -130,6 +141,7 @@ beforeEach(() => {
   mockImportPublicKeySpki.mockReset();
   mockDeriveQrSessionKey.mockReset();
   mockEncryptForTransport.mockReset();
+  mockWrapVaultKeyForRecovery.mockReset();
   mockDeriveRawKey.mockReset();
   mockVerifyRawKeyMatches.mockReset();
   mockApiFetch.mockReset();
@@ -142,6 +154,7 @@ beforeEach(() => {
   mockEncryptForTransport.mockResolvedValue({ ciphertext: 'ct-base64', iv: 'iv-base64' });
   mockDeriveRawKey.mockResolvedValue(fakeRawKey());
   mockVerifyRawKeyMatches.mockResolvedValue(true);
+  mockWrapVaultKeyForRecovery.mockResolvedValue(fakeKitResult());
 });
 
 afterEach(() => {
@@ -288,7 +301,7 @@ describe('usePakEnrollment.pollEnrollStatus — waiting', () => {
 });
 
 // ---------------------------------------------------------------------------
-// confirmAndSend()
+// confirmAndSend() — updated for recovery-kit flow
 // ---------------------------------------------------------------------------
 describe('usePakEnrollment.confirmAndSend', () => {
   it('does nothing if phase is not phone-connected', async () => {
@@ -318,38 +331,31 @@ describe('usePakEnrollment.confirmAndSend', () => {
     expect(mockEncryptForTransport).not.toHaveBeenCalled();
   });
 
-  it('derives session key, encrypts, POSTs enroll-vault, sets localStorage, transitions to enrolled', async () => {
-    const localStorageSpy = vi.spyOn(Storage.prototype, 'setItem');
+  it('transitions to recovery-kit-pending (NOT enrolled) after wrapping succeeds', async () => {
     mockApiFetch
       .mockResolvedValueOnce({ sessionId: 'sess-1', ttlSeconds: 60 })
-      .mockResolvedValueOnce({ status: 'phone_ready', phoneEphemeralPub: 'pub-b64', deviceId: 'dev-42' })
-      .mockResolvedValueOnce(undefined); // enroll-vault
+      .mockResolvedValueOnce({ status: 'phone_ready', phoneEphemeralPub: 'pub-b64', deviceId: 'dev-42' });
 
-    const { phase, start, confirmAndSend } = usePakEnrollment();
+    const { phase, pendingMnemonic, start, confirmAndSend } = usePakEnrollment();
     await start();
     await vi.advanceTimersByTimeAsync(2000);
     expect(phase.value).toBe('phone-connected');
 
     await confirmAndSend('correct-password');
 
-    expect(mockDeriveRawKey).toHaveBeenCalledWith('correct-password', 'aa'.repeat(32));
-    expect(mockVerifyRawKeyMatches).toHaveBeenCalled();
-    expect(mockImportPublicKeySpki).toHaveBeenCalledWith('pub-b64');
-    expect(mockDeriveQrSessionKey).toHaveBeenCalled();
-    expect(mockEncryptForTransport).toHaveBeenCalled();
-
-    expect(mockApiFetch).toHaveBeenCalledWith(
-      '/auth/enroll-vault/sess-1',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.objectContaining({ ciphertext: 'ct-base64', iv: 'iv-base64' }),
-      }),
+    expect(phase.value).toBe('recovery-kit-pending');
+    expect(mockWrapVaultKeyForRecovery).toHaveBeenCalled();
+    // mnemonic is set and split into 24 words
+    expect(pendingMnemonic.value).toHaveLength(24);
+    // server endpoints NOT called yet
+    expect(mockApiFetch).not.toHaveBeenCalledWith(
+      '/auth/recovery/setup',
+      expect.anything(),
     );
-
-    expect(localStorageSpy).toHaveBeenCalledWith('adyton_pak_device_user-1', 'dev-42');
-    expect(phase.value).toBe('enrolled');
-
-    localStorageSpy.mockRestore();
+    expect(mockApiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/auth/enroll-vault/'),
+      expect.anything(),
+    );
   });
 
   it('transitions to error if vault is locked (cryptoKey is null)', async () => {
@@ -367,6 +373,100 @@ describe('usePakEnrollment.confirmAndSend', () => {
     expect(phase.value).toBe('error');
     expect(error.value).toMatch(/locked/i);
     expect(mockEncryptForTransport).not.toHaveBeenCalled();
+  });
+
+  it('zeroizes raw bytes even when wrapVaultKeyForRecovery throws', async () => {
+    mockApiFetch
+      .mockResolvedValueOnce({ sessionId: 'sess-1', ttlSeconds: 60 })
+      .mockResolvedValueOnce({ status: 'phone_ready', phoneEphemeralPub: 'pub-b64', deviceId: 'dev-1' });
+    mockWrapVaultKeyForRecovery.mockRejectedValueOnce(new Error('wrap failed'));
+
+    const rawBuf = fakeRawKey();
+    mockDeriveRawKey.mockResolvedValueOnce(rawBuf);
+
+    const { phase, start, confirmAndSend } = usePakEnrollment();
+    await start();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await confirmAndSend('password');
+
+    expect(phase.value).toBe('error');
+    // Raw buffer must be zeroized
+    expect(new Uint8Array(rawBuf).every(b => b === 0)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// finalizeEnrollment()
+// ---------------------------------------------------------------------------
+describe('usePakEnrollment.finalizeEnrollment', () => {
+  async function reachRecoveryKitPending() {
+    mockApiFetch
+      .mockResolvedValueOnce({ sessionId: 'sess-1', ttlSeconds: 60 })
+      .mockResolvedValueOnce({ status: 'phone_ready', phoneEphemeralPub: 'pub-b64', deviceId: 'dev-42' });
+
+    const enrollment = usePakEnrollment();
+    await enrollment.start();
+    await vi.advanceTimersByTimeAsync(2000);
+    await enrollment.confirmAndSend('correct-password');
+    expect(enrollment.phase.value).toBe('recovery-kit-pending');
+    return enrollment;
+  }
+
+  it('calls /auth/recovery/setup first, then /auth/enroll-vault/:sessionId', async () => {
+    const enrollment = await reachRecoveryKitPending();
+    mockApiFetch
+      .mockResolvedValueOnce(undefined) // /auth/recovery/setup
+      .mockResolvedValueOnce(undefined); // /auth/enroll-vault/sess-1
+
+    const localStorageSpy = vi.spyOn(Storage.prototype, 'setItem');
+
+    await enrollment.finalizeEnrollment();
+
+    // Order matters: recovery setup first
+    const calls = mockApiFetch.mock.calls;
+    const recoveryCallIdx = calls.findIndex(c => c[0] === '/auth/recovery/setup');
+    const enrollCallIdx = calls.findIndex(c => typeof c[0] === 'string' && c[0].includes('/auth/enroll-vault/'));
+    expect(recoveryCallIdx).toBeLessThan(enrollCallIdx);
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/auth/recovery/setup',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.objectContaining({ recoverySalt: 'salt-b64', recoveryWrappedVaultKey: 'wrapped-b64', wrapIv: 'iv-b64' }),
+      }),
+    );
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/auth/enroll-vault/sess-1',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.objectContaining({ ciphertext: 'ct-base64', iv: 'iv-base64' }),
+      }),
+    );
+
+    expect(localStorageSpy).toHaveBeenCalledWith('adyton_pak_device_user-1', 'dev-42');
+    expect(enrollment.phase.value).toBe('enrolled');
+    expect(enrollment.pendingMnemonic.value).toBeNull();
+
+    localStorageSpy.mockRestore();
+  });
+
+  it('transitions to error and clears pending state if finalizeEnrollment fails', async () => {
+    const enrollment = await reachRecoveryKitPending();
+    mockApiFetch.mockRejectedValueOnce(new Error('server down'));
+
+    await enrollment.finalizeEnrollment();
+
+    expect(enrollment.phase.value).toBe('error');
+    expect(enrollment.error.value).toBe('server down');
+    expect(enrollment.pendingMnemonic.value).toBeNull();
+  });
+
+  it('does nothing if called before confirmAndSend (no pending state)', async () => {
+    const { finalizeEnrollment, phase } = usePakEnrollment();
+    await finalizeEnrollment();
+    expect(mockApiFetch).not.toHaveBeenCalled();
+    expect(phase.value).toBe('idle');
   });
 });
 

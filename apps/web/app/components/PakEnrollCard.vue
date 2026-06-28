@@ -6,7 +6,7 @@ import { useNativeRuntime } from '~/composables/useNativeRuntime';
 import SettingRow from './SettingRow.vue';
 
 const { isNative } = useNativeRuntime();
-const { phase, qrUrl, error, start, confirmAndSend, cancel, reset } = usePakEnrollment();
+const { phase, qrUrl, error, pendingMnemonic, start, confirmAndSend, finalizeEnrollment, cancel, reset } = usePakEnrollment();
 const masterPassword = ref('');
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 
@@ -135,6 +135,23 @@ async function handleConfirm() {
             Cancel
           </UButton>
         </div>
+      </div>
+    </template>
+
+    <!-- recovery-kit-pending / finalizing: user must write down 24 words before enrollment completes -->
+    <template v-else-if="phase === 'recovery-kit-pending' || phase === 'finalizing'">
+      <SettingRow
+        label="Phone as Key"
+        helper="Save your recovery kit before completing enrollment"
+        dot="bg-warning"
+      />
+      <div class="border-t border-default px-4 py-4">
+        <RecoveryKitSetupStep
+          v-if="pendingMnemonic"
+          :mnemonic="pendingMnemonic"
+          :loading="phase === 'finalizing'"
+          @confirm="finalizeEnrollment"
+        />
       </div>
     </template>
 
