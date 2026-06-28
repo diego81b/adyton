@@ -125,6 +125,7 @@ async function onDeleted() {
     <PasskeysCard />
     <SessionsCard />
     <TrustedDevicesCard />
+    <PakDevicesCard />
 
     <!-- ============== VAULT ============== -->
     <SettingsGroup id="settings-vault" title="Vault">
