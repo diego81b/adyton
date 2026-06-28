@@ -8,3 +8,4 @@ export * from './totp.js';
 export * from './generator.js';
 export * from './wordlist.js';
 export * from './vault-export.js';
+export * from './pak-ecdh.js';
