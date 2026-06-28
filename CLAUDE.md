@@ -183,32 +183,64 @@ All project output must be in English: commit messages, code comments, documenta
 This repo uses **Git Flow**. Permanent branches: `main` (production releases only), `develop` (integration). All work branches off `develop` and merges back to `develop`.
 
 ### Feature branches
+
 Branches are per **phase or feature** — NOT per step.
 
-- Feature branch: `feature/<short-name>` (e.g. `feature/pak`, `feature/phase-5-vault-ui`)
+```
+git checkout develop
+git checkout -b feature/<short-name>   # e.g. feature/pak, feature/phase-5-vault-ui
+# ... commits ...
+git checkout develop
+git merge --no-ff feature/<short-name> -m "Merge branch 'feature/<short-name>' into develop"
+git branch -d feature/<short-name>
+```
+
 - Numbered steps within a phase are committed directly to the feature branch as separate commits. Do NOT create a branch per step.
+- No tags on feature merges. Tags are for releases only.
+- Pass the step / phase completion checklist before merging.
 
-### Release branches (versioning — MANDATORY)
+### Release branches — MANDATORY on every version bump
 
-On every version release:
+```
+git checkout develop
+git checkout -b release/X.Y.Z
+# bump versions + write CHANGELOG (see below)
+git add . && git commit -m "chore(release): vX.Y.Z"
+git checkout main
+git merge --no-ff release/X.Y.Z -m "Merge branch 'release/X.Y.Z'"
+git tag -a vX.Y.Z -m "vX.Y.Z — <one-line summary>"
+git checkout develop
+git merge --no-ff main -m "Merge branch 'main' into develop"
+git branch -d release/X.Y.Z
+```
 
-1. Create `release/X.Y.Z` from `develop`
-2. On the release branch:
-   - Bump `version` in **all** `package.json` files to `X.Y.Z`: root, `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`
-   - Add a new entry at the top of `CHANGELOG.md` (format below)
-   - Commit: `chore(release): vX.Y.Z`
-3. Merge `release/X.Y.Z` → `main` with `--no-ff`
-4. Tag on `main`: `git tag -a vX.Y.Z -m "vX.Y.Z — <one-line summary>"`
-5. Back-merge `main` → `develop` with `--no-ff`
-6. Delete the release branch
+On the release branch, before committing:
+- Bump `version` in **all** `package.json` files: root, `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`
+- Add a new entry at the top of `CHANGELOG.md` (format below)
 
-### Hotfix branches
+### Hotfix branches — for production bugs only
 
-For production bugs: `hotfix/<short-name>` off `main`. After fix: merge to `main`, tag patch version, back-merge to `develop`.
+Hotfixes branch off `main` (not `develop`) and merge to both `main` and `develop`.
+
+```
+git checkout main
+git checkout -b hotfix/<short-name>   # e.g. hotfix/csrf-token-leak
+# fix + test
+git add . && git commit -m "fix(...): <description>"
+git checkout main
+git merge --no-ff hotfix/<short-name> -m "Merge branch 'hotfix/<short-name>'"
+git tag -a vX.Y.Z -m "vX.Y.Z — hotfix: <description>"   # bump patch version
+git checkout develop
+git merge --no-ff main -m "Merge branch 'main' into develop"
+git branch -d hotfix/<short-name>
+```
+
+- Always bump patch version (`X.Y.Z+1`) and add a CHANGELOG entry on hotfix.
+- Run the full test suite before merging to `main`.
 
 ### CHANGELOG format
 
-`CHANGELOG.md` lives at repo root. One entry per version tag — **synthetic** (milestone-level, not commit-per-commit). Format:
+`CHANGELOG.md` lives at repo root. One entry per version tag — **synthetic** (milestone-level, not commit-per-commit). Write by hand as part of the release/hotfix branch. Do not auto-generate from commits.
 
 ```markdown
 ## [X.Y.Z] — YYYY-MM-DD
@@ -217,7 +249,6 @@ One-sentence summary of the release.
 
 ### Added
 - Feature A
-- Feature B
 
 ### Changed
 - Behaviour X changed to Y
@@ -229,7 +260,7 @@ One-sentence summary of the release.
 - CVE or audit finding addressed
 ```
 
-Do not auto-generate from commits. Write the entry by hand as part of the release branch work, summarising what changed at a product level.
+Omit empty sections. `Security` only when there is a user-facing security fix.
 
 ## README maintenance — MANDATORY
 
