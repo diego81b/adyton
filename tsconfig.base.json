@@ -28,7 +28,9 @@
     "paths": {
       "@shared/*": ["packages/shared/src/*"],
       "@adyton/shared": ["packages/shared/src"],
-      "@adyton/shared/*": ["packages/shared/src/*"]
+      "@adyton/shared/*": ["packages/shared/src/*"],
+      "@adyton/capacitor-keystore": ["packages/capacitor-adyton-keystore/src"],
+      "@adyton/capacitor-keystore/*": ["packages/capacitor-adyton-keystore/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", ".nuxt", ".output", "coverage"]
