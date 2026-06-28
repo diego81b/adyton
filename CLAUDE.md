@@ -180,12 +180,56 @@ All project output must be in English: commit messages, code comments, documenta
 
 ## Branch workflow — MANDATORY
 
-Branches are per **phase** (and, in future, per issue) — NOT per step.
+This repo uses **Git Flow**. Permanent branches: `main` (production releases only), `develop` (integration). All work branches off `develop` and merges back to `develop`.
 
-- Phase branch: `feature/phase-N-<short-name>` (e.g. `feature/phase-5-vault-ui`)
-- Numbered steps within a phase are committed **directly to the phase branch** as separate commits (one or more `feat`/`fix`/`test` commits per step). Do NOT create a branch per step.
-- No step→phase merge step exists anymore; a "step" is a logical grouping of commits, not a branch.
-- (Historical note: Step 0 used a `feature/phase-5-step-0-foundation` branch; that per-step-branch convention is retired as of 2026-06-03.)
+### Feature branches
+Branches are per **phase or feature** — NOT per step.
+
+- Feature branch: `feature/<short-name>` (e.g. `feature/pak`, `feature/phase-5-vault-ui`)
+- Numbered steps within a phase are committed directly to the feature branch as separate commits. Do NOT create a branch per step.
+
+### Release branches (versioning — MANDATORY)
+
+On every version release:
+
+1. Create `release/X.Y.Z` from `develop`
+2. On the release branch:
+   - Bump `version` in **all** `package.json` files to `X.Y.Z`: root, `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`
+   - Add a new entry at the top of `CHANGELOG.md` (format below)
+   - Commit: `chore(release): vX.Y.Z`
+3. Merge `release/X.Y.Z` → `main` with `--no-ff`
+4. Tag on `main`: `git tag -a vX.Y.Z -m "vX.Y.Z — <one-line summary>"`
+5. Back-merge `main` → `develop` with `--no-ff`
+6. Delete the release branch
+
+### Hotfix branches
+
+For production bugs: `hotfix/<short-name>` off `main`. After fix: merge to `main`, tag patch version, back-merge to `develop`.
+
+### CHANGELOG format
+
+`CHANGELOG.md` lives at repo root. One entry per version tag — **synthetic** (milestone-level, not commit-per-commit). Format:
+
+```markdown
+## [X.Y.Z] — YYYY-MM-DD
+
+One-sentence summary of the release.
+
+### Added
+- Feature A
+- Feature B
+
+### Changed
+- Behaviour X changed to Y
+
+### Fixed
+- Bug Z
+
+### Security
+- CVE or audit finding addressed
+```
+
+Do not auto-generate from commits. Write the entry by hand as part of the release branch work, summarising what changed at a product level.
 
 ## README maintenance — MANDATORY
 
