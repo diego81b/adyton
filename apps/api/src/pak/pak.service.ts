@@ -166,10 +166,13 @@ export class PakService {
     ip: string,
     ua: string,
   ): Promise<DeviceVaultKey> {
-    // Check fingerprint uniqueness
-    const existing = await this.em.findOne(DeviceVaultKey, {
-      publicKeyFingerprint: dto.publicKeyFingerprint,
-    });
+    // Derive fingerprint server-side — never trust the client-supplied value.
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(Buffer.from(dto.devicePublicKeySpki, 'base64'))
+      .digest('hex');
+
+    const existing = await this.em.findOne(DeviceVaultKey, { publicKeyFingerprint: fingerprint });
     if (existing) {
       throw new ConflictException('A device with this public key fingerprint is already registered');
     }
@@ -177,7 +180,7 @@ export class PakService {
     const user = this.em.getReference(User, userId);
     const device = this.em.create(DeviceVaultKey, {
       user,
-      publicKeyFingerprint: dto.publicKeyFingerprint,
+      publicKeyFingerprint: fingerprint,
       devicePublicKey: dto.devicePublicKeySpki,
       enrollmentMethod: dto.enrollmentMethod as PakEnrollmentMethod,
       deviceName: dto.deviceName,

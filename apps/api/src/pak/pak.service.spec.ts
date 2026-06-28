@@ -71,7 +71,7 @@ function makeDevice(overrides: Partial<{
 function makeEnrollDto() {
   return {
     devicePublicKeySpki: 'base64-spki-key',
-    publicKeyFingerprint: 'fp-hex-64-chars-' + 'a'.repeat(48),
+    // publicKeyFingerprint intentionally absent — server derives it from SPKI
     deviceName: 'Test Phone',
     platform: 'android',
     enrollmentMethod: 'master_password',
@@ -273,6 +273,8 @@ describe('PakService', () => {
       expect(mockEm.persist).toHaveBeenCalledTimes(1);
       const created = mockEm.create.mock.calls[0][1] as Record<string, unknown>;
       expect(created.devicePublicKey).toBe('base64-spki-key');
+      // Fingerprint must be server-derived (64-char hex), never the client-supplied value
+      expect(created.publicKeyFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(created.enrollmentMethod).toBe(PakEnrollmentMethod.MASTER_PASSWORD);
       expect(created.platform).toBe(PakPlatform.ANDROID);
       expect(created.revokedAt).toBeNull();

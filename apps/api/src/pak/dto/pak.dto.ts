@@ -24,10 +24,6 @@ export class EnrollDeviceDto {
   @IsString() @IsNotEmpty()
   devicePublicKeySpki!: string;
 
-  @ApiProperty({ description: 'SHA-256 hex fingerprint of the device public key' })
-  @IsString() @IsNotEmpty()
-  publicKeyFingerprint!: string;
-
   @ApiProperty() @IsString() @IsNotEmpty()
   deviceName!: string;
 
