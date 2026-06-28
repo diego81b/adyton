@@ -93,6 +93,9 @@ desktop.ini
 # ── Playwright MCP artifacts ──────────────────────────────────────────────────
 .playwright-mcp/
 
+# ── Claude Code worktrees (agent scratch space — never commit) ────────────────
+.claude/worktrees/
+
 # ── Temporary / stale files ───────────────────────────────────────────────────
 *.tmp
 *.temp

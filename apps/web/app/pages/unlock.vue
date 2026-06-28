@@ -5,6 +5,7 @@ import { useCryptoStore } from '~/stores/crypto';
 import { useVaultStore } from '~/stores/vault';
 import { useNativeRuntime } from '~/composables/useNativeRuntime';
 import { useBiometricUnlock } from '~/composables/useBiometricUnlock';
+import { usePakQrLogin } from '~/composables/usePakQrLogin';
 
 definePageMeta({ ssr: false });
 
@@ -36,6 +37,25 @@ const statusHint = computed(() =>
 // the explicit retry button.
 const biometricAvailable = ref(false);
 const biometricLoading = ref(false);
+
+// PAK QR unlock — desktop-only (phone has the key, desktop shows the QR)
+const pak = usePakQrLogin();
+const showQr = ref(false);
+
+function openQr() {
+  showQr.value = true;
+  void pak.start();
+}
+
+function closeQr() {
+  void pak.cancel();
+  showQr.value = false;
+}
+
+function retryQr() {
+  pak.reset();
+  void pak.start();
+}
 
 // /unlock is reached after a reload/auto-lock: the session (refresh cookie) is
 // still valid but the in-memory CryptoKey is gone. Re-hydrate the session so we
@@ -195,7 +215,50 @@ async function onSubmit() {
         </div>
       </div>
 
-      <UForm :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
+      <!-- PAK QR unlock: desktop-only — phone holds the encrypted vault key -->
+      <template v-if="!isNative">
+        <div v-if="!showQr" class="mb-5">
+          <UButton
+            block
+            size="lg"
+            color="primary"
+            variant="subtle"
+            icon="i-lucide-smartphone"
+            aria-label="Unlock with Phone"
+            @click="openQr"
+          >
+            <span class="hidden sm:inline">Unlock with Phone</span>
+            <span class="sm:hidden" aria-hidden="true">Phone Key</span>
+          </UButton>
+          <div class="relative my-5 flex items-center">
+            <div class="flex-1 border-t border-default" />
+            <span class="mx-3 text-[11px] text-muted">or use master password</span>
+            <div class="flex-1 border-t border-default" />
+          </div>
+        </div>
+
+        <div v-if="showQr" class="mb-5">
+          <PakQrPanel
+            :qr-url="pak.qrUrl.value"
+            :phase="pak.phase.value"
+            :error="pak.error.value"
+            @cancel="closeQr"
+            @retry="retryQr"
+          />
+        </div>
+
+        <!-- Recovery fallback link — shown below the PAK block when phone is unavailable -->
+        <div class="mb-5 text-center text-sm">
+          <NuxtLink
+            to="/pak/recover"
+            class="text-muted hover:text-default underline-offset-2 hover:underline"
+          >
+            Lost your phone? Use recovery kit
+          </NuxtLink>
+        </div>
+      </template>
+
+      <UForm v-show="!showQr" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
         <UFormField
           name="password"
           label="Master Password"

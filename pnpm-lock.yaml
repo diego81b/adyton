@@ -201,6 +201,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@adyton/capacitor-keystore':
+        specifier: file:../../packages/capacitor-adyton-keystore
+        version: link:../../packages/capacitor-adyton-keystore
       '@aparajita/capacitor-biometric-auth':
         specifier: ^10.0.0
         version: 10.0.0
@@ -241,6 +244,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@adyton/capacitor-keystore':
+        specifier: workspace:*
+        version: link:../../packages/capacitor-adyton-keystore
       '@adyton/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -274,6 +280,9 @@ importers:
       pinia:
         specifier: ^3.0.0
         version: 3.0.4(typescript@5.9.3)(vue@3.5.35(typescript@5.9.3))
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       reka-ui:
         specifier: 2.9.7
         version: 2.9.7(vue@3.5.35(typescript@5.9.3))
@@ -293,6 +302,9 @@ importers:
       '@nuxt/test-utils':
         specifier: ^3.15.0
         version: 3.23.0(@jest/globals@29.7.0)(@vue/test-utils@2.4.10(@vue/compiler-dom@3.5.35)(@vue/server-renderer@3.5.35(vue@3.5.35(typescript@5.9.3)))(vue@3.5.35(typescript@5.9.3)))(crossws@0.4.5(srvx@0.11.16))(happy-dom@20.10.2)(magicast@0.5.3)(typescript@5.9.3)(vitest@4.1.8)
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
       '@vitejs/plugin-vue':
         specifier: ^6.0.7
         version: 6.0.7(vite@7.3.3(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0))(vue@3.5.35(typescript@5.9.3))
@@ -315,8 +327,20 @@ importers:
         specifier: ^2.1.10
         version: 2.2.12(typescript@5.9.3)
 
+  packages/capacitor-adyton-keystore:
+    devDependencies:
+      '@capacitor/core':
+        specifier: ^8.4.0
+        version: 8.4.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/shared:
     dependencies:
+      '@scure/bip39':
+        specifier: ^2.2.0
+        version: 2.2.0
       '@zxcvbn-ts/core':
         specifier: ^3.0.4
         version: 3.0.4
@@ -2850,6 +2874,9 @@ packages:
 
   '@scure/base@2.2.0':
     resolution: {integrity: sha512-b8XEupJibegiXV+tDUseI8oLQc8ei3d/4Jkb2RpbHh3MfE054ov3uIz2dhFkB3FI8iwYkEh0gGCApkrYggkPNg==}
+
+  '@scure/bip39@2.2.0':
+    resolution: {integrity: sha512-T/Bj/YvYMNkIPq6EENO6/rcs2e7qTNuyoUXf0KBFDmp0ZDu0H2X4Lq6yC3i0c8PcWkov5EbW+yQZZbdMmk154A==}
 
   '@simple-git/args-pathspec@1.0.3':
     resolution: {integrity: sha512-ngJMaHlsWDTfjyq9F3VIQ8b7NXbBLq5j9i5bJ6XLYtD6qlDXT7fdKY2KscWWUF8t18xx052Y/PUO1K1TRc9yKA==}
@@ -11926,6 +11953,11 @@ snapshots:
   '@scarf/scarf@1.4.0': {}
 
   '@scure/base@2.2.0': {}
+
+  '@scure/bip39@2.2.0':
+    dependencies:
+      '@noble/hashes': 2.2.0
+      '@scure/base': 2.2.0
 
   '@simple-git/args-pathspec@1.0.3': {}
 
