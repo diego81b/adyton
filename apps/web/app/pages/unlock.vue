@@ -3,6 +3,8 @@ import { ref, computed } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useCryptoStore } from '~/stores/crypto';
 import { useVaultStore } from '~/stores/vault';
+import { useNativeRuntime } from '~/composables/useNativeRuntime';
+import { useBiometricUnlock } from '~/composables/useBiometricUnlock';
 
 definePageMeta({ ssr: false });
 
@@ -10,6 +12,8 @@ const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
 const vault = useVaultStore();
 const router = useRouter();
+const { isNative } = useNativeRuntime();
+const biometric = useBiometricUnlock();
 
 const password = ref('');
 const loading = ref(false);
@@ -27,6 +31,12 @@ const statusHint = computed(() =>
     : 'Computed locally — your password never leaves this device',
 );
 
+// Biometric state — only meaningful on native. `biometricAvailable` is set once we
+// confirm the user has a key enrolled; it controls both the auto-attempt on mount and
+// the explicit retry button.
+const biometricAvailable = ref(false);
+const biometricLoading = ref(false);
+
 // /unlock is reached after a reload/auto-lock: the session (refresh cookie) is
 // still valid but the in-memory CryptoKey is gone. Re-hydrate the session so we
 // have the user's kdfSalt to derive from; bounce to login if there's no session,
@@ -38,9 +48,72 @@ onMounted(async () => {
   }
   if (!authStore.user) {
     const ok = await authStore.initialize();
-    if (!ok) await router.push('/login');
+    if (!ok) {
+      await router.push('/login');
+      return;
+    }
+  }
+  // On native: check enrollment and auto-attempt biometric unlock. The password form
+  // is always rendered as the fallback — biometrics only supplement it.
+  if (isNative && authStore.user?.id) {
+    try {
+      const enrolled = await biometric.isEnrolled(authStore.user.id);
+      if (enrolled) {
+        biometricAvailable.value = true;
+        await attemptBiometric();
+      }
+    } catch {
+      // Plugin error — fall back to password form silently.
+    }
   }
 });
+
+// Attempt biometric unlock. On success unlockWithRawKey sets the vault key in
+// the crypto store; we then run the same verify-by-refetch the password path uses.
+// If the stored key is stale (device restored, key rotated) the fetchAll decrypt
+// fails — we unenroll, clear, and fall back to the password form with an error.
+async function attemptBiometric() {
+  if (!authStore.user?.id) return;
+  biometricLoading.value = true;
+  error.value = null;
+  // Set only after unlockWithBiometrics resolves true: distinguishes "the key was
+  // used and decryption failed" (stale key → unenroll) from "the biometric plugin
+  // itself threw" (hardware/OS error → the key was never tested, keep it).
+  let biometricOk = false;
+  try {
+    const ok = await biometric.unlockWithBiometrics(authStore.user.id);
+    if (!ok) {
+      // User cancelled the prompt — stay on the page, show the retry button.
+      biometricLoading.value = false;
+      return;
+    }
+    biometricOk = true;
+    // Key is now set in the crypto store. Verify it actually decrypts the vault.
+    await vault.fetchAll();
+    await router.push('/vault');
+  } catch (err: unknown) {
+    cryptoStore.lock();
+    vault.clear();
+    // A fetch/API failure carries a `status` — the key may be fine, the network
+    // is not. Keep the enrollment so the user can simply retry.
+    if (err !== null && typeof err === 'object' && 'status' in err) {
+      error.value = 'Could not reach the server. Check your connection and retry.';
+    } else if (biometricOk) {
+      // Stale key: the biometric succeeded but decryption failed. Unenroll so the
+      // user is not stuck behind a permanently broken biometric prompt, then show
+      // the password form with a clear explanation.
+      await biometric.unenroll(authStore.user.id);
+      biometricAvailable.value = false;
+      error.value =
+        'Biometric key is out of date. Please unlock with your master password to re-enroll.';
+    } else {
+      // The plugin threw before the key was ever used — do not unenroll.
+      error.value =
+        'Biometric authentication failed. Please try again or use your master password.';
+    }
+    biometricLoading.value = false;
+  }
+}
 
 async function onSubmit() {
   if (!password.value) return;
@@ -87,6 +160,41 @@ async function onSubmit() {
     </template>
 
     <AuthCard>
+      <!-- Desktop header: the brand block (logo + email) above the card is mobile-only
+           in the split-panel shell, so the card restates the context on lg+. -->
+      <div class="hidden lg:block">
+        <h2 class="text-lg font-semibold">Vault locked</h2>
+        <p class="mb-5 mt-1 text-sm text-muted">
+          <template v-if="authStore.user?.email">
+            Unlocking <span class="font-medium text-default">{{ authStore.user.email }}</span>
+          </template>
+          <template v-else>Enter your master password to continue.</template>
+        </p>
+      </div>
+
+      <!-- Biometric retry button: shown on native when a key is enrolled, so the
+           user can re-trigger the prompt after cancelling or after auto-attempt. -->
+      <div v-if="biometricAvailable" class="mb-5">
+        <UButton
+          block
+          size="lg"
+          color="primary"
+          variant="subtle"
+          icon="i-lucide-fingerprint"
+          aria-label="Unlock with biometrics"
+          :loading="biometricLoading"
+          :disabled="biometricLoading"
+          @click="attemptBiometric"
+        >
+          Unlock with biometrics
+        </UButton>
+        <div class="relative my-5 flex items-center">
+          <div class="flex-1 border-t border-default" />
+          <span class="mx-3 text-[11px] text-muted">or use master password</span>
+          <div class="flex-1 border-t border-default" />
+        </div>
+      </div>
+
       <UForm :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
         <UFormField
           name="password"
@@ -107,7 +215,7 @@ async function onSubmit() {
           type="submit"
           block
           size="lg"
-          class="accent-glow text-white"
+          class="accent-glow"
           :loading="loading"
           :disabled="!password"
         >
@@ -129,8 +237,14 @@ async function onSubmit() {
       </p>
     </AuthCard>
 
+    <p class="mx-auto mt-4 max-w-xs text-center text-xs text-muted">
+      If you forget your master password, your vault cannot be recovered.
+      There is no reset link — encryption keys are derived only from your password.
+    </p>
+
     <template #footer>
-      🛡️ Zero-knowledge · Your data stays encrypted, even from us
+      <UIcon name="i-lucide-shield-check" class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <span>Zero-knowledge · Your data stays encrypted, even from us</span>
     </template>
   </AuthShell>
 </template>

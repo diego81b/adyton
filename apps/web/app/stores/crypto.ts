@@ -26,6 +26,15 @@ export const useCryptoStore = defineStore('crypto', () => {
     resetLockTimer();
   }
 
+  // Unlock from raw Argon2id key bytes (used by the biometric unlock path).
+  // The raw bytes come from native secure storage after biometric auth;
+  // they are imported as a non-extractable key here — same invariant as deriveKey.
+  async function unlockWithRawKey(raw: ArrayBuffer): Promise<void> {
+    const { importVaultKey } = await import('../composables/useArgon2Worker');
+    cryptoKey.value = await importVaultKey(raw);
+    resetLockTimer();
+  }
+
   /** Explicit lock (lock button, logout): always locks, ignores deferrals. */
   function lock() {
     lockPending = false;
@@ -78,6 +87,7 @@ export const useCryptoStore = defineStore('crypto', () => {
     lockAt,
     deferrals,
     deriveKey,
+    unlockWithRawKey,
     lock,
     resetLockTimer,
     deferLock,

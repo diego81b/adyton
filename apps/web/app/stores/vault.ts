@@ -154,6 +154,12 @@ export const useVaultStore = defineStore('vault', () => {
     entries.value = entries.value.filter((e) => e.id !== id);
   }
 
+  async function wipeAll(): Promise<void> {
+    const { auth } = requireUnlocked();
+    await auth.apiFetch('/vault', { method: 'DELETE' });
+    clear();
+  }
+
   function clear(): void {
     entries.value = [];
     cursor.value = null;
@@ -176,6 +182,7 @@ export const useVaultStore = defineStore('vault', () => {
     createEntry,
     updateEntry,
     deleteEntry,
+    wipeAll,
     listVersions,
     restoreVersion,
     clear,

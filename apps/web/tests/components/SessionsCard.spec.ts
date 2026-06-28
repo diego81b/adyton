@@ -71,7 +71,9 @@ describe('SessionsCard', () => {
     const w = mountCard();
     await flushPromises();
 
-    await w.findAll('button').find((b) => b.text() === 'Revoke')!.trigger('click');
+    await w.findAll('button')
+      .find((b) => b.attributes('aria-label')?.startsWith('Revoke session'))!
+      .trigger('click');
     const dialog = w.findComponent(ConfirmDialogStub);
     expect(dialog.props('open')).toBe(true);
 
@@ -103,5 +105,24 @@ describe('SessionsCard', () => {
     const w = mountCard();
     await flushPromises();
     expect(w.text()).toContain('No active sessions');
+  });
+
+  it('caps the visible list at 5 and shows an overflow note', async () => {
+    const manySessions = Array.from({ length: 6 }, (_, i) => ({
+      id: `s${i + 1}`,
+      familyId: `f${i + 1}`,
+      ipAddress: `192.0.2.${i + 1}`,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/125.0',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    }));
+    mockApiFetch.mockResolvedValueOnce(manySessions);
+    const w = mountCard();
+    await flushPromises();
+
+    // Count badge shows total; list shows only 5 rows.
+    expect(w.text()).toContain('6 active');
+    expect(w.findAll('[aria-label]').length).toBe(5);
+    expect(w.text()).toContain('Showing 5 of 6 sessions');
   });
 });

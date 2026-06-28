@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useSecureClipboard } from '~/composables/useSecureClipboard';
 import RecoveryCodesList from './RecoveryCodesList.vue';
+import OtpInput from './OtpInput.vue';
 
 // Three-step TOTP enrollment wizard:
 //   scan     — POST /auth/2fa/setup on open, show QR + manual secret
@@ -89,10 +90,6 @@ async function verify() {
   }
 }
 
-function onlyDigits(value: string) {
-  code.value = value.replace(/\D/g, '').slice(0, 6);
-}
-
 function finish() {
   if (!acknowledged.value) return;
   emit('enabled');
@@ -130,9 +127,9 @@ function finish() {
               <img
                 :src="qrDataUri"
                 alt="TOTP QR code"
-                class="size-44 rounded-lg bg-white p-2"
-                width="176"
-                height="176"
+                class="size-52 rounded-lg bg-white p-2"
+                width="208"
+                height="208"
               />
             </div>
 
@@ -173,17 +170,13 @@ function finish() {
 
           <div class="mt-4">
             <UFormField label="Verification code" name="code">
-              <UInput
-                :model-value="code"
-                size="lg"
-                class="w-full text-center font-mono tracking-[0.4em]"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                placeholder="123456"
-                maxlength="6"
+              <OtpInput
+                v-model="code"
+                :length="6"
                 autofocus
-                @update:model-value="onlyDigits($event as string)"
-                @keydown.enter="verify"
+                :invalid="!!verifyError"
+                aria-label="Verification code"
+                @complete="verify"
               />
             </UFormField>
             <UAlert
@@ -198,7 +191,7 @@ function finish() {
           <div class="mt-5 flex gap-2">
             <UButton
               color="neutral"
-              variant="soft"
+              variant="ghost"
               size="lg"
               class="flex-1 justify-center"
               @click="step = 'scan'"
@@ -222,9 +215,9 @@ function finish() {
         <div v-else>
           <div class="mb-3 flex items-center gap-2.5">
             <div
-              class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/15"
+              class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-500/30 bg-brand-500/15"
             >
-              <UIcon name="i-lucide-shield-check" class="size-4 text-emerald-400" />
+              <UIcon name="i-lucide-shield-check" class="size-4 text-brand-400" />
             </div>
             <h2 class="font-bold tracking-tight">Save your recovery codes</h2>
           </div>

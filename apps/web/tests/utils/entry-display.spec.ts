@@ -33,10 +33,14 @@ describe('TYPE_META / TYPE_FILTERS', () => {
 });
 
 describe('chipClass', () => {
-  it('returns a per-type color when active', () => {
-    expect(chipClass('all', true)).toContain('primary');
-    expect(chipClass(VaultEntryType.LOGIN, true)).toContain('blue');
-    expect(chipClass(VaultEntryType.ENV_FILE, true)).toContain('orange');
+  it('uses one uniform brand-accent active state for every key (no rainbow)', () => {
+    // Enterprise: the active chip is signalled by the recurring brand accent, not a
+    // per-type color. 'all' and every type chip share the same active class.
+    expect(chipClass('all', true)).toContain('text-primary');
+    expect(chipClass(VaultEntryType.LOGIN, true)).toBe(chipClass('all', true));
+    expect(chipClass(VaultEntryType.ENV_FILE, true)).toBe(chipClass('all', true));
+    expect(chipClass(VaultEntryType.LOGIN, true)).not.toContain('blue');
+    expect(chipClass(VaultEntryType.ENV_FILE, true)).not.toContain('orange');
   });
   it('returns the shared muted style when inactive', () => {
     const inactive = chipClass(VaultEntryType.LOGIN, false);
@@ -157,11 +161,25 @@ describe('entrySubtitle — JSON env file', () => {
   });
 });
 
-describe('CHIP_ACTIVE_CLASS stays in sync with TILE_CLASS', () => {
-  it('every type chip embeds exactly its tile classes', async () => {
-    const { CHIP_ACTIVE_CLASS, TILE_CLASS } = await import('../../app/utils/entry-display');
+describe('TILE_CLASS — restrained enterprise tile', () => {
+  it('uses one neutral surface tile for every type (no per-type saturated colors)', async () => {
+    const { TILE_CLASS } = await import('../../app/utils/entry-display');
+    const values = Object.values(VaultEntryType).map((t) => TILE_CLASS[t]);
+    // All six types share one class string.
+    expect(new Set(values).size).toBe(1);
+    // Token-based and theme-adaptive — no raw rainbow colors.
+    expect(values[0]).toContain('bg-muted');
+    expect(values[0]).not.toMatch(/blue|orange|red|yellow|purple|teal|green/);
+  });
+});
+
+describe('CHIP_ACTIVE_CLASS — uniform brand accent', () => {
+  it('every chip (all + each type) uses the same brand-accent active class', async () => {
+    const { CHIP_ACTIVE_CLASS } = await import('../../app/utils/entry-display');
+    const all = CHIP_ACTIVE_CLASS.all;
+    expect(all).toContain('text-primary');
     for (const t of Object.values(VaultEntryType)) {
-      expect(CHIP_ACTIVE_CLASS[t]).toBe(`border ${TILE_CLASS[t]}`);
+      expect(CHIP_ACTIVE_CLASS[t]).toBe(all);
     }
   });
 });

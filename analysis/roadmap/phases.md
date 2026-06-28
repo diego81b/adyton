@@ -109,22 +109,23 @@ This is the highest-risk phase: Argon2id WASM in a browser context with Web Work
 
 ---
 
-### Phase 7 — Production Hardening | Complexity: M
+### Phase 7 — Production Hardening | Complexity: M | **STATUS: DONE (2026-06-07)**
 
-**Goals:** Transition from development to a production-grade deployment on a VPS with SSL, automated backups, rate limiting, and a final security review pass.
+**Goals:** Transition from development to a production-grade deployment on a VPS with CI/CD, automated backups, and a final security review pass.
 
-**Deliverables:**
-- `docker-compose.prod.yml` with SSL termination, certbot sidecar, resource limits, no exposed database ports
-- Production nginx config (Section 9.6): all rate limit zones, connection limits, slow HTTP timeouts, full security headers, HSTS preload, OCSP stapling, TLS 1.2/1.3 only
-- `scripts/backup.sh` with 7-daily / 4-weekly rotation policy + optional rclone remote sync
-- `@nestjs/throttler` rate limits verified against all auth endpoints
-- **fail2ban**: nginx-pwdsecure filter + jail (Section 3.10.3), escalating ban times (`bantime.increment = true`)
-- **Progressive delay smoke test**: verify Redis counters increment and delays apply under repeated auth failures
-- **Trusted device integration test**: new-device flow, email notification, registration, revocation
-- Dependency audit: `pnpm audit`, resolve all high/critical findings
-- Manual security review against OWASP Top 10 and ASVS Level 2
-- UFW firewall rules: allow only 80, 443, and SSH on non-standard port
-- Optional: enable `ENABLE_POW=true` and verify PoW challenge flow end-to-end
+**What landed (2026-06-07, branch `feature/phase-7-production-hardening`):**
+- **Step 0:** `TOTP_ENC_KEY` + `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` env var fallback — loaders check env var first, then file path; int tests switched to env var approach (no gitignored file dep on CI)
+- **Step 1:** `apps/api/Dockerfile` + `apps/web/Dockerfile` — multistage builds from monorepo root; non-root users; Nitro output self-contained (no node_modules in web runner)
+- **Step 2:** `docker-compose.prod.yml` rewritten as standalone (not base overlay): `build:` instead of `image:`, no db/redis (Coolify-managed), `coolify` external network, TOTP_ENC_KEY + WEBAUTHN_* env vars, health check via wget
+- **Step 3:** `.github/workflows/ci.yml` (typecheck + unit + integration + pnpm audit on every push/PR) + `.github/workflows/deploy.yml` (staging branch → COOLIFY_WEBHOOK_STAGING; v* tag → COOLIFY_WEBHOOK_PROD, gated by tests)
+- **Step 4:** `scripts/backup.sh` (pg_dump, 7-daily/4-weekly retention, optional rclone offsite) + `scripts/setup-vps.sh` (UFW, swap, sysctl) + `infra/README.md` (Coolify setup, env vars table, backup cron, CI/CD, fail2ban deferral)
+- **Step 5 (security audit):** `pnpm audit --audit-level=high` — bumped `happy-dom` 15→20 (critical RCE GHSA-37j7-fg3j-429f) and `vitest` 3→4 (GHSA-5xrq-8626-4rwp); 0 high/critical findings remaining
+- **Step 6:** README, `secrets/README.md`, `analysis/roadmap/phases.md` updated
+
+**Deferred from original spec:**
+- nginx config: replaced by Coolify/Caddy (no nginx in this deployment pattern)
+- fail2ban: deferred post-V1 (Cloudflare WAF + app-level progressive delay sufficient; Caddy log path/format in Coolify not stable enough; see `infra/README.md`)
+- Trusted device integration test: covered by Phase 2 unit tests; email OTP = NoOp in V1
 
 ---
 
@@ -154,14 +155,67 @@ The following features are architecturally sound but outside current V1 implemen
 
 | Feature | Prerequisite | Complexity | Notes |
 |---------|-------------|------------|-------|
-| **Browser Extension (MV3)** | Phase 7 complete | L | Moved post-V1 (2026-06-06): security review identified critical vault-key storage risk in the original §7.4 design ("decrypt in SW" violates ZK invariants). See `analysis/extension.md` §7.7–7.8 for the full risk register and pre-implementation requirements that must be resolved before implementation begins. |
+| **Desktop Daemon + Browser Stub (MV3)** | PAK complete | L | Architecture redesigned (2026-06-28): daemon+stub resolves all §7.7 ZK risks. Daemon process holds vault key in OS-protected heap (never `chrome.storage.session`, never SW); thin stub extension handles DOM autofill + exact-URL matching via NativeMessaging stdio pipe. DOM inject = no AutoType = no keylogger exposure. Popup XSS steals nothing (stub holds no key material). Positioned post-PAK to share OS-native infrastructure. See `analysis/extension.md` §7.9 for full architecture, security analysis, and pre-implementation decisions. |
 | **Tauri desktop app** | Phase 8 complete | M | Tauri wraps same Nuxt build; adds Rust plugins for Keychain, screen-lock, global shortcut |
-| **Phone-as-Key Sub-model A (enforced)** | Phase 6 (WebAuthn) | S | enforce `authenticatorAttachment: 'cross-platform'` + device-bound passkeys |
-| **Phone-as-Key Sub-model B (relay)** | Tauri or Phase 8 | L | VPS relay API, Capacitor key-only app, ECDH key exchange, ntfy.sh push |
-| **Emergency access (trusted contact)** | Phase 3 | M | time-locked delegated access, zero-knowledge grant flow |
-| **VaultEntry sharing** | Phase 3 | L | asymmetric re-encryption for sharing between users on same instance |
+| **Phone-as-Key (PAK)** | Phase 8 ✅ | XL | Moved to dedicated roadmap version after V1 (decided 2026-06-28). Sub-model B + Model 3: QR+ECDH relay, SE keypair wrapping, ~9 weeks. See `analysis/roadmap/device-as-key.md` §16.8 and §16.10.10. |
+| **Emergency access (trusted contact)** | V2 (EC keypairs) | M | V5 in roadmap (decided 2026-06-28). ECDH-wrapped vault key snapshot for designated Adyton contact, 7-day timeout, ZK preserved. See `analysis/roadmap/v5-emergency-access.md` for full design + security analysis. |
 | **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
 | **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |
+
+---
+
+### V2 — Enterprise Multi-User (post-V1, target ~150 users on-premise)
+
+Full design: [`analysis/roadmap/v2-enterprise.md`](./v2-enterprise.md)
+
+Transforms Adyton from a personal vault into a multi-user on-premise product. Personal vaults are fully preserved; team group vaults are layered on top via asymmetric ECDH key wrapping.
+
+**Key capabilities:**
+- Organisation tenant with roles (owner / admin / member)
+- Group vaults: ECDH key distribution, one `WrappedGroupKey` per member
+- SSO as authentication plugin: OIDC (Microsoft Entra, Google Workspace, Okta) + SAML — SSO proves identity only; Vault PIN still required for crypto
+- Backoffice admin UI at `/admin/**` (member management, group management, SSO config, audit log)
+- Kick (destructive, deletes wrapped keys) and Suspend (reversible, keeps wrapped keys)
+- Optional group key rotation post-kick
+
+**ZK guarantee:** server never sees group key or personal vault key in plaintext. Admin can revoke group access but cannot read personal vault content.
+
+| Component | Complexity |
+|---|---|
+| EC key pairs per user + ECDH wrapping | M |
+| Group vault API + entities | M |
+| SSO OIDC + SAML plugins | M |
+| Backoffice UI | M |
+| Kick / suspend flows | S |
+| **Total** | **L** |
+
+---
+
+### V3 — Federation and Cross-Instance Sharing (post-V2)
+
+Full design: [`analysis/roadmap/v3-federation.md`](./v3-federation.md)
+
+Enables multiple independent on-premise Adyton deployments to collaborate. A self-hosted **federation hub** (itself an Adyton instance with `FEDERATION_HUB=true`) acts as an identity registry. Vault data never leaves its home instance.
+
+**Key capabilities:**
+- Universal User Code (UUC): `urn:adyton:user:<uuid>` — stable identity across deployments, paired with EC public key
+- Hub-and-spoke: hub holds only identity metadata (UUID → pubkey → instance URL), zero vault data
+- Spoke registration: instance registers with hub; hub admin approves; mutual trust established
+- Cross-instance group sharing: ECDH wrap group key for remote user → push wrapped key to their instance → user decrypts locally
+- Cross-instance access assertions: short-lived JWTs signed by user's EC private key, verified by home instance without hub contact
+- Device binding: per-device EC keypair in OS keychain, revocable independently of user account
+
+**ZK guarantee:** hub never sees vault ciphertext. Cross-instance operations are purely key-wrapping exchanges. Remote vault access is authenticated by cryptographic proof of key possession, not by password transmission.
+
+| Component | Complexity |
+|---|---|
+| UUC (trivial add on V2 registration) | XS |
+| Hub mode + spoke mode modules | M |
+| Identity publication + hub registry | S |
+| Cross-instance key routing | M |
+| Cross-instance assertion sign/verify | M |
+| Cross-org group backoffice UI | M |
+| **Total** | **L** |
 
 ---
 

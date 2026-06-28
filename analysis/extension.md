@@ -223,5 +223,139 @@ Before Phase 7 begins, the following design decisions must be locked:
 4. Define exact hostname matching algorithm and edge cases (www. prefix, IP addresses, localhost).
 5. Define clipboard clear mechanism (`chrome.alarms` vs `setTimeout` trade-off and popup lifecycle).
 
+*These pre-implementation requirements are superseded by the daemon+stub architecture (§7.9), which resolves all five without requiring design decisions inside the extension itself.*
+
+---
+
+### 7.9 Target Architecture: Daemon + Browser Stub
+
+*Decision: 2026-06-28. Supersedes the extension-only design. Positioned post-PAK in the roadmap.*
+
+#### Rationale
+
+The extension-only design (§7.1–7.6) cannot satisfy the zero-knowledge invariants without accepting one of two bad trade-offs:
+
+- **Vault key in `chrome.storage.session`** — accessible from content scripts; any XSS reaching the extension origin steals the key.
+- **Vault key in popup heap only** — key dies when popup closes; autofill from the content script requires the popup to be open (poor UX).
+
+A two-process model cleanly separates responsibilities: the daemon is the key holder; the stub extension is a thin relay that provides browser context (URL, DOM) but holds no secrets.
+
+#### Architecture
+
+```
+Browser process                    OS / native
+─────────────────────────────      ──────────────────────────────
+Stub content script                Daemon (system tray process)
+  MutationObserver                   Vault key in process heap
+  exact hostname → domain            Argon2id derive on unlock
+  ↓                                  AES-256-GCM decrypt
+  chrome.runtime.sendMessage         serves plaintext over pipe
+  → stub background (SW)             ↓
+  → chrome.runtime.connectNative ──→ stdin/stdout (NativeMessaging)
+                              ←────── { username, password } | locked
+  ← credentials
+  ↓ DOM inject (NOT AutoType)
+  usernameField.value = ...
+  passwordField.value = ...
+  dispatchEvent('input')
+```
+
+No keystrokes enter the OS input queue. OS-level keyloggers see nothing.
+
+#### Component responsibilities
+
+**Daemon process**
+
+- Derives vault key via Argon2id (same parameters: `m=65536, t=3, p=1`) on unlock.
+- Holds key in process heap; never writes it to disk or any IPC channel.
+- Listens on the NativeMessaging stdio pipe.
+- Receives `{ type: 'AUTOFILL_REQUEST', domain: string }` → decrypts matching entries → returns `{ credentials: { username, password } | null }` or `{ locked: true }`.
+- Also serves as standalone vault access (system tray search, clipboard fill for native apps).
+- Lock triggers: idle timer, OS session-lock event (`WM_WTSSESSION_CHANGE` / `NSWorkspaceSessionDidResignActiveNotification`), explicit user action, process exit.
+- On lock: key bytes zeroed before dealloc (`SecureZeroMemory` / `memset_s`).
+
+**Stub extension (MV3)**
+
+- Content script: `<all_urls>` — detects `<input type="password">` on visible fields only (`offsetParent !== null`), injects autofill button, dispatches `AUTOFILL_REQUEST` via message bus.
+- Background: validates `sender.id === chrome.runtime.id` on every message; connects to daemon via `chrome.runtime.connectNative('dev.adyton.daemon')`; relays response back to content script.
+- Popup: minimal — search box, copy button, "Open vault" link to web app. No crypto, no vault key.
+- Holds no secrets at any point. If the stub is compromised, the attacker obtains only the plaintext credential for the current domain — not the vault key.
+
+#### Security properties vs §7.7 risks
+
+| §7.7 risk | Status in daemon+stub |
+|---|---|
+| Vault key in `storage.session` | **Resolved** — key in daemon heap, never touches browser storage |
+| SW ephemeral, can't hold key | **Resolved** — daemon is a long-lived OS process |
+| Message bus unauthenticated | **Mitigated** — stub validates `sender.id`; payload is domain only, not key material |
+| Autofill domain matching | **Resolved** — stub has full browser context; exact hostname match enforced |
+| Content script DOM clobbering | **Same** — stub applies same visible-fields-only guard |
+| Clipboard clear on popup close | **Resolved** — daemon clears clipboard on its own timer; no popup lifecycle dependency |
+| Keylogger exposure | **Better than extension-only** — DOM inject (not AutoType); OS input queue never touched |
+
+New risks introduced by daemon:
+
+| Risk | Mitigation |
+|---|---|
+| Admin/root `ReadProcessMemory` (Windows) or `ptrace` (Linux/macOS) can extract key | Acceptable for personal-use threat model. Lock on OS session change; OS key wrapping (DPAPI / macOS Keychain) for at-rest protection if needed post-V1. |
+| Daemon not browser-sandboxed | Compensating: no web-facing attack surface; NativeMessaging pipe is localhost stdio only. |
+
+#### NativeMessaging protocol
+
+Host manifest registered at OS-standard path (`HKCU\Software\Google\Chrome\NativeMessagingHosts\dev.adyton.daemon` on Windows; `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/` on macOS; `~/.config/google-chrome/NativeMessagingHosts/` on Linux). Same binary, three manifests (Chrome / Firefox / Edge).
+
+```typescript
+// stub → daemon
+type DaemonRequest =
+  | { type: 'AUTOFILL_REQUEST'; domain: string }
+  | { type: 'LOCK' }
+  | { type: 'STATUS' };
+
+// daemon → stub
+type DaemonResponse =
+  | { type: 'AUTOFILL_RESPONSE'; credentials: { username: string; password: string } | null }
+  | { type: 'LOCKED' }           // vault is locked; stub shows "unlock Adyton" prompt
+  | { type: 'STATUS_RESPONSE'; locked: boolean; version: string };
+```
+
+All messages are length-prefixed JSON (NativeMessaging wire format). The daemon validates that the connecting extension ID matches the stub's known ID before processing any request.
+
+#### Key lifecycle
+
+```
+1. User opens daemon tray menu → "Unlock"
+2. Daemon prompts for master password (native OS dialog or its own window)
+3. Argon2id derive → CryptoKey in heap
+4. Daemon responds to AUTOFILL_REQUEST: fetch vault from API → AES-256-GCM decrypt → return plaintext
+5. Idle timer fires / OS session lock → key zeroed (SecureZeroMemory / memset_s)
+6. Next AUTOFILL_REQUEST returns { type: 'LOCKED' } → stub shows "Unlock Adyton" button
+```
+
+The master password is typed into the daemon's own native window, not a browser field — it never enters the browser process or any web-accessible context.
+
+#### Autofill flow (full path)
+
+1. User visits a login page in Chrome/Firefox.
+2. Stub content script detects `<input type="password">` (visible, focusable).
+3. User clicks the Adyton autofill button injected next to the field.
+4. Content script sends `AUTOFILL_REQUEST` to stub background SW.
+5. Stub SW validates sender, connects to daemon via NativeMessaging, sends `{ type: 'AUTOFILL_REQUEST', domain: 'example.com' }`.
+6. Daemon looks up vault entries matching exact hostname, decrypts, returns `{ credentials: { username, password } }`.
+7. Stub SW relays to content script.
+8. Content script sets `.value` on username + password fields, dispatches `input` events.
+9. If daemon returns `{ type: 'LOCKED' }`: stub shows a banner "Unlock Adyton to autofill" — clicking opens the daemon unlock prompt.
+
+#### Implementation phase: post-PAK
+
+The daemon shares OS-native runtime infrastructure with the PAK phase (Secure Enclave bridge, OS IPC patterns, native window management). Implementing after PAK avoids duplicating that work.
+
+Prerequisite design decisions before implementation begins:
+
+1. **Daemon technology**: Tauri (Rust + WebView for unlock UI) preferred — shares codebase patterns with the Tauri desktop app option (`analysis/frontend/pwa-vs-tauri.md`). Plain Rust binary is the minimal fallback.
+2. **Vault sync**: daemon fetches directly from the API using the same JWT refresh-cookie flow as the web app — no local vault file, no sync problem.
+3. **Multi-browser manifests**: one NativeMessaging host manifest per browser (Chrome, Firefox, Edge); same binary path in all three.
+4. **OS session lock hook per platform**: Windows `WTSRegisterSessionNotification`; macOS `NSWorkspaceSessionDidResignActiveNotification`; Linux `logind` `PrepareForSleep` D-Bus signal.
+5. **Clipboard clear**: daemon writes credential to clipboard → monitors paste event (Windows `WM_CLIPBOARDUPDATE`; macOS `NSPasteboard changeCount` polling) or fixed 30s timer → zeroes clipboard.
+
 ---
 

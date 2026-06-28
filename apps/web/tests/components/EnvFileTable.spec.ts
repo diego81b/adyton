@@ -3,11 +3,10 @@ import { mount } from '@vue/test-utils';
 import { VaultEntryType, type DecryptedEntry } from '@adyton/shared';
 import EnvFileTable from '../../app/components/EnvFileTable.vue';
 
-const UButtonStub = {
-  name: 'UButton',
-  props: ['icon', 'ariaLabel'],
-  emits: ['click'],
-  template: '<button :data-icon="icon" :aria-label="ariaLabel" @click="$emit(\'click\', $event)" />',
+const UIconStub = {
+  name: 'UIcon',
+  props: ['name'],
+  template: '<i :data-icon="name" />',
 };
 
 let store = '';
@@ -43,7 +42,7 @@ afterEach(() => {
 function mountTable() {
   return mount(EnvFileTable, {
     props: { entry: envEntry() },
-    global: { stubs: { UButton: UButtonStub } },
+    global: { stubs: { UIcon: UIconStub } },
   });
 }
 
@@ -102,7 +101,7 @@ function jsonEntry(content: string): DecryptedEntry {
 function mountWith(entry: DecryptedEntry) {
   return mount(EnvFileTable, {
     props: { entry },
-    global: { stubs: { UButton: UButtonStub } },
+    global: { stubs: { UIcon: UIconStub } },
   });
 }
 

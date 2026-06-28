@@ -143,7 +143,7 @@ async function copyEntry(entry: DecryptedEntry) {
         <UButton
           size="lg"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           icon="i-lucide-list-filter"
           aria-label="Filters"
           @click="filtersOpen = true"
@@ -154,7 +154,6 @@ async function copyEntry(entry: DecryptedEntry) {
       <UButton
         size="lg"
         icon="i-lucide-plus"
-        class="accent-glow text-white"
         aria-label="Add entry"
         @click="addOpen = true"
       >
@@ -172,7 +171,7 @@ async function copyEntry(entry: DecryptedEntry) {
 
     <!-- Entries -->
     <div v-if="vault.loading && !vault.entries.length" class="space-y-2.5">
-      <USkeleton v-for="i in 5" :key="i" class="h-[68px] rounded-xl" />
+      <USkeleton v-for="i in 5" :key="i" class="h-[76px] rounded-xl" />
     </div>
 
     <div v-else-if="filtered.length" class="space-y-2.5">
@@ -197,7 +196,7 @@ async function copyEntry(entry: DecryptedEntry) {
 
     <div v-else class="py-16 text-center">
       <UIcon name="i-lucide-vault" class="size-10 text-dimmed mx-auto mb-3" />
-      <p class="text-sm text-muted">
+      <p class="text-base text-muted">
         {{ vault.entries.length ? 'No entries match your filters.' : 'Your vault is empty.' }}
       </p>
     </div>

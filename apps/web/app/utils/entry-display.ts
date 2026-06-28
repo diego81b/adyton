@@ -19,18 +19,20 @@ export const TYPE_META: Record<VaultEntryType, TypeMeta> = {
   [VaultEntryType.IDENTITY]: { label: 'Identity', icon: 'i-lucide-user', color: 'neutral' },
 };
 
-// Static, purge-safe class strings per ENTRY TYPE (dynamic `bg-${color}` would be
-// stripped by Tailwind — same trap that bit the step-0 strength meter). Keyed by type
-// and aligned with CHIP_ACTIVE_CLASS below so the icon tiles and the filter chips
-// share one well-separated palette (semantic tokens made SECRET/ENV/IDENTITY all
-// green-ish — too similar to tell apart at a glance).
+// ENTERPRISE type indicator (2026-06-13): the six saturated per-type tiles read
+// consumer/playful and unbalanced the generated palette. All types now share ONE
+// restrained surface tile; the TYPE is carried by its per-type ICON + tooltip + the
+// detail page. This keeps the list calm and lets the brand accent (active chips,
+// hover/focus rings, primary Add) + the whale/graphite surface carry the palette.
+// Semantic tokens only, so it tracks the generated ramp and flips with the theme.
+const NEUTRAL_TILE = 'bg-muted border-default text-toned';
 export const TILE_CLASS: Record<VaultEntryType, string> = {
-  [VaultEntryType.LOGIN]: 'bg-blue-400/10 border-blue-400/20 text-blue-300',
-  [VaultEntryType.ENV_FILE]: 'bg-orange-400/10 border-orange-400/20 text-orange-300',
-  [VaultEntryType.SECRET]: 'bg-red-400/10 border-red-400/20 text-red-300',
-  [VaultEntryType.SECURE_NOTE]: 'bg-yellow-400/10 border-yellow-400/20 text-yellow-300',
-  [VaultEntryType.CREDIT_CARD]: 'bg-purple-400/10 border-purple-400/20 text-purple-300',
-  [VaultEntryType.IDENTITY]: 'bg-teal-400/10 border-teal-400/20 text-teal-300',
+  [VaultEntryType.LOGIN]: NEUTRAL_TILE,
+  [VaultEntryType.ENV_FILE]: NEUTRAL_TILE,
+  [VaultEntryType.SECRET]: NEUTRAL_TILE,
+  [VaultEntryType.SECURE_NOTE]: NEUTRAL_TILE,
+  [VaultEntryType.CREDIT_CARD]: NEUTRAL_TILE,
+  [VaultEntryType.IDENTITY]: NEUTRAL_TILE,
 };
 
 // Filter chips, in display order (mockup order). 'all' is handled separately.
@@ -43,18 +45,20 @@ export const TYPE_FILTERS: { type: VaultEntryType; label: string }[] = [
   { type: VaultEntryType.IDENTITY, label: 'Identity' },
 ];
 
-// Per-chip ACTIVE style — DERIVED from TILE_CLASS so filter chips and icon tiles can
-// never drift apart in tone (they used to: mockup chips were `*-900/40`, tiles
-// `*-400/10`). 'all' uses the emerald accent in the same tinted-tile shape.
+// ENTERPRISE active chip (2026-06-13): one uniform brand-accent state for ALL keys
+// (no rainbow chips). The active filter is signalled by the recurring gold/brand
+// accent — the same accent the Add button and hover/focus rings use — so selection
+// reads as a deliberate highlight on the calm surface, not a per-type color.
 export type ChipKey = VaultEntryType | 'all';
+const CHIP_ACTIVE = 'border bg-primary/10 border-primary/20 text-primary';
 export const CHIP_ACTIVE_CLASS: Record<ChipKey, string> = {
-  all: 'border bg-primary/10 border-primary/20 text-primary',
-  [VaultEntryType.LOGIN]: `border ${TILE_CLASS[VaultEntryType.LOGIN]}`,
-  [VaultEntryType.ENV_FILE]: `border ${TILE_CLASS[VaultEntryType.ENV_FILE]}`,
-  [VaultEntryType.SECRET]: `border ${TILE_CLASS[VaultEntryType.SECRET]}`,
-  [VaultEntryType.SECURE_NOTE]: `border ${TILE_CLASS[VaultEntryType.SECURE_NOTE]}`,
-  [VaultEntryType.CREDIT_CARD]: `border ${TILE_CLASS[VaultEntryType.CREDIT_CARD]}`,
-  [VaultEntryType.IDENTITY]: `border ${TILE_CLASS[VaultEntryType.IDENTITY]}`,
+  all: CHIP_ACTIVE,
+  [VaultEntryType.LOGIN]: CHIP_ACTIVE,
+  [VaultEntryType.ENV_FILE]: CHIP_ACTIVE,
+  [VaultEntryType.SECRET]: CHIP_ACTIVE,
+  [VaultEntryType.SECURE_NOTE]: CHIP_ACTIVE,
+  [VaultEntryType.CREDIT_CARD]: CHIP_ACTIVE,
+  [VaultEntryType.IDENTITY]: CHIP_ACTIVE,
 };
 const CHIP_INACTIVE_CLASS = 'bg-elevated border border-default text-muted hover:text-highlighted';
 
@@ -70,11 +74,11 @@ export const ENVIRONMENT_META: Record<EnvironmentTag, { label: string; dot: stri
   custom: { label: 'Custom', dot: 'bg-slate-500' },
 };
 
-// Version tag (vN) — one fixed color everywhere, deliberately OUTSIDE every palette
-// already in use (type tiles, env dots, emerald accent, rose danger): fuchsia.
-// Rounded corners (not a pill), shown BEFORE the title.
+// Version tag (vN) — low-importance metadata, so it reads as a quiet neutral chip
+// rather than a loud accent. Uses semantic surface/text tokens only, so it tracks
+// the generated palette and flips with the theme. Rounded (not a pill), before the title.
 export const VERSION_TAG_CLASS =
-  'text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-md bg-fuchsia-400/10 text-fuchsia-300 border border-fuchsia-400/20';
+  'text-[11px] font-mono font-semibold tabular-nums px-1.5 py-0.5 rounded-md bg-accented text-toned border border-default';
 
 export interface CardBrand {
   id: 'visa' | 'mastercard' | 'amex' | 'discover';
@@ -86,7 +90,12 @@ export interface CardBrand {
 const CARD_BRANDS: Array<{ re: RegExp } & CardBrand> = [
   { re: /^4/, id: 'visa', label: 'Visa', icon: 'i-simple-icons-visa' },
   // 51–55 plus the 2221–2720 range introduced in 2017.
-  { re: /^(5[1-5]|222[1-9]|22[3-9]\d|2[3-6]\d\d|27[01]\d|2720)/, id: 'mastercard', label: 'Mastercard', icon: 'i-simple-icons-mastercard' },
+  {
+    re: /^(5[1-5]|222[1-9]|22[3-9]\d|2[3-6]\d\d|27[01]\d|2720)/,
+    id: 'mastercard',
+    label: 'Mastercard',
+    icon: 'i-simple-icons-mastercard',
+  },
   { re: /^3[47]/, id: 'amex', label: 'Amex', icon: 'i-simple-icons-americanexpress' },
   { re: /^(6011|65|64[4-9])/, id: 'discover', label: 'Discover', icon: 'i-simple-icons-discover' },
 ];

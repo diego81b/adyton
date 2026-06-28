@@ -1,45 +1,51 @@
 # `secrets/`
 
-Holds the RS256 keypair that signs JWT access tokens, plus the AES-256-GCM key
-that encrypts account-2FA TOTP secrets at rest (`totp_enc.key`).
+Holds the RS256 keypair (JWT signing) and the AES-256-GCM key (TOTP encryption at rest).
+Organised by environment so dev, staging, and prod keys never overwrite each other.
 
-**Never commit anything from this directory.** `.gitignore` enforces that only
-`.gitkeep` and this `README.md` are tracked.
+**Never commit anything from this directory.** `.gitignore` allows only `.gitkeep` and this `README.md`.
 
-## Generate the keypair
+## Directory layout
 
-POSIX (Git Bash, macOS, Linux):
-
-```bash
-./scripts/gen-keys.sh
+```
+secrets/
+  dev/       ← local dev (Docker Compose mounts these)
+  staging/   ← staging keys (paste into Coolify + GitHub secrets)
+  prod/      ← production keys (paste into Coolify + GitHub secrets)
 ```
 
-Windows PowerShell:
+## Generate keys
 
 ```powershell
-./scripts/gen-keys.ps1
+# Windows — generates into secrets/<env>/
+.\scripts\gen-keys.ps1           # dev (default)
+.\scripts\gen-keys.ps1 staging
+.\scripts\gen-keys.ps1 prod
 ```
 
-Both scripts produce:
+```bash
+# macOS / Linux
+./scripts/gen-keys.sh            # dev (default)
+./scripts/gen-keys.sh staging
+./scripts/gen-keys.sh prod
+```
 
-- `secrets/jwt_private.pem` — 4096-bit RSA private key (signs access tokens)
-- `secrets/jwt_public.pem`  — public counterpart (verifies access tokens)
-- `secrets/totp_enc.key`    — 32-byte hex AES-256-GCM key (encrypts TOTP secrets
-  at rest; sanctioned zero-knowledge exception, see
-  `analysis/security/architecture.md` §3.5)
+Each run produces three files in the target subdirectory:
 
-The scripts refuse to overwrite existing files. Delete them manually if you
-need to rotate the keypair.
+| File | Purpose |
+|------|---------|
+| `jwt_private.pem` | 4096-bit RSA private key — signs JWT access tokens |
+| `jwt_public.pem` | Public counterpart — verifies JWT access tokens |
+| `totp_enc.key` | 32-byte hex AES-256-GCM key — encrypts TOTP secrets at rest (sanctioned ZK exception, see `analysis/security/architecture.md` §3.5) |
 
-**Rotating `totp_enc.key` is destructive:** every enrolled TOTP secret becomes
-unrecoverable and all users must re-enroll 2FA. Back it up with the same care
-as the database.
+Scripts refuse to overwrite existing files. Delete manually to rotate.
+
+**Rotating `totp_enc.key` is destructive:** every enrolled TOTP secret becomes unrecoverable and all users must re-enroll 2FA.
 
 ## How they are consumed
 
-Locally, `docker-compose.yml` mounts both files as Docker secrets at
-`/run/secrets/jwt_private_key` and `/run/secrets/jwt_public_key`. The NestJS
-config reads those paths (`JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH`).
+**Dev:** `docker-compose.yml` mounts `secrets/dev/*.pem` and `secrets/dev/totp_enc.key` as Docker secrets. NestJS reads them via `JWT_*_KEY_PATH` / `TOTP_ENC_KEY_PATH` env vars (set by `docker-compose.dev.yml`). The default fallback path is `secrets/dev/` so `docker compose up` works without any extra env vars.
 
-In production (Coolify), the PEM content is pasted as a multiline env var; no
-files exist on disk. See `analysis/infrastructure.md` §9.5.
+**CI (GitHub Actions):** All three secrets are passed as plain env vars — `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `TOTP_ENC_KEY`. Generate a dedicated CI key set or reuse the staging set. Store in GitHub Actions secrets (Settings → Secrets → Actions).
+
+**Staging / Production (Coolify):** Same env var approach — paste values into the Coolify dashboard. No files on disk. See `infra/COOLIFY_SETUP.md` step 1 for the exact commands.

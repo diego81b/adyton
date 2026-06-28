@@ -84,6 +84,7 @@ export default tseslint.config(
         useNuxtApp: 'readonly',
         useState: 'readonly',
         useToast: 'readonly',
+        useColorMode: 'readonly',
         useAsyncData: 'readonly',
         useFetch: 'readonly',
         useCookie: 'readonly',

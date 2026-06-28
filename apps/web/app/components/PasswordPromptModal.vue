@@ -47,7 +47,7 @@ function onConfirm() {
             <UIcon
               :name="danger ? 'i-lucide-triangle-alert' : 'i-lucide-lock'"
               class="size-4"
-              :class="danger ? 'text-rose-400' : 'text-muted'"
+              :class="danger ? 'text-rose-600 dark:text-rose-400' : 'text-muted'"
             />
           </div>
           <h2 class="font-bold tracking-tight">{{ title }}</h2>
@@ -73,7 +73,7 @@ function onConfirm() {
         <div class="mt-4 flex gap-2">
           <UButton
             color="neutral"
-            variant="soft"
+            variant="ghost"
             size="lg"
             class="flex-1 justify-center"
             @click="open = false"

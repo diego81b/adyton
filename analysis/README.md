@@ -21,6 +21,7 @@ Analisi completa frammentata per ambito. Documento originale monolitico: [`../AN
 
 ### Frontend
 - [Nuxt 4 + NuxtUI 4 + Pinia](./frontend/nuxt.md) (sez. 6)
+- [Design System — brand palette & tokens](./frontend/design-system.md) (added 2026-06-12)
 - [UX Design — Mobile First](./frontend/ux-mobile.md) (sez. 14)
 - [PWA vs Desktop App (Tauri)](./frontend/pwa-vs-tauri.md) (sez. 15)
 
@@ -34,6 +35,8 @@ Analisi completa frammentata per ambito. Documento originale monolitico: [`../AN
 ### Roadmap
 - [Implementation Phases 1–9](./roadmap/phases.md) (sez. 10)
 - [Phone-as-Key / Device-as-Key — Future Roadmap](./roadmap/device-as-key.md) (sez. 16) — WebAuthn PRF, Secure Enclave, QR+ECDH relay, Shamir
+- [V2 — Enterprise Multi-User](./roadmap/v2-enterprise.md) — org tenant, group vaults, ECDH key wrapping, SSO plugins, backoffice, kick/suspend
+- [V3 — Federation and Cross-Instance Sharing](./roadmap/v3-federation.md) — UUC, hub-and-spoke self-hosted federation, cross-instance group sharing, device binding
 
 ## Stack riassunto
 

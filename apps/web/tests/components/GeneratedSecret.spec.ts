@@ -23,9 +23,12 @@ describe('GeneratedSecret', () => {
     const spans = w.find('[data-testid="generated-value"]').findAll('span');
     expect(spans).toHaveLength(4);
     expect(spans[0]!.classes()).toHaveLength(0);                 // lowercase: default
-    expect(spans[1]!.classes()).toContain('text-amber-300');     // uppercase
+    // Theme-adaptive: light shade + dark: override so chars stay readable in both modes.
+    expect(spans[1]!.classes()).toContain('text-amber-700');     // uppercase
+    expect(spans[1]!.classes()).toContain('dark:text-amber-300');
     expect(spans[2]!.classes()).toContain('text-primary');       // digit
-    expect(spans[3]!.classes()).toContain('text-rose-300');      // symbol
+    expect(spans[3]!.classes()).toContain('text-rose-700');      // symbol
+    expect(spans[3]!.classes()).toContain('dark:text-rose-300');
     expect(w.text()).toContain('Generated Password');
   });
 

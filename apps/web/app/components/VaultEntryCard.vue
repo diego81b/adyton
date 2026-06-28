@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { VaultEntryType, type DecryptedEntry } from '@adyton/shared';
-import { TYPE_META, TILE_CLASS, ENVIRONMENT_META, VERSION_TAG_CLASS, entrySubtitle } from '../utils/entry-display';
+import { TYPE_META, ENVIRONMENT_META, VERSION_TAG_CLASS, entrySubtitle } from '../utils/entry-display';
 
 const props = defineProps<{ entry: DecryptedEntry }>();
 const emit = defineEmits<{ open: [id: string]; copy: [entry: DecryptedEntry] }>();
 
 const meta = computed(() => TYPE_META[props.entry.type]);
-const tileClass = computed(() => TILE_CLASS[props.entry.type]);
 const subtitle = computed(() => entrySubtitle(props.entry));
 const env = computed(() => (props.entry.environment ? ENVIRONMENT_META[props.entry.environment] : null));
 const monoLabel = computed(
@@ -28,7 +27,7 @@ const notesOpen = ref(false);
 
 <template>
   <div
-    class="vault-card relative overflow-hidden bg-elevated border border-default rounded-xl cursor-pointer hover:border-primary/40 transition"
+    class="vault-card group relative overflow-hidden bg-elevated border border-default rounded-lg cursor-pointer hover:border-primary/40 active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition"
     role="button"
     tabindex="0"
     @click="emit('open', entry.id)"
@@ -48,14 +47,16 @@ const notesOpen = ref(false);
     <!-- py-3 (not p-3.5): the vertical padding shrinks by the same 4px the row gap
          below adds, so the card height stays unchanged. -->
     <div class="px-3.5 py-3 flex items-center gap-3">
-      <!-- The tile is the type indicator (tooltip replaces the old redundant text badge). -->
+      <!-- Enterprise type indicator: one restrained surface tile for every type; the
+           type is read from the per-type ICON + tooltip (text badge dropped earlier).
+           The icon warms to the brand accent on hover/focus so the gold recurs without
+           six saturated tiles. -->
       <div
-        class="size-10 rounded-lg flex items-center justify-center shrink-0 border"
-        :class="tileClass"
+        class="size-12 rounded-lg flex items-center justify-center shrink-0 border bg-muted border-default text-toned group-hover:text-primary group-focus-visible:text-primary transition-colors"
         :title="meta.label"
         :aria-label="meta.label"
       >
-        <UIcon :name="meta.icon" class="size-5" />
+        <UIcon :name="meta.icon" class="size-6" />
       </div>
 
       <!-- Fixed 2-row structure (version+label / subtitle) so every card has the same
@@ -63,11 +64,11 @@ const notesOpen = ref(false);
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <span :class="VERSION_TAG_CLASS" class="shrink-0">v{{ entry.secretVersion }}</span>
-          <span class="font-semibold text-sm truncate" :class="{ 'font-mono': monoLabel }">
+          <span class="font-semibold text-base truncate" :class="{ 'font-mono': monoLabel }">
             {{ entry.label }}
           </span>
         </div>
-        <div class="mt-1 text-xs text-muted truncate min-h-[16px]" :class="{ 'font-mono': monoLabel }">
+        <div class="mt-1 text-sm text-muted truncate min-h-[20px]" :class="{ 'font-mono': monoLabel }">
           {{ subtitle }}
         </div>
       </div>
@@ -80,32 +81,32 @@ const notesOpen = ref(false);
         v-if="entry.notes"
         type="button"
         data-testid="notes-toggle"
-        class="size-9 rounded-lg border flex items-center justify-center shrink-0 transition"
+        class="size-10 rounded-lg border flex items-center justify-center shrink-0 transition"
         :class="
           notesOpen
-            ? 'bg-yellow-400/25 border-yellow-400/40 text-yellow-200'
-            : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-300 hover:bg-yellow-400/20'
+            ? 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
+            : 'bg-muted border-default text-toned hover:bg-primary/10 hover:text-primary hover:border-primary/40'
         "
         :aria-label="notesOpen ? `Hide notes for ${entry.label}` : `Show notes for ${entry.label}`"
         :aria-expanded="notesOpen"
         @click.stop="notesOpen = !notesOpen"
       >
-        <UIcon name="i-lucide-sticky-note" class="size-4" />
+        <UIcon name="i-lucide-sticky-note" class="size-5" />
       </button>
-      <span v-else class="size-9 shrink-0" aria-hidden="true" />
+      <span v-else class="size-10 shrink-0" aria-hidden="true" />
 
       <!-- LOGIN/SECRET keep the one-tap copy; no chevron — the whole card opens detail. -->
       <button
         v-if="canCopy"
         type="button"
         data-testid="copy-action"
-        class="size-9 rounded-lg border flex items-center justify-center shrink-0 transition bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
+        class="size-10 rounded-lg border flex items-center justify-center shrink-0 transition bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
         :aria-label="`Copy from ${entry.label}`"
         @click.stop="emit('copy', entry)"
       >
-        <UIcon name="i-lucide-copy" class="size-4" />
+        <UIcon name="i-lucide-copy" class="size-5" />
       </button>
-      <span v-else class="size-9 shrink-0" aria-hidden="true" />
+      <span v-else class="size-10 shrink-0" aria-hidden="true" />
     </div>
 
     <!-- Explicit expansion: opens only on user action. @click.stop so reading or
@@ -116,8 +117,8 @@ const notesOpen = ref(false);
       class="px-3.5 pb-3.5 pt-3 border-t border-dashed border-default cursor-auto"
       @click.stop
     >
-      <div class="text-[10px] font-mono uppercase tracking-wider text-dimmed mb-1">Notes</div>
-      <p class="text-xs text-muted leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
+      <div class="text-[11px] font-mono uppercase tracking-wider text-dimmed mb-1">Notes</div>
+      <p class="text-sm text-muted leading-relaxed whitespace-pre-wrap break-words">{{ entry.notes }}</p>
     </div>
   </div>
 </template>

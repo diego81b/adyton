@@ -30,11 +30,11 @@ const titleClass = computed(() =>
         class="absolute inset-0 rounded-full bg-primary/30 animate-pulse-ring"
       />
       <!-- logo.svg is a transparent vector using currentColor; <img> can't inherit
-           it, so we mask it and paint with bg-primary (emerald brand accent). -->
+           it, so we mask it and paint with bg-primary (brand teal accent). -->
       <div
         role="img"
         aria-label="Adyton"
-        class="relative h-full w-full bg-primary drop-shadow-[0_0_12px_rgba(16,185,129,0.45)] [mask:url(/logo.svg)_center/contain_no-repeat] [-webkit-mask:url(/logo.svg)_center/contain_no-repeat]"
+        class="brand-glow relative h-full w-full bg-primary [mask:url(/logo.svg)_center/contain_no-repeat] [-webkit-mask:url(/logo.svg)_center/contain_no-repeat]"
       />
     </div>
     <h1 class="font-bold tracking-tight" :class="titleClass">Adyton</h1>

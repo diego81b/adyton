@@ -22,12 +22,22 @@ const UButtonStub = {
   emits: ['click'],
   template: '<button :disabled="disabled || undefined" @click="$emit(\'click\')"><slot /></button>',
 };
-const UInputStub = {
-  name: 'UInput',
-  props: ['modelValue'],
-  emits: ['update:modelValue'],
-  template:
-    '<input class="uinput" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+// OtpInput stub mirrors its public contract: digit-filtered model + `complete`
+// on full length. The verify step relies on `@complete` to auto-submit.
+const OtpInputStub = {
+  name: 'OtpInput',
+  props: ['modelValue', 'length', 'invalid'],
+  emits: ['update:modelValue', 'complete'],
+  template: '<input class="otp" :value="modelValue" @input="onInput($event)" />',
+  methods: {
+    onInput(e: Event) {
+      const len = (this as unknown as { length: number }).length ?? 6;
+      const next = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, len);
+      const self = this as unknown as { $emit: (n: string, ...a: unknown[]) => void };
+      self.$emit('update:modelValue', next);
+      if (next.length === len) self.$emit('complete', next);
+    },
+  },
 };
 const UFormFieldStub = {
   name: 'UFormField',
@@ -54,7 +64,7 @@ function mountModal() {
       stubs: {
         UModal: UModalStub,
         UButton: UButtonStub,
-        UInput: UInputStub,
+        OtpInput: OtpInputStub,
         UFormField: UFormFieldStub,
         UCheckbox: UCheckboxStub,
         UAlert: { props: ['title'], template: '<div class="ualert">{{ title }}</div>' },
@@ -88,8 +98,8 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('123456');
-    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    await w.find('.otp').setValue('123456');
+    // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
     expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/enable', {
@@ -109,12 +119,29 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('000000');
-    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    await w.find('.otp').setValue('000000');
+    // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
     expect(w.text()).toContain('Invalid code');
     expect(w.find('.codes').exists()).toBe(false);
+  });
+
+  it('auto-submits when 6 digits are entered in the verify step', async () => {
+    mockApiFetch.mockResolvedValueOnce(SETUP);
+    mockApiFetch.mockResolvedValueOnce({ recoveryCodes: RECOVERY });
+    const w = mountModal();
+    await flushPromises();
+
+    await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
+    await w.find('.otp').setValue('123456');
+    await flushPromises();
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/auth/2fa/enable', {
+      method: 'POST',
+      body: { code: '123456' },
+    });
+    expect(w.find('.codes').text()).toBe('8');
   });
 
   it('gates Done behind the acknowledgment checkbox and emits enabled', async () => {
@@ -124,8 +151,8 @@ describe('TwoFactorSetupModal', () => {
     await flushPromises();
 
     await w.findAll('button').find((b) => b.text() === 'Continue')!.trigger('click');
-    await w.find('.uinput').setValue('123456');
-    await w.findAll('button').find((b) => b.text().includes('Verify'))!.trigger('click');
+    await w.find('.otp').setValue('123456');
+    // Auto-submit fires on the 6th digit — no need to click Verify.
     await flushPromises();
 
     const done = w.findAll('button').find((b) => b.text() === 'Done')!;

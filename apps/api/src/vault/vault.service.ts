@@ -174,6 +174,18 @@ export class VaultService {
     await this.auditService.log(userId, AuditAction.VAULT_DELETE, ip, userAgent, { entryId });
   }
 
+  // DB FK on VaultEntryVersion.entry has deleteRule:'cascade', so nativeDelete of
+  // all VaultEntry rows cascades to their versions at the database level.
+  async removeAll(userId: string, ip: string, userAgent: string): Promise<void> {
+    const count = await this.em.count(VaultEntry, { user: { id: userId } });
+    if (count === 0) return;
+    await this.em.nativeDelete(VaultEntry, { user: { id: userId } });
+    await this.auditService.log(userId, AuditAction.VAULT_DELETE, ip, userAgent, {
+      wiped: true,
+      count,
+    });
+  }
+
   async listVersions(userId: string, entryId: string): Promise<VaultEntryVersion[]> {
     await this.findOne(userId, entryId);
     return this.em.find(VaultEntryVersion, { entry: { id: entryId } }, {

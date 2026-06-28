@@ -403,3 +403,31 @@ describe('useVaultStore — error propagation', () => {
     expect(store.loading).toBe(false);
   });
 });
+
+describe('useVaultStore.wipeAll', () => {
+  it('sends DELETE /vault and clears store state', async () => {
+    await unlock();
+    // Seed one entry so we can verify it is cleared.
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const raw = await rawEntry(id, { type: VaultEntryType.LOGIN, label: 'A' });
+    mockFetch.mockResolvedValueOnce(okResponse({ data: [raw], nextCursor: null, hasMore: false }));
+    const store = useVaultStore();
+    await store.fetchEntries(true);
+    expect(store.entries).toHaveLength(1);
+
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 204, json: () => Promise.resolve(null) });
+    await store.wipeAll();
+
+    const call = mockFetch.mock.calls.at(-1)!;
+    expect(call[0]).toContain('/api/vault');
+    expect(call[1].method).toBe('DELETE');
+    expect(store.entries).toHaveLength(0);
+    expect(store.loaded).toBe(false);
+  });
+
+  it('throws when the vault is locked', async () => {
+    const store = useVaultStore();
+    await expect(store.wipeAll()).rejects.toThrow('Vault is locked');
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});

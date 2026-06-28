@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import OtpInput from './OtpInput.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -84,15 +85,13 @@ function onSubmit() {
         label="Authentication code"
         :ui="{ label: 'text-xs font-medium uppercase tracking-wider text-muted' }"
       >
-        <UInput
+        <OtpInput
           v-model="code"
-          inputmode="numeric"
-          autocomplete="one-time-code"
+          :length="6"
           autofocus
-          size="lg"
-          class="w-full"
-          placeholder="123456"
-          maxlength="6"
+          :invalid="!!error"
+          aria-label="Authentication code"
+          @complete="onSubmit"
         />
       </UFormField>
 
@@ -127,7 +126,7 @@ function onSubmit() {
         block
         size="lg"
         trailing-icon="i-lucide-arrow-right"
-        class="accent-glow text-white"
+        class="accent-glow"
         :loading="loading"
         :disabled="!canSubmit"
       >

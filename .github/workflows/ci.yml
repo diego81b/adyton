@@ -1,0 +1,128 @@
+name: CI/CD
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  typecheck-lint:
+    name: Typecheck & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test:coverage
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Key material for tests is ephemeral and throwaway — generate it per run instead of
+      # injecting GitHub secrets. auth.module loads the JWT key at import time (before any spec
+      # sets JWT_*_KEY_PATH), and totp-cipher falls back to a file, so both resolve to the
+      # priority-default path secrets/dev/*. Generate exactly there. Do NOT set JWT_PRIVATE_KEY /
+      # JWT_PUBLIC_KEY / TOTP_ENC_KEY env: env takes priority and a malformed multiline secret
+      # would break RS256 signing.
+      - name: Generate ephemeral test keys
+        run: |
+          mkdir -p secrets/dev
+          openssl genrsa -out secrets/dev/jwt_private.pem 4096
+          openssl rsa -in secrets/dev/jwt_private.pem -pubout -out secrets/dev/jwt_public.pem
+          openssl rand -hex 32 > secrets/dev/totp_enc.key
+
+      - name: Run integration tests
+        working-directory: apps/api
+        run: pnpm test:int
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit
+        run: pnpm audit --audit-level=high
+
+  # Deploy gates on the full test matrix — the server only deploys after CI is green.
+  # NOTE: this only matters if Coolify's native "auto deploy on push" is DISABLED for the
+  # app; otherwise Coolify deploys directly from the git webhook, bypassing this gate.
+  deploy-staging:
+    name: Deploy → Staging
+    runs-on: ubuntu-latest
+    needs: [typecheck-lint, unit-tests, integration-tests, audit]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    steps:
+      - name: Trigger Coolify staging rebuild
+        env:
+          WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK_STAGING }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::warning::COOLIFY_WEBHOOK_STAGING not set — skipping deploy trigger"
+            exit 0
+          fi
+          curl -fSs "$WEBHOOK"

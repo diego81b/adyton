@@ -1,24 +1,75 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useCryptoStore } from '../stores/crypto';
 import { useVaultStore } from '../stores/vault';
-
-// Full-screen lock overlay shown when the vault locks while the user stays on a
-// protected page (auto-lock timer fired, or the lock pill was clicked). Re-derives
-// the key in place — no navigation, no network round-trip for the key itself.
-// Verification: after deriving, re-fetch entries; a wrong master password yields a
-// key that fails AES-GCM decryption, so we re-lock and show an error.
+import { useNativeRuntime } from '../composables/useNativeRuntime';
+import { useBiometricUnlock } from '../composables/useBiometricUnlock';
 
 const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
 const vaultStore = useVaultStore();
+const { isNative } = useNativeRuntime();
+const biometric = useBiometricUnlock();
 
 const password = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
 const open = computed(() => !cryptoStore.isUnlocked);
+
+const biometricAvailable = ref(false);
+const biometricLoading = ref(false);
+
+// When the overlay opens, check enrollment and show the biometric button if available.
+// No auto-attempt here — the user chose to lock explicitly, so we let them decide
+// whether to use biometrics or the password form.
+watch(open, async (isOpen) => {
+  if (!isOpen || !isNative || !authStore.user?.id) return;
+  biometricAvailable.value = false;
+  try {
+    const enrolled = await biometric.isEnrolled(authStore.user.id);
+    biometricAvailable.value = enrolled;
+  } catch {
+    // Plugin error — fall back to password form silently.
+  }
+});
+
+async function attemptBiometric() {
+  if (!authStore.user?.id) return;
+  biometricLoading.value = true;
+  error.value = null;
+  let biometricOk = false;
+  try {
+    const ok = await biometric.unlockWithBiometrics(authStore.user.id);
+    if (!ok) {
+      biometricLoading.value = false;
+      return;
+    }
+    biometricOk = true;
+    // Verify the key actually decrypts the vault (same as password path).
+    await vaultStore.fetchEntries(true);
+    // overlay closes automatically when cryptoStore.isUnlocked becomes true
+  } catch (err: unknown) {
+    if (err !== null && typeof err === 'object' && 'status' in err) {
+      // Network error — key may be fine, keep enrollment.
+      cryptoStore.lock();
+      error.value = 'Could not reach the server. Check your connection and retry.';
+    } else if (biometricOk) {
+      // Stale key: biometric succeeded but vault decrypt failed.
+      // Unenroll BEFORE locking so the watch triggered by lock() sees isEnrolled=false.
+      await biometric.unenroll(authStore.user.id);
+      biometricAvailable.value = false;
+      cryptoStore.lock();
+      error.value = 'Biometric key is out of date. Please unlock with your master password to re-enroll.';
+    } else {
+      // Plugin error before key was used — keep enrollment.
+      cryptoStore.lock();
+      error.value = 'Biometric authentication failed. Please try again or use your master password.';
+    }
+    biometricLoading.value = false;
+  }
+}
 
 async function onSubmit() {
   if (!password.value) return;
@@ -30,7 +81,6 @@ async function onSubmit() {
   error.value = null;
   try {
     await cryptoStore.deriveKey(password.value, authStore.user.kdfSalt);
-    // Verify the derived key actually decrypts the vault.
     await vaultStore.fetchEntries(true);
     password.value = '';
   } catch {
@@ -63,6 +113,28 @@ async function onSubmit() {
           </p>
         </div>
 
+        <!-- Biometric button: native only, shown when a key is enrolled. -->
+        <div v-if="biometricAvailable" class="mb-5">
+          <UButton
+            block
+            size="lg"
+            color="primary"
+            variant="subtle"
+            icon="i-lucide-fingerprint"
+            aria-label="Unlock with biometrics"
+            :loading="biometricLoading"
+            :disabled="biometricLoading"
+            @click="attemptBiometric"
+          >
+            Unlock with biometrics
+          </UButton>
+          <div class="relative my-5 flex items-center">
+            <div class="flex-1 border-t border-default" />
+            <span class="mx-3 text-[11px] text-muted">or use master password</span>
+            <div class="flex-1 border-t border-default" />
+          </div>
+        </div>
+
         <UForm :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
           <UFormField
             name="password"
@@ -83,7 +155,7 @@ async function onSubmit() {
             type="submit"
             block
             size="lg"
-            class="accent-glow text-white"
+            class="accent-glow"
             :loading="loading"
             :disabled="!password"
           >

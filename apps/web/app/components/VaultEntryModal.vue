@@ -278,7 +278,7 @@ function close() {
         <div class="flex-1 overflow-y-auto">
           <!-- Type selector — equal-size grid, no horizontal scroll. -->
           <div class="px-5 pt-4">
-            <div class="text-[10px] font-mono uppercase tracking-wider text-muted mb-2">Entry Type</div>
+            <div class="text-[11px] font-mono uppercase tracking-wider text-muted mb-2">Entry Type</div>
             <div class="grid grid-cols-3 gap-2">
               <button
                 v-for="t in TYPE_FILTERS"
@@ -311,7 +311,13 @@ function close() {
                 <UInput v-model="form.url" size="lg" class="w-full font-mono" placeholder="https://github.com" />
               </UFormField>
               <UFormField label="Username" name="username">
-                <UInput v-model="form.username" size="lg" class="w-full" placeholder="alice@example.com" />
+                <UInput
+                  v-model="form.username"
+                  size="lg"
+                  class="w-full"
+                  placeholder="alice@example.com"
+                  autocomplete="off"
+                />
               </UFormField>
               <UFormField label="Password" name="password">
                 <div class="flex gap-2">
@@ -319,11 +325,12 @@ function close() {
                     v-model="form.password"
                     class="flex-1"
                     placeholder="••••••••••••"
-                    autocomplete="new-password"
+                    concealed
+                    :required="false"
                   />
                   <UButton
                     color="neutral"
-                    variant="soft"
+                    variant="subtle"
                     size="lg"
                     icon="i-lucide-refresh-cw"
                     class="shrink-0"
@@ -399,7 +406,8 @@ function close() {
                   v-model="form.secretValue"
                   class="w-full"
                   placeholder="sk_live_…"
-                  autocomplete="off"
+                  concealed
+                  :required="false"
                 />
               </UFormField>
               <UFormField name="secretDescription">
@@ -458,7 +466,7 @@ function close() {
                   />
                 </UFormField>
                 <UFormField label="CVV" name="cardCvv">
-                  <PasswordInput v-model="form.cardCvv" class="w-full" placeholder="•••" autocomplete="off" />
+                  <PasswordInput v-model="form.cardCvv" class="w-full" placeholder="•••" concealed :required="false" />
                 </UFormField>
               </div>
               <UFormField label="Notes" name="notes">
@@ -491,9 +499,9 @@ function close() {
 
         <!-- Footer -->
         <div
-          class="sticky bottom-0 z-10 bg-default px-5 py-4 border-t border-default flex gap-2"
+          class="sticky bottom-0 z-10 bg-default px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-default flex gap-2"
         >
-          <UButton color="neutral" variant="soft" size="lg" class="flex-1 justify-center" @click="close">
+          <UButton color="neutral" variant="ghost" size="lg" class="flex-1 justify-center" @click="close">
             Cancel
           </UButton>
           <UButton

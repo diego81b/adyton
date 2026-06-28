@@ -37,11 +37,11 @@ services:
 
 secrets:
   jwt_private_key:
-    file: ./secrets/jwt_private.pem
+    file: ./secrets/dev/jwt_private.pem
   jwt_public_key:
-    file: ./secrets/jwt_public.pem
+    file: ./secrets/dev/jwt_public.pem
   totp_enc_key:
-    file: ./secrets/totp_enc.key
+    file: ./secrets/dev/totp_enc.key
 
 volumes:
   postgres_data:

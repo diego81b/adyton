@@ -8,6 +8,6 @@ export class NoOpEmailNotifier implements EmailNotifier {
     _ipAddress: string,
     _userAgent: string,
   ): Promise<void> {
-    // No-op: real SMTP implementation lands in Phase 8
+    // No-op: used when SMTP_HOST is not configured
   }
 }

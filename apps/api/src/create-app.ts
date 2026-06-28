@@ -26,8 +26,13 @@ export async function createApp(): Promise<NestFastifyApplication> {
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
 
-  // Redis-backed rate limiting (falls back to in-memory if REDIS_URL not set)
-  const rateLimitOptions: Record<string, unknown> = { max: 100, timeWindow: '1 minute' };
+  // Redis-backed rate limiting (falls back to in-memory if REDIS_URL not set).
+  // Integration tests fire many requests per IP in well under a minute (e.g. the vault
+  // version-pruning spec); a production 100/min cap would spuriously 429 them. Raise the
+  // ceiling under NODE_ENV=test only — prod/staging keep 100/min. Header-presence tests
+  // are unaffected (they assert headers exist, not their values).
+  const rateLimitMax = process.env.NODE_ENV === 'test' ? 10_000 : 100;
+  const rateLimitOptions: Record<string, unknown> = { max: rateLimitMax, timeWindow: '1 minute' };
   let rateLimitRedis: InstanceType<typeof Redis> | null = null;
   if (process.env.REDIS_URL) {
     rateLimitRedis = new Redis(process.env.REDIS_URL);

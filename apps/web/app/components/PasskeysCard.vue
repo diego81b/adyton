@@ -4,6 +4,7 @@ import { useAuthStore } from '~/stores/auth';
 import { useWebAuthn, type PasskeySummary } from '~/composables/useWebAuthn';
 import { relativeTime } from '~/utils/account';
 import ConfirmDialog from './ConfirmDialog.vue';
+import SettingsGroup from './SettingsGroup.vue';
 
 // Account-level passkey (WebAuthn) management. Passkeys ride on top of TOTP — the API
 // rejects registration until 2FA is enabled, so the card mirrors that: it only loads
@@ -106,70 +107,55 @@ watch(canManage, (can) => {
 </script>
 
 <template>
-  <div class="rounded-2xl border border-default bg-elevated p-4">
-    <div class="mb-0.5 flex items-center gap-2">
-      <h3 class="text-sm font-semibold">Passkeys</h3>
-      <span
-        v-if="canManage && passkeys.length"
-        class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-300"
-      >
-        {{ passkeys.length }}
-      </span>
-    </div>
-    <p class="text-[11px] text-muted">
-      Sign in with a hardware key, fingerprint, or device PIN.
-    </p>
-
-    <!-- Gating hints: TOTP required first, then browser support. -->
-    <p
+  <SettingsGroup
+    title="Passkeys"
+    :subtitle="canManage && passkeys.length ? `${passkeys.length} registered` : undefined"
+  >
+    <!-- Gating: TOTP required first, then browser support. -->
+    <div
       v-if="!totpEnabled"
-      class="mt-3 rounded-lg border border-default bg-accented px-3 py-2 text-[11px] text-muted"
+      class="px-3 py-3 text-[13px] text-muted"
     >
-      Enable two-factor authentication first.
-    </p>
-    <p
+      Enable two-factor authentication first to add passkeys.
+    </div>
+    <div
       v-else-if="!supported"
-      class="mt-3 rounded-lg border border-default bg-accented px-3 py-2 text-[11px] text-muted"
+      class="px-3 py-3 text-[13px] text-muted"
     >
       This browser does not support passkeys.
-    </p>
+    </div>
 
-    <!-- Credential list -->
     <template v-else>
-      <div v-if="loading" class="mt-3 text-xs text-muted">Loading…</div>
-      <ul v-else-if="passkeys.length" class="mt-3 divide-y divide-default">
-        <li
-          v-for="key in passkeys"
-          :key="key.id"
-          class="flex items-center justify-between gap-3 py-2.5"
-        >
-          <div class="flex min-w-0 items-center gap-2.5">
-            <UIcon name="i-lucide-key-round" class="size-4 shrink-0 text-muted" />
-            <div class="min-w-0">
-              <div class="truncate text-xs font-semibold text-highlighted">
-                {{ key.friendlyName }}
-              </div>
-              <div class="text-[10px] text-dimmed">
-                Added {{ formatAdded(key.createdAt) }} · Last used {{ relativeTime(key.lastUsedAt) }}
-              </div>
+      <div v-if="loading" class="px-3 py-3 text-sm text-muted">Loading…</div>
+      <div
+        v-for="key in passkeys"
+        v-else
+        :key="key.id"
+        class="flex items-center justify-between gap-x-3 px-3 py-3"
+      >
+        <div class="flex min-w-0 items-center gap-2.5">
+          <UIcon name="i-lucide-key-round" class="size-4 shrink-0 text-dimmed" />
+          <div class="min-w-0">
+            <div class="truncate text-sm font-medium text-default">{{ key.friendlyName }}</div>
+            <div class="truncate text-[11px] tabular-nums text-dimmed">
+              Added {{ formatAdded(key.createdAt) }} · Last used {{ relativeTime(key.lastUsedAt) }}
             </div>
           </div>
-          <UButton
-            color="error"
-            variant="subtle"
-            size="xs"
-            icon="i-lucide-trash-2"
-            :aria-label="`Remove passkey ${key.friendlyName}`"
-            @click="removeId = key.id"
-          >
-            <span class="hidden sm:inline">Remove</span>
-          </UButton>
-        </li>
-      </ul>
-      <p v-else class="mt-3 text-xs text-muted">No passkeys yet.</p>
+        </div>
+        <UButton
+          color="error"
+          variant="subtle"
+          size="sm"
+          icon="i-lucide-trash-2"
+          class="shrink-0"
+          :aria-label="`Remove passkey ${key.friendlyName}`"
+          @click="removeId = key.id"
+        />
+      </div>
+      <p v-if="!loading && !passkeys.length" class="px-3 py-3 text-sm text-muted">No passkeys yet.</p>
 
       <!-- Inline add form -->
-      <div v-if="adding" class="mt-3 space-y-2">
+      <div v-if="adding" class="space-y-2 px-3 py-3">
         <UInput
           v-model="friendlyName"
           size="lg"
@@ -183,42 +169,51 @@ watch(canManage, (can) => {
           <UButton
             color="primary"
             variant="subtle"
-            size="sm"
+            size="md"
+            class="flex-1 justify-center sm:flex-none"
             :loading="registering"
             :disabled="!nameValid"
             @click="confirmAdd"
           >
             Create passkey
           </UButton>
-          <UButton color="neutral" variant="soft" size="sm" :disabled="registering" @click="cancelAdd">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="md"
+            class="justify-center"
+            :disabled="registering"
+            @click="cancelAdd"
+          >
             Cancel
           </UButton>
         </div>
       </div>
-      <UButton
-        v-else
-        color="primary"
-        variant="subtle"
-        size="sm"
-        icon="i-lucide-plus"
-        aria-label="Add passkey"
-        class="mt-4"
-        @click="openAdd"
-      >
-        <span class="hidden sm:inline">Add passkey</span>
-      </UButton>
+      <div v-else class="px-3 py-3">
+        <UButton
+          color="primary"
+          variant="subtle"
+          size="md"
+          icon="i-lucide-plus"
+          aria-label="Add passkey"
+          class="w-full justify-center sm:w-auto"
+          @click="openAdd"
+        >
+          Add passkey
+        </UButton>
+      </div>
     </template>
+  </SettingsGroup>
 
-    <ConfirmDialog
-      :open="removeId !== null"
-      title="Remove this passkey?"
-      :message="removeTarget
-        ? `“${removeTarget.friendlyName}” will no longer be usable to sign in. This cannot be undone.`
-        : ''"
-      confirm-label="Remove"
-      :loading="removing"
-      @update:open="(v: boolean) => { if (!v) removeId = null; }"
-      @confirm="confirmRemove"
-    />
-  </div>
+  <ConfirmDialog
+    :open="removeId !== null"
+    title="Remove this passkey?"
+    :message="removeTarget
+      ? `“${removeTarget.friendlyName}” will no longer be usable to sign in. This cannot be undone.`
+      : ''"
+    confirm-label="Remove"
+    :loading="removing"
+    @update:open="(v: boolean) => { if (!v) removeId = null; }"
+    @confirm="confirmRemove"
+  />
 </template>

@@ -28,19 +28,19 @@ const TIERS: Array<{ min: number } & StrengthTier> = [
   {
     min: 65,
     label: 'Strong',
-    badgeClass: 'text-green-400 bg-green-500/10 border-green-500/30',
+    badgeClass: 'text-green-700 dark:text-green-400 bg-green-500/10 border-green-500/30',
     description: 'Would take centuries to crack with current hardware',
   },
   {
     min: 45,
     label: 'Fair',
-    badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+    badgeClass: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/30',
     description: 'Acceptable for low-value accounts — consider more length',
   },
   {
     min: 0,
     label: 'Weak',
-    badgeClass: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
+    badgeClass: 'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/30',
     description: 'Too guessable — add length or character classes',
   },
 ];

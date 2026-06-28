@@ -64,19 +64,27 @@ describe('totp-cipher', () => {
   });
 
   describe('loadTotpEncKey', () => {
-    let originalEnv: string | undefined;
+    let originalPath: string | undefined;
+    let originalHex: string | undefined;
     let tmpDir: string;
 
     beforeEach(() => {
-      originalEnv = process.env.TOTP_ENC_KEY_PATH;
+      originalPath = process.env.TOTP_ENC_KEY_PATH;
+      originalHex = process.env.TOTP_ENC_KEY;
+      delete process.env.TOTP_ENC_KEY;
       tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'totp-key-'));
     });
 
     afterEach(() => {
-      if (originalEnv === undefined) {
+      if (originalPath === undefined) {
         delete process.env.TOTP_ENC_KEY_PATH;
       } else {
-        process.env.TOTP_ENC_KEY_PATH = originalEnv;
+        process.env.TOTP_ENC_KEY_PATH = originalPath;
+      }
+      if (originalHex === undefined) {
+        delete process.env.TOTP_ENC_KEY;
+      } else {
+        process.env.TOTP_ENC_KEY = originalHex;
       }
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
@@ -97,6 +105,36 @@ describe('totp-cipher', () => {
       const keyFile = path.join(tmpDir, 'totp_enc.key');
       fs.writeFileSync(keyFile, randomBytes(16).toString('hex'));
       process.env.TOTP_ENC_KEY_PATH = keyFile;
+
+      expect(() => loadTotpEncKey()).toThrow('must be 32 bytes hex, got 16');
+    });
+
+    it('loads correctly from TOTP_ENC_KEY env var (hex string)', () => {
+      const hex = randomBytes(32).toString('hex');
+      process.env.TOTP_ENC_KEY = hex;
+
+      const loaded = loadTotpEncKey();
+      expect(Buffer.isBuffer(loaded)).toBe(true);
+      expect(loaded).toHaveLength(32);
+      expect(loaded.toString('hex')).toBe(hex);
+    });
+
+    it('TOTP_ENC_KEY env var takes priority over TOTP_ENC_KEY_PATH', () => {
+      const envHex = randomBytes(32).toString('hex');
+      process.env.TOTP_ENC_KEY = envHex;
+
+      // write a DIFFERENT key to a file and point TOTP_ENC_KEY_PATH at it
+      const fileHex = randomBytes(32).toString('hex');
+      const keyFile = path.join(tmpDir, 'totp_enc.key');
+      fs.writeFileSync(keyFile, fileHex);
+      process.env.TOTP_ENC_KEY_PATH = keyFile;
+
+      const loaded = loadTotpEncKey();
+      expect(loaded.toString('hex')).toBe(envHex);
+    });
+
+    it('throws when TOTP_ENC_KEY env var holds fewer than 32 bytes', () => {
+      process.env.TOTP_ENC_KEY = randomBytes(16).toString('hex');
 
       expect(() => loadTotpEncKey()).toThrow('must be 32 bytes hex, got 16');
     });

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   deriveEncryptionKey,
   deriveRawKey,
@@ -137,6 +137,27 @@ describe('generatePassword', () => {
     // At least one result should contain a symbol
     const symbolRx = /[!@#$%^&*()_+\-=[\]{}|;:,.?]/;
     expect(results.some(r => symbolRx.test(r))).toBe(true);
+  });
+
+  it('falls back to extra random draws when the first buffer is fully rejected', () => {
+    // First buffer: every byte 0xff is >= maxUnbiased for any real pool, so the
+    // rejection-sampling loop adds nothing and the fallback `while` loop must run.
+    // Subsequent buffers: zeros, always accepted (0 < maxUnbiased), so it terminates.
+    let call = 0;
+    const spy = vi
+      .spyOn(globalThis.crypto, 'getRandomValues')
+      .mockImplementation(<T extends ArrayBufferView | null>(arr: T): T => {
+        (arr as unknown as Uint8Array).fill(call === 0 ? 0xff : 0x00);
+        call++;
+        return arr;
+      });
+    try {
+      const p = generatePassword(base);
+      expect(p).toHaveLength(20);
+      expect(call).toBeGreaterThan(1); // fallback path executed
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

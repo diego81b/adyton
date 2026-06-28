@@ -4,7 +4,11 @@ import { VaultEntryType, type DecryptedEntry } from '@adyton/shared';
 import VaultEntryCard from '../../app/components/VaultEntryCard.vue';
 
 const UIconStub = { name: 'UIcon', props: ['name'], template: '<i :data-icon="name" />' };
-const UBadgeStub = { name: 'UBadge', props: ['color'], template: '<span class="ubadge" :data-color="color"><slot /></span>' };
+const UBadgeStub = {
+  name: 'UBadge',
+  props: ['color'],
+  template: '<span class="ubadge" :data-color="color"><slot /></span>',
+};
 const UButtonStub = {
   name: 'UButton',
   props: ['icon', 'ariaLabel'],
@@ -13,7 +17,14 @@ const UButtonStub = {
 };
 
 function entry(partial: Partial<DecryptedEntry> & { type: VaultEntryType }): DecryptedEntry {
-  return { id: 'e1', label: 'GitHub', createdAt: new Date(), updatedAt: new Date(), secretVersion: 1, ...partial };
+  return {
+    id: 'e1',
+    label: 'GitHub',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    secretVersion: 1,
+    ...partial,
+  };
 }
 
 function mountCard(e: DecryptedEntry) {
@@ -63,14 +74,18 @@ describe('VaultEntryCard', () => {
     expect(noEnv.find('.bg-green-500').exists()).toBe(false);
   });
 
-  it('renders the version tag inline with the label in the fixed fuchsia style', () => {
+  it('renders the version tag inline with the label as a quiet neutral chip', () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, secretVersion: 2 }));
     const tag = w.findAll('span').find((s) => s.text() === 'v2')!;
-    expect(tag.classes().join(' ')).toContain('fuchsia');
+    const classes = tag.classes().join(' ');
+    expect(classes).toContain('bg-accented');
+    expect(classes).toContain('text-toned');
   });
 
   it('always shows the version badge, for every type, even at v1', () => {
-    const env = mountCard(entry({ type: VaultEntryType.ENV_FILE, secretVersion: 3, envParsed: { A: '1' } }));
+    const env = mountCard(
+      entry({ type: VaultEntryType.ENV_FILE, secretVersion: 3, envParsed: { A: '1' } }),
+    );
     expect(env.text()).toContain('v3');
     const login = mountCard(entry({ type: VaultEntryType.LOGIN, secretVersion: 1 }));
     expect(login.text()).toContain('v1');
@@ -113,22 +128,26 @@ describe('VaultEntryCard — fixed action columns', () => {
   it('renders spacers so notes/copy always occupy the same columns', () => {
     // No notes, no copy (ENV_FILE without notes) → two spacers.
     const none = mountCard(entry({ type: VaultEntryType.ENV_FILE, envParsed: {} }));
-    expect(none.findAll('span[aria-hidden="true"].size-9')).toHaveLength(2);
+    expect(none.findAll('span[aria-hidden="true"].size-10')).toHaveLength(2);
 
     // Notes but no copy (SECURE_NOTE) → copy slot is a spacer.
     const noteOnly = mountCard(entry({ type: VaultEntryType.SECURE_NOTE, notes: 'x' }));
     expect(noteOnly.find('[data-testid="notes-toggle"]').exists()).toBe(true);
-    expect(noteOnly.findAll('span[aria-hidden="true"].size-9')).toHaveLength(1);
+    expect(noteOnly.findAll('span[aria-hidden="true"].size-10')).toHaveLength(1);
 
     // Copy but no notes (LOGIN) → notes slot is a spacer.
     const copyOnly = mountCard(entry({ type: VaultEntryType.LOGIN }));
     expect(copyOnly.find('[data-testid="copy-action"]').exists()).toBe(true);
-    expect(copyOnly.findAll('span[aria-hidden="true"].size-9')).toHaveLength(1);
+    expect(copyOnly.findAll('span[aria-hidden="true"].size-10')).toHaveLength(1);
   });
 
-  it('action buttons are tinted tile-style (bg + border)', () => {
+  it('action buttons are tile-style (bg + border): notes neutral, copy brand accent', () => {
     const w = mountCard(entry({ type: VaultEntryType.LOGIN, notes: 'x' }));
-    expect(w.find('[data-testid="notes-toggle"]').classes().join(' ')).toContain('yellow');
+    // Enterprise: notes toggle is calm/token-based at rest (no hard yellow), copy keeps
+    // the brand accent.
+    const notes = w.find('[data-testid="notes-toggle"]').classes().join(' ');
+    expect(notes).toContain('bg-muted');
+    expect(notes).not.toContain('yellow');
     expect(w.find('[data-testid="copy-action"]').classes().join(' ')).toContain('primary');
   });
 

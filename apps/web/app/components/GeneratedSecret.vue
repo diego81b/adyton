@@ -27,24 +27,24 @@ const segments = computed<Segment[]>(() => {
   }
   return [...props.value].map((c) => {
     if (/[0-9]/.test(c)) return { text: c, class: 'text-primary' };
-    if (/[A-Z]/.test(c)) return { text: c, class: 'text-amber-300' };
-    if (/[^a-zA-Z0-9]/.test(c)) return { text: c, class: 'text-rose-300' };
+    if (/[A-Z]/.test(c)) return { text: c, class: 'text-amber-700 dark:text-amber-300' };
+    if (/[^a-zA-Z0-9]/.test(c)) return { text: c, class: 'text-rose-700 dark:text-rose-300' };
     return { text: c, class: '' };
   });
 });
 </script>
 
 <template>
-  <div class="relative overflow-hidden rounded-2xl border border-default bg-elevated p-5">
+  <div class="relative overflow-hidden rounded-xl border border-default bg-elevated p-3">
     <div
       class="pointer-events-none absolute top-0 right-0 h-32 w-32 -translate-y-12 translate-x-12 rounded-full bg-primary/10 blur-3xl"
     />
 
-    <div class="mb-3 font-mono text-[10px] uppercase tracking-wider text-dimmed">
+    <div class="mb-1.5 text-sm font-medium text-toned">
       Generated {{ words?.length ? 'Passphrase' : 'Password' }}
     </div>
 
-    <p v-if="error" class="mb-4 text-sm text-error">{{ error }}</p>
+    <p v-if="error" class="mb-4 text-base text-error">{{ error }}</p>
     <div
       v-else
       data-testid="generated-value"
@@ -55,7 +55,7 @@ const segments = computed<Segment[]>(() => {
 
     <div class="flex gap-2">
       <UButton
-        class="flex-1 justify-center text-white"
+        class="flex-1 justify-center"
         color="primary"
         size="lg"
         icon="i-lucide-copy"

@@ -3,7 +3,6 @@ import { ref } from 'vue';
 
 // Password field with a lock leading icon and a show/hide eye toggle.
 // Reused across login / register / unlock. v-model carries the value.
-import { computed } from 'vue';
 
 const model = defineModel<string>({ required: true });
 withDefaults(
@@ -11,37 +10,37 @@ withDefaults(
     placeholder?: string;
     autocomplete?: string;
     autofocus?: boolean;
+    /** Vault secret mode: keep type="text" and mask via CSS (text-security-disc) so
+        autofill frameworks never see a password field — no "save to Google" prompt.
+        Auth fields (login/register/unlock) must NOT set this: they want real
+        type="password" so the browser password manager keeps working. */
+    concealed?: boolean;
+    /** Auth fields are mandatory; vault secret fields are optional (the entry label
+        is the only gate) — pass false there so native constraint validation and
+        screen readers don't claim otherwise. */
+    required?: boolean;
   }>(),
-  { autocomplete: 'off' },
+  { autocomplete: 'off', required: true },
 );
 
 const visible = ref(false);
-
-// Always type="text" — masking is done with CSS (text-security-disc), NOT type=password,
-// so Chromium/Edge attach no password UI (no saved-password autofill, no "suggest strong
-// password" dropdown, no native reveal eye). The eye toggle just flips the mask class.
-const baseClass = computed(() => (visible.value ? 'font-mono' : 'font-mono text-security-disc'));
 </script>
 
 <template>
   <UInput
     v-model="model"
-    type="text"
+    :type="visible || concealed ? 'text' : 'password'"
     icon="i-lucide-lock"
     size="lg"
     class="w-full"
-    :ui="{ base: baseClass }"
+    :ui="{ base: concealed && !visible ? 'font-mono text-security-disc' : 'font-mono' }"
     :placeholder="placeholder"
     :autocomplete="autocomplete"
     :autofocus="autofocus"
     autocapitalize="off"
     autocorrect="off"
     spellcheck="false"
-    data-1p-ignore
-    data-lpignore="true"
-    data-bwignore
-    data-form-type="other"
-    required
+    :required="required"
   >
     <template #trailing>
       <UButton
