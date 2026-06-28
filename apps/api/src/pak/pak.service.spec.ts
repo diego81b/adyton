@@ -1,0 +1,389 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { PakService } from './pak.service';
+import { AuditAction } from '../entities/audit-log.entity';
+import { PakEnrollmentMethod, PakPlatform, PakRevocationReason } from '../entities/device-vault-key.entity';
+
+// ---- Hand-rolled DI mocks ---------------------------------------------------
+
+const mockEm = {
+  findOne: jest.fn(),
+  find: jest.fn(),
+  persist: jest.fn(),
+  flush: jest.fn(),
+  create: jest.fn(),
+  getReference: jest.fn(),
+};
+
+const mockAuditService = {
+  log: jest.fn(),
+  persistLog: jest.fn(),
+};
+
+const mockRedis = {
+  get: jest.fn(),
+  getdel: jest.fn(),
+  setex: jest.fn(),
+  set: jest.fn(),
+  del: jest.fn(),
+  ttl: jest.fn(),
+};
+
+// ---- Fixtures ---------------------------------------------------------------
+
+const USER_ID = 'user-uuid-1';
+const SESSION_ID = '00000000-0000-4000-a000-000000000001';
+const DEVICE_ID = 'device-uuid-1';
+
+const VALID_CHALLENGE = 'a'.repeat(64); // 64-char hex
+
+function makeDevice(overrides: Partial<{
+  id: string;
+  deviceName: string;
+  platform: PakPlatform;
+  enrollmentMethod: PakEnrollmentMethod;
+  enrolledAt: Date;
+  lastUsedAt: Date | null;
+  lastUsedIp: string | null;
+  revokedAt: Date | null;
+  revokedReason: PakRevocationReason | null;
+  publicKeyFingerprint: string;
+  devicePublicKey: string;
+  reCipherCompleted: boolean;
+}> = {}) {
+  return {
+    id: DEVICE_ID,
+    user: { id: USER_ID } as never,
+    deviceName: 'Test Phone',
+    platform: PakPlatform.ANDROID,
+    enrollmentMethod: PakEnrollmentMethod.MASTER_PASSWORD,
+    enrolledAt: new Date('2026-01-01T00:00:00.000Z'),
+    lastUsedAt: null,
+    lastUsedIp: null,
+    revokedAt: null,
+    revokedReason: null,
+    publicKeyFingerprint: 'fp-hex-64-chars-' + 'a'.repeat(48),
+    devicePublicKey: 'base64-spki-key',
+    reCipherCompleted: false,
+    ...overrides,
+  };
+}
+
+function makeEnrollDto() {
+  return {
+    devicePublicKeySpki: 'base64-spki-key',
+    publicKeyFingerprint: 'fp-hex-64-chars-' + 'a'.repeat(48),
+    deviceName: 'Test Phone',
+    platform: 'android',
+    enrollmentMethod: 'master_password',
+    enrollmentEphemeralPub: 'ephemeral-pub',
+    signature: 'sig-hex',
+  };
+}
+
+function makeRelayPayload() {
+  return {
+    phoneEphemeralPub: 'phone-eph-pub',
+    ciphertext: 'cipher',
+    iv: 'ivhex',
+    deviceId: 'dev-uuid',
+    signature: 'sig',
+  };
+}
+
+// ---- Tests ------------------------------------------------------------------
+
+describe('PakService', () => {
+  let service: PakService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockEm.flush.mockResolvedValue(undefined);
+    mockEm.create.mockImplementation(
+      (_entity: unknown, data: Record<string, unknown>) => ({ id: DEVICE_ID, ...data }),
+    );
+    mockEm.getReference.mockImplementation((_entity: unknown, id: string) => ({ id }));
+    mockRedis.setex.mockResolvedValue('OK');
+    mockRedis.set.mockResolvedValue('OK');
+    mockRedis.del.mockResolvedValue(1);
+    mockRedis.ttl.mockResolvedValue(45);
+
+    service = new PakService(
+      mockEm as never,
+      mockAuditService as never,
+      mockRedis as never,
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  describe('issueQrSession', () => {
+    it('throws ConflictException for a non-64-char challengeHex', async () => {
+      await expect(
+        service.issueQrSession('spki-key', 'tooshort'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException for challengeHex with non-hex chars', async () => {
+      await expect(
+        service.issueQrSession('spki-key', 'z'.repeat(64)),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('stores a QR session in Redis with 60s TTL and returns sessionId', async () => {
+      const result = await service.issueQrSession('spki-key', VALID_CHALLENGE);
+
+      expect(result.sessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        expect.stringContaining('pak_qr:'),
+        60,
+        expect.stringContaining(VALID_CHALLENGE),
+      );
+      const stored = JSON.parse(mockRedis.setex.mock.calls[0][2] as string);
+      expect(stored.desktopPublicKeySpki).toBe('spki-key');
+      expect(stored.challengeHex).toBe(VALID_CHALLENGE);
+      expect(stored.consumed).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('pollQrSession', () => {
+    it('returns expired when Redis has no key', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      const result = await service.pollQrSession(SESSION_ID);
+
+      expect(result.status).toBe('expired');
+    });
+
+    it('returns approved and deletes both keys when a payload is present', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now(), consumed: false });
+      const payload = JSON.stringify(makeRelayPayload());
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key.startsWith('pak_qr:')) return Promise.resolve(session);
+        if (key.startsWith('pak_qr_payload:')) return Promise.resolve(payload);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.pollQrSession(SESSION_ID);
+
+      expect(result.status).toBe('approved');
+      expect(result.phoneEphemeralPub).toBe('phone-eph-pub');
+      expect(result.ciphertext).toBe('cipher');
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        `pak_qr:${SESSION_ID}`,
+        `pak_qr_payload:${SESSION_ID}`,
+      );
+    });
+
+    it('returns denied when session exists, no payload, but consumed=true', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now(), consumed: true });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key.startsWith('pak_qr:')) return Promise.resolve(session);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.pollQrSession(SESSION_ID);
+
+      expect(result.status).toBe('denied');
+    });
+
+    it('returns pending when session exists, no payload, consumed=false', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now(), consumed: false });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key.startsWith('pak_qr:')) return Promise.resolve(session);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.pollQrSession(SESSION_ID);
+
+      expect(result.status).toBe('pending');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('submitRelayPayload', () => {
+    it('throws NotFoundException when the QR session does not exist', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      await expect(
+        service.submitRelayPayload(SESSION_ID, makeRelayPayload()),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ConflictException when the session is already consumed', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now(), consumed: true });
+      mockRedis.get.mockResolvedValue(session);
+
+      await expect(
+        service.submitRelayPayload(SESSION_ID, makeRelayPayload()),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('marks the session consumed and stores the payload with 30s TTL', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now(), consumed: false });
+      mockRedis.get.mockResolvedValue(session);
+      mockRedis.ttl.mockResolvedValue(45);
+
+      await service.submitRelayPayload(SESSION_ID, makeRelayPayload());
+
+      // The session should be updated with consumed=true
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `pak_qr:${SESSION_ID}`,
+        45,
+        expect.stringContaining('"consumed":true'),
+      );
+      // The payload should be stored with 30s TTL
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `pak_qr_payload:${SESSION_ID}`,
+        30,
+        expect.stringContaining('phone-eph-pub'),
+      );
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('cancelQrSession', () => {
+    it('deletes both the session and payload keys', async () => {
+      await service.cancelQrSession(SESSION_ID);
+
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        `pak_qr:${SESSION_ID}`,
+        `pak_qr_payload:${SESSION_ID}`,
+      );
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('enrollDevice', () => {
+    it('throws ConflictException when fingerprint already exists', async () => {
+      mockEm.findOne.mockResolvedValue(makeDevice());
+
+      await expect(
+        service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'ua'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockEm.persist).not.toHaveBeenCalled();
+    });
+
+    it('creates the device, audits PAK_DEVICE_ENROLLED, flushes, and returns the entity', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+
+      const device = await service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'agent');
+
+      expect(mockEm.persist).toHaveBeenCalledTimes(1);
+      const created = mockEm.create.mock.calls[0][1] as Record<string, unknown>;
+      expect(created.devicePublicKey).toBe('base64-spki-key');
+      expect(created.enrollmentMethod).toBe(PakEnrollmentMethod.MASTER_PASSWORD);
+      expect(created.platform).toBe(PakPlatform.ANDROID);
+      expect(created.revokedAt).toBeNull();
+
+      expect(mockAuditService.persistLog).toHaveBeenCalledWith(
+        USER_ID,
+        AuditAction.PAK_DEVICE_ENROLLED,
+        '127.0.0.1',
+        'agent',
+        { deviceName: 'Test Phone', platform: 'android', enrollmentMethod: 'master_password' },
+      );
+      expect(mockEm.flush).toHaveBeenCalledTimes(1);
+      expect(device.id).toBe(DEVICE_ID);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('listDevices', () => {
+    it('queries only non-revoked devices ordered by enrolledAt', async () => {
+      mockEm.find.mockResolvedValue([makeDevice()]);
+
+      const result = await service.listDevices(USER_ID);
+
+      expect(mockEm.find).toHaveBeenCalledWith(
+        expect.anything(),
+        { user: USER_ID, revokedAt: null },
+        { orderBy: { enrolledAt: 'ASC' } },
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('revokeDevice', () => {
+    it('throws NotFoundException when device does not belong to user', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.revokeDevice(USER_ID, DEVICE_ID, 'safe', '127.0.0.1', 'ua'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ConflictException when device is already revoked', async () => {
+      mockEm.findOne.mockResolvedValue(makeDevice({ revokedAt: new Date() }));
+
+      await expect(
+        service.revokeDevice(USER_ID, DEVICE_ID, 'safe', '127.0.0.1', 'ua'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('sets revokedAt + revokedReason, audits PAK_DEVICE_REVOKED', async () => {
+      const device = makeDevice();
+      mockEm.findOne.mockResolvedValue(device);
+
+      await service.revokeDevice(USER_ID, DEVICE_ID, 'compromised', '127.0.0.1', 'agent');
+
+      expect(device.revokedAt).toBeInstanceOf(Date);
+      expect(device.revokedReason).toBe(PakRevocationReason.COMPROMISED);
+      expect(mockAuditService.persistLog).toHaveBeenCalledWith(
+        USER_ID,
+        AuditAction.PAK_DEVICE_REVOKED,
+        '127.0.0.1',
+        'agent',
+        { deviceName: 'Test Phone', reason: 'compromised' },
+      );
+      expect(mockEm.flush).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses safe reason by default', async () => {
+      const device = makeDevice();
+      mockEm.findOne.mockResolvedValue(device);
+
+      await service.revokeDevice(USER_ID, DEVICE_ID, 'safe', '127.0.0.1', 'ua');
+
+      expect(device.revokedReason).toBe(PakRevocationReason.SAFE);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('renameDevice', () => {
+    it('throws NotFoundException when device does not exist', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.renameDevice(USER_ID, DEVICE_ID, { deviceName: 'New Name' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updates deviceName, flushes, and returns the updated device', async () => {
+      const device = makeDevice();
+      mockEm.findOne.mockResolvedValue(device);
+
+      const result = await service.renameDevice(USER_ID, DEVICE_ID, { deviceName: 'Renamed Phone' });
+
+      expect(device.deviceName).toBe('Renamed Phone');
+      expect(mockEm.flush).toHaveBeenCalledTimes(1);
+      expect(result.deviceName).toBe('Renamed Phone');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('toDeviceResponse', () => {
+    it('maps all expected fields and never leaks devicePublicKey', () => {
+      const device = makeDevice();
+      const dto = service.toDeviceResponse(device);
+
+      expect(Object.keys(dto).sort()).toEqual([
+        'deviceName', 'enrolledAt', 'enrollmentMethod',
+        'id', 'lastUsedAt', 'platform', 'publicKeyFingerprint', 'revokedAt',
+      ].sort());
+      expect('devicePublicKey' in dto).toBe(false);
+    });
+  });
+});
