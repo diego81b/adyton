@@ -1,6 +1,6 @@
 ## Adyton — Roadmap Summary
 
-*Last updated: 2026-06-28 (PAK priority decision — moved before V2/V3/V4)*
+*Last updated: 2026-06-28 (PAK priority decision — moved before V2/V3/V4; V5 Emergency Access added)*
 
 ---
 
@@ -13,8 +13,9 @@
 | V2 (Team Vault) | **Designed** | analysis complete, not started |
 | V3 (Admin Backoffice + Certified Groups) | **Designed** | analysis complete, not started |
 | V4 (Federation) | **Designed** | analysis complete, not started |
+| V5 (Emergency Access) | **Designed** | analysis complete, not started |
 
-**Order: V1 → PAK → V2 → V3 → V4.** PAK is independent of V2/V3/V4 (single-user feature, V1 codebase). Doing it first keeps the codebase simple before multi-user complexity lands.
+**Order: V1 → PAK → V2 → V3 → V4 → V5.** PAK is independent of V2/V3/V4 (single-user feature, V1 codebase). Doing it first keeps the codebase simple before multi-user complexity lands. V5 requires V2 EC keypair infrastructure.
 
 ---
 
@@ -225,6 +226,28 @@ Reference: `analysis/roadmap/v3-federation.md` *(document retains original filen
 | Admin app | apps/admin (Nuxt 4) | V3; separate Docker service |
 | Shared UI | packages/ui | V3; extracted from apps/web |
 | Mobile push (future) | Web Push VAPID + APNs | post-V2; no Firebase SDK for Android |
+
+---
+
+### V5 — Emergency Access (Trusted Contact)
+
+**What it adds:** a designated trusted contact can request access to the owner's vault after a configurable timeout (default 7 days). Owner receives multi-channel notification and has the full window to deny. If incapacitated and unresponsive, access is granted automatically. Server stores only ciphertext — ZK preserved.
+
+**What it is NOT:** not account recovery (lost master password still unrecoverable), not admin access, not a backup.
+
+**Prerequisite:** V2 (X25519 keypairs per user). The trusted contact must be an Adyton user on the same instance — external email requires server-side key escrow which breaks ZK.
+
+**Key design decisions:**
+- **Snapshot access** (not live key): contact decrypts the vault as it existed at grant time. Owner revokes by rotating vault key — snapshot becomes stale.
+- **ZK mechanism**: owner wraps raw vault key bytes via ECDH (X25519 ephemeral) to contact's public key. Server stores ciphertext + ephemeral public key only. Server cannot decrypt.
+- **Timeout defence**: 7d default, configurable 48h/7d/30d per contact. Short = coercion risk; long = delay in genuine emergency.
+- **Single contact V5.0**, M-of-N Shamir as V5.1 hardening.
+
+**Security honest assessment:** each trusted contact doubles the social engineering surface. The contact's security posture (2FA, device encryption) directly affects vault security. This is a real cost. For a personal vault the use case (incapacitation / death) is rare but legitimate.
+
+**Effort:** M (~6 weeks). BullMQ (V2 dependency) handles the timeout-to-approval job.
+
+Reference: `analysis/roadmap/v5-emergency-access.md`
 
 ---
 

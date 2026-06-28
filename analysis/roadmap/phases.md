@@ -155,10 +155,10 @@ The following features are architecturally sound but outside current V1 implemen
 
 | Feature | Prerequisite | Complexity | Notes |
 |---------|-------------|------------|-------|
-| **Browser Extension (MV3)** | Phase 7 complete | L | Moved post-V1 (2026-06-06): security review identified critical vault-key storage risk in the original §7.4 design ("decrypt in SW" violates ZK invariants). See `analysis/extension.md` §7.7–7.8 for the full risk register and pre-implementation requirements that must be resolved before implementation begins. |
+| **Desktop Daemon + Browser Stub (MV3)** | PAK complete | L | Architecture redesigned (2026-06-28): daemon+stub resolves all §7.7 ZK risks. Daemon process holds vault key in OS-protected heap (never `chrome.storage.session`, never SW); thin stub extension handles DOM autofill + exact-URL matching via NativeMessaging stdio pipe. DOM inject = no AutoType = no keylogger exposure. Popup XSS steals nothing (stub holds no key material). Positioned post-PAK to share OS-native infrastructure. See `analysis/extension.md` §7.9 for full architecture, security analysis, and pre-implementation decisions. |
 | **Tauri desktop app** | Phase 8 complete | M | Tauri wraps same Nuxt build; adds Rust plugins for Keychain, screen-lock, global shortcut |
 | **Phone-as-Key (PAK)** | Phase 8 ✅ | XL | Moved to dedicated roadmap version after V1 (decided 2026-06-28). Sub-model B + Model 3: QR+ECDH relay, SE keypair wrapping, ~9 weeks. See `analysis/roadmap/device-as-key.md` §16.8 and §16.10.10. |
-| **Emergency access (trusted contact)** | Phase 3 | M | time-locked delegated access, zero-knowledge grant flow |
+| **Emergency access (trusted contact)** | V2 (EC keypairs) | M | V5 in roadmap (decided 2026-06-28). ECDH-wrapped vault key snapshot for designated Adyton contact, 7-day timeout, ZK preserved. See `analysis/roadmap/v5-emergency-access.md` for full design + security analysis. |
 | **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
 | **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |
 
