@@ -1,6 +1,15 @@
 import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { createRequire } from 'module';
+
+// Resolve vue-router from nuxt's own node_modules, since it is a transitive
+// dependency not hoisted to apps/web. Without this alias the vite transform step
+// fails with "Cannot find module 'vue-router'" before vi.mock() can intercept it.
+const _require = createRequire(import.meta.url);
+const vueRouterEntry = _require.resolve('vue-router', {
+  paths: [dirname(_require.resolve('nuxt/package.json'))],
+});
 
 export default defineConfig({
   plugins: [vue()],
@@ -8,6 +17,7 @@ export default defineConfig({
     alias: {
       '~': resolve(__dirname, './app'),
       '@': resolve(__dirname, './app'),
+      'vue-router': vueRouterEntry,
     },
   },
   test: {

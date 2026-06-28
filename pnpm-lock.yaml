@@ -201,6 +201,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@adyton/capacitor-keystore':
+        specifier: file:../../packages/capacitor-adyton-keystore
+        version: link:../../packages/capacitor-adyton-keystore
       '@aparajita/capacitor-biometric-auth':
         specifier: ^10.0.0
         version: 10.0.0
@@ -241,6 +244,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@adyton/capacitor-keystore':
+        specifier: workspace:*
+        version: link:../../packages/capacitor-adyton-keystore
       '@adyton/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -274,6 +280,9 @@ importers:
       pinia:
         specifier: ^3.0.0
         version: 3.0.4(typescript@5.9.3)(vue@3.5.35(typescript@5.9.3))
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       reka-ui:
         specifier: 2.9.7
         version: 2.9.7(vue@3.5.35(typescript@5.9.3))
@@ -293,6 +302,9 @@ importers:
       '@nuxt/test-utils':
         specifier: ^3.15.0
         version: 3.23.0(@jest/globals@29.7.0)(@vue/test-utils@2.4.10(@vue/compiler-dom@3.5.35)(@vue/server-renderer@3.5.35(vue@3.5.35(typescript@5.9.3)))(vue@3.5.35(typescript@5.9.3)))(crossws@0.4.5(srvx@0.11.16))(happy-dom@20.10.2)(magicast@0.5.3)(typescript@5.9.3)(vitest@4.1.8)
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
       '@vitejs/plugin-vue':
         specifier: ^6.0.7
         version: 6.0.7(vite@7.3.3(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0))(vue@3.5.35(typescript@5.9.3))
@@ -314,6 +326,15 @@ importers:
       vue-tsc:
         specifier: ^2.1.10
         version: 2.2.12(typescript@5.9.3)
+
+  packages/capacitor-adyton-keystore:
+    devDependencies:
+      '@capacitor/core':
+        specifier: ^8.4.0
+        version: 8.4.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
 
   packages/shared:
     dependencies:
