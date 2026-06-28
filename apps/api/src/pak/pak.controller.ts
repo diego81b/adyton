@@ -19,8 +19,8 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { PakService } from './pak.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtUser } from '../auth/strategies/jwt.strategy';
-import { EnrollDeviceDto, IssueQrDto, RenameDeviceDto, SubmitRelayDto } from './dto/pak.dto';
-import { DeviceResponseDto, QrPollResponseDto, QrSessionResponseDto } from './dto/pak-response.dto';
+import { EnrollDeviceDto, IssueQrDto, RenameDeviceDto, StartEnrollSessionDto, SubmitEnrollVaultDto, SubmitRelayDto } from './dto/pak.dto';
+import { DeviceResponseDto, EnrollSessionResponseDto, EnrollStatusResponseDto, EnrollVaultStatusResponseDto, QrPollResponseDto, QrSessionResponseDto } from './dto/pak-response.dto';
 
 type RequestWithUser = FastifyRequest & { user: JwtUser };
 
@@ -78,6 +78,66 @@ export class PakController {
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
   ): Promise<void> {
     await this.pakService.cancelQrSession(sessionId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Enrollment relay — desktop-initiated device enrollment
+  // ---------------------------------------------------------------------------
+
+  @Post('auth/enroll-session')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Issue an enrollment session QR (desktop initiates PAK enrollment)' })
+  @ApiResponse({ status: 201, type: EnrollSessionResponseDto })
+  async issueEnrollSession(@Body() dto: StartEnrollSessionDto): Promise<EnrollSessionResponseDto> {
+    return this.pakService.issueEnrollSession(dto.desktopPublicKeySpki, dto.challengeHex);
+  }
+
+  @Get('auth/enroll-status/:sessionId')
+  @ApiOperation({ summary: 'Poll enrollment status (desktop polls until phone connects)' })
+  @ApiResponse({ status: 200, type: EnrollStatusResponseDto })
+  async getEnrollStatus(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+  ): Promise<EnrollStatusResponseDto> {
+    return this.pakService.getEnrollStatus(sessionId);
+  }
+
+  @Post('auth/enroll-vault/:sessionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Desktop submits encrypted vault key for phone to pick up' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 403, description: 'Not your enrollment session' })
+  @ApiResponse({ status: 404, description: 'Enrollment session not found or expired' })
+  @ApiResponse({ status: 409, description: 'Vault key already submitted' })
+  async submitEnrollVault(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() dto: SubmitEnrollVaultDto,
+    @Req() req: RequestWithUser,
+  ): Promise<void> {
+    await this.pakService.submitEnrollVault(sessionId, req.user.userId, dto);
+  }
+
+  @Get('auth/enroll-vault/:sessionId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Phone polls for encrypted vault key delivery' })
+  @ApiResponse({ status: 200, type: EnrollVaultStatusResponseDto })
+  async getEnrollVault(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Req() req: RequestWithUser,
+  ): Promise<EnrollVaultStatusResponseDto> {
+    return this.pakService.getEnrollVault(sessionId, req.user.userId);
+  }
+
+  @Delete('auth/enroll-session/:sessionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Cancel enrollment session (either party)' })
+  @ApiResponse({ status: 204 })
+  async cancelEnrollSession(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+  ): Promise<void> {
+    await this.pakService.cancelEnrollSession(sessionId);
   }
 
   // ---------------------------------------------------------------------------

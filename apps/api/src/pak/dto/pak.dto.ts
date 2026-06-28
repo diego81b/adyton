@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, Length, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, Length, IsIn, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class IssueQrDto {
@@ -41,9 +41,34 @@ export class EnrollDeviceDto {
 
   @ApiProperty() @IsString() @IsNotEmpty()
   signature!: string;
+
+  @ApiProperty({ description: 'Enrollment session ID — links this device enrollment to a desktop polling session', required: false })
+  @IsOptional()
+  @IsString()
+  enrollmentSessionId?: string;
 }
 
 export class RenameDeviceDto {
   @ApiProperty() @IsString() @IsNotEmpty() @Length(1, 256)
   deviceName!: string;
+}
+
+export class StartEnrollSessionDto {
+  @ApiProperty({ description: 'Desktop ephemeral P-256 public key, base64 SPKI (for enrollment ECDH)' })
+  @IsString() @IsNotEmpty()
+  desktopPublicKeySpki!: string;
+
+  @ApiProperty({ description: '32-byte challenge, hex encoded (HKDF salt)' })
+  @IsString() @Length(64, 64)
+  challengeHex!: string;
+}
+
+export class SubmitEnrollVaultDto {
+  @ApiProperty({ description: 'AES-GCM ciphertext (vault key encrypted for phone), base64' })
+  @IsString() @IsNotEmpty()
+  ciphertext!: string;
+
+  @ApiProperty({ description: 'AES-GCM IV, base64, 12 bytes' })
+  @IsString() @IsNotEmpty()
+  iv!: string;
 }

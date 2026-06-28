@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/core';
 import { Redis } from 'ioredis';
 import * as crypto from 'crypto';
@@ -7,14 +7,20 @@ import { User } from '../entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../entities/audit-log.entity';
 import { REDIS_CLIENT } from '../redis/redis.provider';
-import { EnrollDeviceDto, RenameDeviceDto } from './dto/pak.dto';
-import { QrPollResponseDto } from './dto/pak-response.dto';
+import { EnrollDeviceDto, RenameDeviceDto, SubmitEnrollVaultDto } from './dto/pak.dto';
+import { EnrollSessionResponseDto, EnrollStatusResponseDto, EnrollVaultStatusResponseDto, QrPollResponseDto } from './dto/pak-response.dto';
 
 // Redis key prefixes
 const QR_SESSION_PREFIX = 'pak_qr:';
 const QR_PAYLOAD_PREFIX = 'pak_qr_payload:';
 const QR_TTL_SECONDS = 60;
 const QR_PAYLOAD_TTL_SECONDS = 30;
+
+const ENROLL_SESSION_PREFIX = 'pak_enroll:';
+const ENROLL_PHONE_PREFIX = 'pak_enroll_phone:';
+const ENROLL_VAULT_PREFIX = 'pak_enroll_vault:';
+const ENROLL_TTL_SECONDS = 300;
+const ENROLL_VAULT_TTL_SECONDS = 60;
 
 interface QrSessionData {
   desktopPublicKeySpki: string;
@@ -29,6 +35,23 @@ interface QrPayloadData {
   iv: string;
   deviceId: string;
   signature: string;
+}
+
+interface EnrollSessionData {
+  desktopPublicKeySpki: string;
+  challengeHex: string;
+  createdAt: number;
+}
+
+interface EnrollPhoneData {
+  phoneEphemeralPub: string;
+  deviceId: string;
+  userId: string;
+}
+
+interface EnrollVaultData {
+  ciphertext: string;
+  iv: string;
 }
 
 function toDeviceResponse(device: DeviceVaultKey) {
@@ -160,6 +183,95 @@ export class PakService {
     );
   }
 
+  async issueEnrollSession(desktopPublicKeySpki: string, challengeHex: string): Promise<EnrollSessionResponseDto> {
+    if (!/^[0-9a-fA-F]{64}$/.test(challengeHex)) {
+      throw new ConflictException('challengeHex must be a 64-character hex string');
+    }
+
+    const sessionId = crypto.randomUUID();
+    const sessionData: EnrollSessionData = {
+      desktopPublicKeySpki,
+      challengeHex,
+      createdAt: Date.now(),
+    };
+
+    await this.redis.setex(
+      `${ENROLL_SESSION_PREFIX}${sessionId}`,
+      ENROLL_TTL_SECONDS,
+      JSON.stringify(sessionData),
+    );
+
+    return { sessionId, ttlSeconds: ENROLL_TTL_SECONDS };
+  }
+
+  async getEnrollStatus(sessionId: string): Promise<EnrollStatusResponseDto> {
+    const raw = await this.redis.get(`${ENROLL_SESSION_PREFIX}${sessionId}`);
+    if (!raw) {
+      return { status: 'waiting' };
+    }
+
+    const phoneRaw = await this.redis.get(`${ENROLL_PHONE_PREFIX}${sessionId}`);
+    if (phoneRaw) {
+      const phoneData = JSON.parse(phoneRaw) as EnrollPhoneData;
+      return { status: 'phone_ready', phoneEphemeralPub: phoneData.phoneEphemeralPub, deviceId: phoneData.deviceId };
+    }
+
+    return { status: 'waiting' };
+  }
+
+  async submitEnrollVault(sessionId: string, userId: string, dto: SubmitEnrollVaultDto): Promise<void> {
+    const phoneRaw = await this.redis.get(`${ENROLL_PHONE_PREFIX}${sessionId}`);
+    if (!phoneRaw) {
+      throw new NotFoundException('Enrollment session not found or expired');
+    }
+
+    const phoneData = JSON.parse(phoneRaw) as EnrollPhoneData;
+    if (phoneData.userId !== userId) {
+      throw new ForbiddenException('Not your enrollment session');
+    }
+
+    const existing = await this.redis.get(`${ENROLL_VAULT_PREFIX}${sessionId}`);
+    if (existing) {
+      throw new ConflictException('Vault key already submitted');
+    }
+
+    const vaultData: EnrollVaultData = { ciphertext: dto.ciphertext, iv: dto.iv };
+    await this.redis.setex(
+      `${ENROLL_VAULT_PREFIX}${sessionId}`,
+      ENROLL_VAULT_TTL_SECONDS,
+      JSON.stringify(vaultData),
+    );
+  }
+
+  async getEnrollVault(sessionId: string, userId: string): Promise<EnrollVaultStatusResponseDto> {
+    const phoneRaw = await this.redis.get(`${ENROLL_PHONE_PREFIX}${sessionId}`);
+    if (!phoneRaw) {
+      throw new NotFoundException('Enrollment session not found or expired');
+    }
+
+    const phoneData = JSON.parse(phoneRaw) as EnrollPhoneData;
+    if (phoneData.userId !== userId) {
+      throw new ForbiddenException('Not your enrollment session');
+    }
+
+    const vaultRaw = await this.redis.get(`${ENROLL_VAULT_PREFIX}${sessionId}`);
+    if (!vaultRaw) {
+      return { status: 'waiting' };
+    }
+
+    const vaultData = JSON.parse(vaultRaw) as EnrollVaultData;
+    await this.redis.del(`${ENROLL_VAULT_PREFIX}${sessionId}`);
+    return { status: 'ready', ciphertext: vaultData.ciphertext, iv: vaultData.iv };
+  }
+
+  async cancelEnrollSession(sessionId: string): Promise<void> {
+    await this.redis.del(
+      `${ENROLL_SESSION_PREFIX}${sessionId}`,
+      `${ENROLL_PHONE_PREFIX}${sessionId}`,
+      `${ENROLL_VAULT_PREFIX}${sessionId}`,
+    );
+  }
+
   async enrollDevice(
     userId: string,
     dto: EnrollDeviceDto,
@@ -200,6 +312,19 @@ export class PakService {
       enrollmentMethod: dto.enrollmentMethod,
     });
     await this.em.flush();
+
+    if (dto.enrollmentSessionId) {
+      const phoneData: EnrollPhoneData = {
+        phoneEphemeralPub: dto.enrollmentEphemeralPub,
+        deviceId: device.id,
+        userId,
+      };
+      await this.redis.setex(
+        `${ENROLL_PHONE_PREFIX}${dto.enrollmentSessionId}`,
+        ENROLL_TTL_SECONDS,
+        JSON.stringify(phoneData),
+      );
+    }
 
     return device;
   }

@@ -27,3 +27,24 @@ export class DeviceResponseDto {
   @ApiProperty({ nullable: true }) revokedAt!: Date | null;
   @ApiProperty() publicKeyFingerprint!: string;
 }
+
+export class EnrollSessionResponseDto {
+  @ApiProperty() sessionId!: string;
+  @ApiProperty() ttlSeconds!: number;
+}
+
+export class EnrollStatusResponseDto {
+  @ApiProperty({ enum: ['waiting', 'phone_ready'] })
+  status!: 'waiting' | 'phone_ready';
+
+  @ApiProperty({ required: false }) phoneEphemeralPub?: string;
+  @ApiProperty({ required: false }) deviceId?: string;
+}
+
+export class EnrollVaultStatusResponseDto {
+  @ApiProperty({ enum: ['waiting', 'ready'] })
+  status!: 'waiting' | 'ready';
+
+  @ApiProperty({ required: false }) ciphertext?: string;
+  @ApiProperty({ required: false }) iv?: string;
+}

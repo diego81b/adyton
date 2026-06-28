@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PakService } from './pak.service';
 import { AuditAction } from '../entities/audit-log.entity';
 import { PakEnrollmentMethod, PakPlatform, PakRevocationReason } from '../entities/device-vault-key.entity';
@@ -31,6 +31,7 @@ const mockRedis = {
 // ---- Fixtures ---------------------------------------------------------------
 
 const USER_ID = 'user-uuid-1';
+const OTHER_USER_ID = 'user-uuid-2';
 const SESSION_ID = '00000000-0000-4000-a000-000000000001';
 const DEVICE_ID = 'device-uuid-1';
 
@@ -68,15 +69,23 @@ function makeDevice(overrides: Partial<{
   };
 }
 
-function makeEnrollDto() {
+function makeEnrollDto(overrides: Partial<{
+  devicePublicKeySpki: string;
+  deviceName: string;
+  platform: string;
+  enrollmentMethod: string;
+  enrollmentEphemeralPub: string;
+  signature: string;
+  enrollmentSessionId: string;
+}> = {}) {
   return {
     devicePublicKeySpki: 'base64-spki-key',
-    // publicKeyFingerprint intentionally absent — server derives it from SPKI
     deviceName: 'Test Phone',
     platform: 'android',
     enrollmentMethod: 'master_password',
     enrollmentEphemeralPub: 'ephemeral-pub',
     signature: 'sig-hex',
+    ...overrides,
   };
 }
 
@@ -289,6 +298,38 @@ describe('PakService', () => {
       expect(mockEm.flush).toHaveBeenCalledTimes(1);
       expect(device.id).toBe(DEVICE_ID);
     });
+
+    it('stores pak_enroll_phone when enrollmentSessionId is provided', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+      const dto = makeEnrollDto({ enrollmentSessionId: SESSION_ID });
+
+      await service.enrollDevice(USER_ID, dto, '127.0.0.1', 'ua');
+
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `pak_enroll_phone:${SESSION_ID}`,
+        300,
+        expect.stringContaining(USER_ID),
+      );
+      const stored = JSON.parse(
+        mockRedis.setex.mock.calls.find(
+          (c: string[]) => c[0] === `pak_enroll_phone:${SESSION_ID}`,
+        )[2] as string,
+      );
+      expect(stored.userId).toBe(USER_ID);
+      expect(stored.deviceId).toBe(DEVICE_ID);
+      expect(stored.phoneEphemeralPub).toBe('ephemeral-pub');
+    });
+
+    it('does not touch ENROLL_PHONE key when enrollmentSessionId is absent', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+
+      await service.enrollDevice(USER_ID, makeEnrollDto(), '127.0.0.1', 'ua');
+
+      const enrollPhoneCall = mockRedis.setex.mock.calls.find(
+        (c: string[]) => c[0].startsWith('pak_enroll_phone:'),
+      );
+      expect(enrollPhoneCall).toBeUndefined();
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -386,6 +427,196 @@ describe('PakService', () => {
         'id', 'lastUsedAt', 'platform', 'publicKeyFingerprint', 'revokedAt',
       ].sort());
       expect('devicePublicKey' in dto).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('issueEnrollSession', () => {
+    it('throws ConflictException for a short challengeHex', async () => {
+      await expect(
+        service.issueEnrollSession('spki-key', 'tooshort'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException for non-hex challengeHex', async () => {
+      await expect(
+        service.issueEnrollSession('spki-key', 'z'.repeat(64)),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('stores session in Redis with 300s TTL and returns {sessionId, ttlSeconds:300}', async () => {
+      const result = await service.issueEnrollSession('spki-key', VALID_CHALLENGE);
+
+      expect(result.sessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(result.ttlSeconds).toBe(300);
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `pak_enroll:${result.sessionId}`,
+        300,
+        expect.stringContaining(VALID_CHALLENGE),
+      );
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('getEnrollStatus', () => {
+    it('returns {status:"waiting"} when session key is missing', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      const result = await service.getEnrollStatus(SESSION_ID);
+
+      expect(result.status).toBe('waiting');
+    });
+
+    it('returns {status:"waiting"} when session exists but phone has not connected', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now() });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll:${SESSION_ID}`) return Promise.resolve(session);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.getEnrollStatus(SESSION_ID);
+
+      expect(result.status).toBe('waiting');
+      expect(result.phoneEphemeralPub).toBeUndefined();
+    });
+
+    it('returns {status:"phone_ready", phoneEphemeralPub, deviceId} when phone has connected', async () => {
+      const session = JSON.stringify({ desktopPublicKeySpki: 'k', challengeHex: VALID_CHALLENGE, createdAt: Date.now() });
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'phone-eph', deviceId: DEVICE_ID, userId: USER_ID });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll:${SESSION_ID}`) return Promise.resolve(session);
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.getEnrollStatus(SESSION_ID);
+
+      expect(result.status).toBe('phone_ready');
+      expect(result.phoneEphemeralPub).toBe('phone-eph');
+      expect(result.deviceId).toBe(DEVICE_ID);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('submitEnrollVault', () => {
+    const vaultDto = { ciphertext: 'ct-base64', iv: 'iv-base64' };
+
+    it('throws NotFoundException when ENROLL_PHONE key is missing', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      await expect(
+        service.submitEnrollVault(SESSION_ID, USER_ID, vaultDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when userId does not match phoneData.userId', async () => {
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'pub', deviceId: DEVICE_ID, userId: OTHER_USER_ID });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        return Promise.resolve(null);
+      });
+
+      await expect(
+        service.submitEnrollVault(SESSION_ID, USER_ID, vaultDto),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ConflictException when ENROLL_VAULT already exists', async () => {
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'pub', deviceId: DEVICE_ID, userId: USER_ID });
+      const existingVault = JSON.stringify({ ciphertext: 'old-ct', iv: 'old-iv' });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        if (key === `pak_enroll_vault:${SESSION_ID}`) return Promise.resolve(existingVault);
+        return Promise.resolve(null);
+      });
+
+      await expect(
+        service.submitEnrollVault(SESSION_ID, USER_ID, vaultDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('stores ciphertext+iv with 60s TTL on success', async () => {
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'pub', deviceId: DEVICE_ID, userId: USER_ID });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        return Promise.resolve(null);
+      });
+
+      await service.submitEnrollVault(SESSION_ID, USER_ID, vaultDto);
+
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `pak_enroll_vault:${SESSION_ID}`,
+        60,
+        expect.stringContaining('ct-base64'),
+      );
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('getEnrollVault', () => {
+    it('throws NotFoundException when ENROLL_PHONE key is missing', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      await expect(
+        service.getEnrollVault(SESSION_ID, USER_ID),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when userId does not match', async () => {
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'pub', deviceId: DEVICE_ID, userId: OTHER_USER_ID });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        return Promise.resolve(null);
+      });
+
+      await expect(
+        service.getEnrollVault(SESSION_ID, USER_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns {status:"waiting"} when vault key not yet submitted', async () => {
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'pub', deviceId: DEVICE_ID, userId: USER_ID });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.getEnrollVault(SESSION_ID, USER_ID);
+
+      expect(result.status).toBe('waiting');
+      expect(result.ciphertext).toBeUndefined();
+    });
+
+    it('returns {status:"ready", ciphertext, iv} and deletes vault key (single-use)', async () => {
+      const phoneData = JSON.stringify({ phoneEphemeralPub: 'pub', deviceId: DEVICE_ID, userId: USER_ID });
+      const vaultData = JSON.stringify({ ciphertext: 'ct-base64', iv: 'iv-base64' });
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `pak_enroll_phone:${SESSION_ID}`) return Promise.resolve(phoneData);
+        if (key === `pak_enroll_vault:${SESSION_ID}`) return Promise.resolve(vaultData);
+        return Promise.resolve(null);
+      });
+
+      const result = await service.getEnrollVault(SESSION_ID, USER_ID);
+
+      expect(result.status).toBe('ready');
+      expect(result.ciphertext).toBe('ct-base64');
+      expect(result.iv).toBe('iv-base64');
+      expect(mockRedis.del).toHaveBeenCalledWith(`pak_enroll_vault:${SESSION_ID}`);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('cancelEnrollSession', () => {
+    it('deletes all three Redis keys atomically', async () => {
+      await service.cancelEnrollSession(SESSION_ID);
+
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        `pak_enroll:${SESSION_ID}`,
+        `pak_enroll_phone:${SESSION_ID}`,
+        `pak_enroll_vault:${SESSION_ID}`,
+      );
     });
   });
 });

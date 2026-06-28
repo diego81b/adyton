@@ -118,6 +118,7 @@ async function onDeleted() {
     <SettingsGroup id="settings-security" title="Security">
       <TwoFactorCard />
       <BiometricUnlockCard />
+      <PakEnrollCard />
     </SettingsGroup>
 
     <!-- Credential lists — each owns its group (dynamic count subtitle). -->
