@@ -79,7 +79,7 @@ The full technical analysis (~5000 lines) is fragmented by scope under `analysis
 | `packages/shared` (crypto + types)                 | `analysis/shared.md`                  |
 | Docker, Coolify, Cloudflare, backup                | `analysis/infrastructure.md`          |
 | Phases 1–9 (V1 scope)                              | `analysis/roadmap/phases.md`          |
-| Phone-as-Key (future, post V1)                     | `analysis/roadmap/device-as-key.md`   |
+| Phone-as-Key (PAK — next version after V1)          | `analysis/roadmap/device-as-key.md`   |
 
 **Always consult the relevant scope file before proposing architectural changes.** If you propose deviating from the design, surface the trade-off explicitly — do not silently diverge.
 
@@ -123,7 +123,9 @@ Phases 1–8 (`analysis/roadmap/phases.md`) define V1. Order matters — earlier
 
 **Browser extension (MV3) moved to post-V1 (2026-06-06):** security review identified a critical vault-key storage risk in the original design (service worker cannot safely hold the vault key; `chrome.storage.session` violates the non-extractable/ZK invariants). Full risk register and pre-implementation requirements in `analysis/extension.md` §7.7–7.8. Do not start extension work until those design questions are resolved.
 
-Phone-as-Key, WebAuthn PRF, Secure Enclave, QR+ECDH relay, Shamir, Tauri are **post-V1** — do not pull into V1 without explicit user approval.
+**PAK (Phone-as-Key) is the next scheduled version after V1** (decided 2026-06-28): Sub-model B + Model 3, ~9 weeks. Optional per user. See `analysis/roadmap/device-as-key.md` §16.8. Roadmap order: V1 → PAK → V2 → V3 → V4.
+
+WebAuthn PRF (Model 2), Tauri, Shamir are post-PAK/post-V2 — do not pull in without explicit approval.
 
 `packages/shared` is the cross-cutting dependency: backend, frontend, and extension all import from it. Land it early so the other apps can rely on stable crypto + type contracts.
 

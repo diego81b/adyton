@@ -157,8 +157,7 @@ The following features are architecturally sound but outside current V1 implemen
 |---------|-------------|------------|-------|
 | **Browser Extension (MV3)** | Phase 7 complete | L | Moved post-V1 (2026-06-06): security review identified critical vault-key storage risk in the original §7.4 design ("decrypt in SW" violates ZK invariants). See `analysis/extension.md` §7.7–7.8 for the full risk register and pre-implementation requirements that must be resolved before implementation begins. |
 | **Tauri desktop app** | Phase 8 complete | M | Tauri wraps same Nuxt build; adds Rust plugins for Keychain, screen-lock, global shortcut |
-| **Phone-as-Key Sub-model A (enforced)** | Phase 6 (WebAuthn) | S | enforce `authenticatorAttachment: 'cross-platform'` + device-bound passkeys |
-| **Phone-as-Key Sub-model B (relay)** | Tauri or Phase 8 | L | VPS relay API, Capacitor key-only app, ECDH key exchange, ntfy.sh push |
+| **Phone-as-Key (PAK)** | Phase 8 ✅ | XL | Moved to dedicated roadmap version after V1 (decided 2026-06-28). Sub-model B + Model 3: QR+ECDH relay, SE keypair wrapping, ~9 weeks. See `analysis/roadmap/device-as-key.md` §16.8 and §16.10.10. |
 | **Emergency access (trusted contact)** | Phase 3 | M | time-locked delegated access, zero-knowledge grant flow |
 | **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
 | **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |

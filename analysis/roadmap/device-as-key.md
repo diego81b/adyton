@@ -1,4 +1,6 @@
-## 16. Phone-as-Key Architecture — Mobile Device as Hardware Security Module *(Future Roadmap — not in current implementation scope)*
+## 16. Phone-as-Key Architecture — Mobile Device as Hardware Security Module
+
+*Status: scheduled as next version after V1 (decided 2026-06-28). See §16.8 for decision rationale and §16.10.10 for implementation steps (PAK-1 through PAK-8).*
 
 ### 16.1 The Concept
 
@@ -91,28 +93,30 @@ The key exchange in Step 7-9 uses ECDH with ephemeral keys:
 
 ### 16.3 What the Phone App Becomes
 
-In the phone-as-key model, the phone does NOT need a vault management UI. It needs only:
+> **Obsolete as of Phase 8 (2026-06-12).** The original design assumed a minimal key-only Capacitor app (`apps/key-device/`). Phase 8 delivered the full-vault Capacitor app (`apps/mobile`). PAK does not create a separate binary — it adds a **Key mode** to the existing `apps/mobile` app, triggered via QR scan deep link (`App.addListener('appUrlOpen', ...)`).
+
+The existing `apps/mobile` app gains two new screens:
 
 ```
-apps/key-device/   (Capacitor, minimal)
-├── Registration screen:
-│   "Scan QR to register this device as a vault key"
-│   → enroll WebAuthn credential
-│   → generate master password (random, 32 bytes)
-│   → store in iOS Keychain / Android Keystore
-│   → send password hash to server for registration
+apps/mobile   (existing Capacitor app — same binary)
 │
-├── Approval screen:
-│   "Chrome on MacBook Pro is requesting vault access"
-│   [Approve with Face ID]  [Deny]
+├── [existing] Full vault UI     ← normal launch
 │
-└── Settings:
-    "Registered devices" — list, revoke
-    "Export recovery backup" — encrypted recovery phrase
-    "Revoke this device"
+└── [new] Key mode               ← triggered by QR deep link from desktop
+    ├── Enrollment screen:
+    │   "Register this device as a vault key"
+    │   → SE keypair generation (capacitor-adyton-keystore plugin)
+    │   → generate master password (random 32 bytes)
+    │   → store sealed in SE via new plugin
+    │
+    ├── Approval screen:
+    │   "Chrome on Windows is requesting vault access"
+    │   [Approve with Face ID]  [Deny]
+    │
+    └── [in Settings] Registered devices — list, revoke, re-cipher
 ```
 
-No vault list. No entry management. No password generator. The entire UI is < 5 screens. This is a fundamentally simpler mobile app than the full Capacitor vault client.
+The existing `@aparajita/capacitor-secure-storage` and `@aparajita/capacitor-biometric-auth` (Phase 8) are NOT replaced. PAK adds `capacitor-adyton-keystore` for SE P-256 keypair operations — different API, different purpose (see §16.9 Model 3).
 
 ### 16.4 Relay Channel Security (Sub-model B)
 
@@ -193,25 +197,37 @@ Phone-as-key and mobile vault are fundamentally different use cases and should n
 
 These are not mutually exclusive long-term, but they require different implementation priorities.
 
-### 16.8 Decision: Deferred to Future Roadmap
+### 16.8 Decision: PAK is next after V1 (2026-06-28)
 
-**Phone-as-key is not part of the current implementation scope.**
+**Phone-as-key is scheduled as the next major version after V1, before team-vault (V2).**
 
-Reasons for deferral:
-- Sub-model A (CTAP2 hybrid) is already covered by Phase 6 WebAuthn — the phone acts as a roaming authenticator natively once WebAuthn is shipped; no extra work needed
-- Sub-model B requires a dedicated Capacitor app + VPS relay API surface + push notification infrastructure — significant added scope for a feature that benefits only the desktop-only usage profile
-- The immediate priority is a web + mobile vault app that works everywhere, not a desktop-only architecture
+Chosen implementation: **Sub-model B + Model 3** (most secure combination):
+- Sub-model B (QR+ECDH relay): master password random and phone-only; vault key never derived on desktop
+- Model 3 (Secure Enclave keypair wrapping): vault key wrapped by P-256 key inside device Secure Enclave, never leaves SE hardware boundary
 
-**Current architecture decision:**
-- `apps/web` (Nuxt 4) — primary vault UI, runs in browser on all platforms
-- `apps/mobile` (Capacitor) — first-class iOS and Android deliverable, wraps same Nuxt 4 build, uses iOS Keychain / Android Keystore to avoid ITP
-- Both are in-scope from Phase 1 (monorepo structure) with Capacitor build delivered in Phase 9
+**Rationale for priority:**
+- Phase 8 (Capacitor mobile) is complete — the Capacitor prerequisite is met
+- PAK is single-user and orthogonal to multi-user features (V2/V3/V4); implementing it first keeps scope clean
+- Threat model: keylogger on desktop is low-probability but permanent impact (master password has no TTL, no revoke); worth eliminating even if improbable
 
-**Future roadmap (post Phase 9):**
-- Sub-model A enhancement: enforce `authenticatorAttachment: 'cross-platform'` + device-bound passkeys for users who want phone-only auth
-- Sub-model B: self-hosted relay, minimal phone key-device app — implement only if there is a concrete need for the desktop-only usage profile
+**PAK is optional.** Both paths coexist permanently:
+- Login page always shows `[Unlock with phone]` and `[Enter master password]`
+- Users who never enroll PAK see no change
+- PAK-enrolled users can always fall back to master password
 
-See **Section 16.9** for full Device-as-Key roadmap, risk register, and feasibility analysis.
+**Recovery stack (mandatory before PAK activation):**
+1. Recovery kit: BIP39 24-word mnemonic — enrollment blocked until confirmed
+2. Backup device: second phone enrolled via ECDH
+3. Emergency master password: rate-limited 1/hr, email confirm, `EMERGENCY_FALLBACK` audit log
+
+**Prerequisites met:**
+- Phase 8 (Capacitor mobile) ✅ — Capacitor app exists, Android device-verified
+- Phase 6 (WebAuthn) ✅ — authentication layer already separate from vault key derivation
+- Phase 7 (production hardening) ✅ — Redis, rate limiting, audit log infrastructure in place
+
+**Sub-model A** (CTAP2 hybrid: phone as WebAuthn roaming authenticator) is already covered by Phase 6 WebAuthn. No additional work needed for that sub-model.
+
+See **Section 16.9** for cryptographic models detail and **Section 16.10** for QR+ECDH relay protocol and implementation steps.
 
 ---
 
@@ -480,9 +496,11 @@ Time-limited, rate-limited, email-confirmed. Only activates if both device and r
 
 ---
 
-#### 16.9.4 Implementation Roadmap V1→V5
+#### 16.9.4 Implementation Roadmap — Hardware Binding Escalation
 
-**V1 — Current scope (Phase 1–8)**
+> **Naming note:** Model labels here (Model 1–5) refer to cryptographic hardware binding levels, not product versions. Product versions V2/V3/V4 in the main roadmap are team-vault features, independent of this escalation path. The PAK product version implements Model 3 (+ Sub-model B relay) as its core.
+
+**Model 1 baseline — V1 scope (Phase 1–8, done)**
 
 - Master password → Argon2id → vault_key (memory only)
 - WebAuthn Phase 6: device as 2FA only (Model 1)
@@ -490,7 +508,7 @@ Time-limited, rate-limited, email-confirmed. Only activates if both device and r
 - Full recovery: just remember master password
 - Works on every browser, every platform, zero hardware requirements
 
-**V2 — WebAuthn PRF biometric unlock (post Phase 6, ~2–3 months after launch)**
+**Model 2 — WebAuthn PRF biometric unlock**
 
 Prerequisites: Chrome 116+ (desktop and Android). Safari and Firefox users continue with master password.
 
@@ -986,23 +1004,44 @@ Phone tries `local[*]` with 2s timeout each, falls back to relay. Same ECDH prot
 
 ---
 
-#### 16.10.10 Implementation Phases for QR Device-as-Key
+#### 16.10.10 Implementation Steps — PAK product version
 
-Inserted into roadmap as **Phase 10** (post Capacitor V3 / 16.9):
+PAK is scheduled after V1 in the main roadmap (`analysis/roadmap/roadmap-summary.md`). Prerequisite: Phase 8 (Capacitor mobile) ✅ done.
+
+The Capacitor app gains a new "Key mode" alongside the full-vault mode — same binary, different UI when launched via QR scan deep link.
 
 | Step | Effort | Deliverable |
 |------|--------|-------------|
-| 10.1 | 1w  | Server `/auth/qr` + Redis session store + WS relay endpoint |
-| 10.2 | 2w  | Capacitor app: QR scanner, SE keypair generation, ECDH signing |
-| 10.3 | 1w  | Desktop QR display + WS client + ECDH-decrypt vault_key |
-| 10.4 | 1w  | Enrollment flows (Modality A + B) + DeviceVaultKey entity |
-| 10.5 | 1w  | Device list UI + revocation + re-cipher flow |
-| 10.6 | 1w  | Recovery kit (BIP39 mnemonic generation, storage, recovery flow) |
-| 10.7 | 1w  | Security hardening: rate limits, audit logs, email alerts, replay protection |
+| PAK-1 | 1w | `capacitor-adyton-keystore` plugin (SE P-256 keypair gen + ECDH wrap/unwrap, Swift + Kotlin) |
+| PAK-2 | 1w | Server `/auth/qr` + Redis session store + WS relay endpoint |
+| PAK-3 | 2w | Capacitor app: QR scanner, SE keypair enrollment, ECDH signing, approval screen |
+| PAK-4 | 1w | Desktop: QR display + WS client + ECDH-decrypt vault_key + login page `[Unlock with phone]` path |
+| PAK-5 | 1w | Enrollment flows (Modality A + B) + `DeviceVaultKey` entity + storage migration: Phase 8 raw bytes → SE-wrapped (delete `capacitor-secure-storage` entry, `useBiometricUnlock` reroutes to SE plugin) |
+| PAK-6 | 1w | Device list UI + revocation: safe revoke + compromise re-cipher + reverse migration (SE → Phase 8 raw bytes restore on unenroll) |
+| PAK-7 | 1w | Recovery kit (BIP39 mnemonic generation, `RecoveryKit` entity, recovery flow) |
+| PAK-8 | 1w | Security hardening: rate limits, audit logs, email alerts, replay protection, integration tests |
 
-**Total: ~8 weeks for full Phase 10.**
+**Total: ~9 weeks** (PAK-1 SE plugin added vs original Phase 10 estimate; rest unchanged).
 
-Prerequisite: Phase 9 (Capacitor mobile app) must be complete. The Capacitor app gains a new "Key mode" alongside its full-vault mode — same binary, different UI when launched via QR scan deep link.
+**PAK-1 gates everything:** SE plugin must exist before Capacitor enrollment flow (PAK-3). PAK-2 and PAK-1 can run in parallel.
+
+**Storage migration at PAK enrollment (decided 2026-06-28 — Option B):** PAK enrollment replaces Phase 8 biometric storage entirely. No dual-storage.
+
+At enrollment (PAK-5):
+1. SE plugin generates P-256 keypair (stays in Secure Enclave)
+2. vault_key sealed via SE ECDH → stored locally by `capacitor-adyton-keystore`
+3. Phase 8 raw bytes in `@aparajita/capacitor-secure-storage` **deleted**
+4. `useBiometricUnlock` composable routes through SE plugin from this point on
+
+After enrollment: both local mobile vault unlock AND desktop QR unlock go through `capacitor-adyton-keystore`. Single source of truth — no sync problem.
+
+At PAK revocation (PAK-6):
+1. SE plugin unwraps vault_key (biometric required)
+2. Raw bytes re-stored in `@aparajita/capacitor-secure-storage` (Phase 8 path restored)
+3. SE keypair deleted from Secure Enclave
+4. `useBiometricUnlock` routes back to Phase 8 path
+
+Re-cipher on compromise: single SE-wrapped copy updated — no coordination needed between two storage locations.
 
 ---
 
