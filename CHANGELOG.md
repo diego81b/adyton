@@ -1,0 +1,79 @@
+# Changelog
+
+All notable changes to Adyton are documented here.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [1.0.0] — 2026-06-28
+
+First production release. Complete self-hosted zero-knowledge personal password and secrets vault.
+
+### Added
+
+**Core vault**
+- AES-256-GCM client-side encryption with Argon2id key derivation (`m=65536, t=3, p=1`). Master password and vault key never leave the browser.
+- Six entry types: `LOGIN`, `SECURE_NOTE`, `CREDIT_CARD`, `IDENTITY`, `ENV_FILE`, `SECRET`.
+- Per-entry version history (last 10 snapshots). Restore to any previous version.
+- Per-LOGIN TOTP vault entries (RFC 6238, SHA-1, live countdown).
+- ENV_FILE entries: dotenv key/value table view + raw JSON viewer. `.env` and `.json` download.
+- Client-side search and filtering (type + environment tag). Server stores only ciphertext — search must be local.
+- Vault export/import as encrypted `.adyton` file (Argon2id + AES-256-GCM, separate export password, portable across instances).
+
+**Authentication**
+- RS256 JWT (15-min access in memory, 7-day refresh as `httpOnly` cookie, SHA-256 hash stored server-side).
+- Token family rotation with theft detection (full family revocation on reuse).
+- Progressive login delays and account soft-lock at 10 failures.
+- Trusted device model (`device_id` cookie, email OTP on new device).
+- Session management: list active sessions, revoke individual or all.
+
+**Two-factor authentication**
+- TOTP (otplib, RFC 6238, AES-256-GCM encrypted secret at rest). Setup wizard with QR code, manual secret, and mandatory recovery code acknowledgment.
+- 8 single-use recovery codes (Argon2id hashed).
+- WebAuthn passkeys (FIDO2 / @simplewebauthn). Registration requires TOTP enabled first. Passkey management in settings.
+- Login: opaque `mfaToken` (Redis, TTL 300s, 5-attempt budget) prevents partial-auth JWT issuance.
+
+**Generator**
+- Password generator: configurable length (12–64), character classes, ambiguous-character exclusion, real-pool entropy display.
+- Passphrase generator: EFF large wordlist (7776 words, 12.92 bits/word), configurable word count (3–10), CSPRNG + rejection sampling.
+- 30-second clipboard auto-clear after copy.
+
+**Mobile (Capacitor — Android device-verified)**
+- Capacitor 8 shell wrapping the Nuxt static build. Zero frontend code duplication.
+- Biometric unlock: raw Argon2id key bytes stored in iOS Keychain / Android Keystore (never the master password). Stale-key auto-unenroll on vault decrypt failure.
+- Lock on background (`App.addListener('appStateChange')`).
+- Edge-to-edge insets (`@capacitor-community/safe-area` + CSS `env()`).
+- Branded launcher icons and splash screen.
+
+**Settings**
+- Per-user DB-backed settings (JSONB, syncs across devices): display name, auto-lock mode (`activity` / `absolute`), auto-lock duration (1–60 min or never).
+- Lock deferral: auto-lock in absolute mode defers while an entry modal has unsaved edits.
+- Appearance: light / dark / system theme selector (per-device, `localStorage`).
+- Account deletion: master-password re-verification + full cascade.
+
+**Infrastructure**
+- NestJS 11 (Fastify 5), MikroORM 6 code-first, PostgreSQL 16, Redis 7.
+- Multi-stage Docker builds (non-root users, self-contained Nitro output).
+- `docker-compose.prod.yml` for Coolify deployment (no nginx, Traefik-terminated).
+- GitHub Actions CI: typecheck + unit + integration + `pnpm audit` on every push/PR.
+- GitHub Actions deploy: `staging` branch → Coolify webhook; `v*` tag → production (gated by CI).
+- Automated backup script (`pg_dump`, 7-daily + 4-weekly retention, optional rclone offsite).
+- Email notifications (Nodemailer, NoOp fallback): new device login alert. Mailpit in dev.
+- `pnpm audit` clean at release (0 high/critical findings).
+
+**Design system**
+- Brand palette generated from two anchors via OKLCH (`scripts/gen-palette.mjs`). WCAG AA by construction. `pnpm palette` regenerates from anchors — never hand-edit the generated block in `main.css`.
+- Swiss/minimal enterprise UI language: single radius scale, 3-level elevation, accent only on primary CTA / active / focus / status dot.
+- `SettingsGroup` + `SettingRow` primitives (flex-wrap, Revoke-overflow-safe).
+- Segmented 6-box OTP input with OS one-time-code autofill support.
+
+### Security notes
+
+- Zero-knowledge: server stores opaque ciphertext only. No plaintext secret, master password, or vault key ever reaches the server.
+- `CryptoKey` is non-extractable. `exportKey` is never called on the vault key.
+- Browser extension deferred post-V1: service worker cannot safely hold the vault key (see `analysis/extension.md §7.7`). Redesigned as daemon + stub (§7.9) — positioned post-PAK.
+
+---
+
+<!-- next release entry goes above this line -->
