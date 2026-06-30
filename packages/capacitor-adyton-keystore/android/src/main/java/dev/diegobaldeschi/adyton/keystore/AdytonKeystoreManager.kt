@@ -11,11 +11,11 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PublicKey
 import java.security.SecureRandom
-import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
+import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -27,6 +27,11 @@ class AdytonKeystoreManager(private val context: Context) {
 
     private fun ecdhAlias(deviceId: String) = "adyton.pak.ecdh.$deviceId"
     private fun signAlias(deviceId: String) = "adyton.pak.sign.$deviceId"
+
+    // AES-256-GCM wrap key: per-use biometric required (setUserAuthenticationParameters(0, BIOMETRIC_STRONG)).
+    // This is the security gate for vault key access — OS enforces biometric before every decrypt.
+    private fun wrapAlias(deviceId: String) = "adyton.pak.wrap.$deviceId"
+
     private fun sealedKeyFile(deviceId: String) = File(context.filesDir, "adyton_vk_$deviceId.json")
 
     // --- Key generation ---
@@ -34,18 +39,14 @@ class AdytonKeystoreManager(private val context: Context) {
     fun generateKeys(deviceId: String): PublicKeyPair {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
-        // Generate ECDH key if not present
+        // ECDH key: no auth required. It is only used in the QR relay protocol to encrypt
+        // the vault key for transport — the vault key itself is protected by the wrap key.
         if (!ks.containsAlias(ecdhAlias(deviceId))) {
             val ecdhSpec = KeyGenParameterSpec.Builder(
                 ecdhAlias(deviceId),
                 KeyProperties.PURPOSE_AGREE_KEY
             )
                 .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
-                .setUserAuthenticationRequired(true)
-                .setUserAuthenticationParameters(
-                    30,
-                    KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
-                )
                 .build()
 
             val ecdhKpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
@@ -53,7 +54,8 @@ class AdytonKeystoreManager(private val context: Context) {
             ecdhKpg.generateKeyPair()
         }
 
-        // Generate SIGN key if not present
+        // SIGN key: biometric required, 30-second window, no device credential.
+        // Removes AUTH_DEVICE_CREDENTIAL so a plain lockscreen unlock cannot authorize signing.
         if (!ks.containsAlias(signAlias(deviceId))) {
             val signSpec = KeyGenParameterSpec.Builder(
                 signAlias(deviceId),
@@ -64,7 +66,7 @@ class AdytonKeystoreManager(private val context: Context) {
                 .setUserAuthenticationRequired(true)
                 .setUserAuthenticationParameters(
                     30,
-                    KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
+                    KeyProperties.AUTH_BIOMETRIC_STRONG
                 )
                 .build()
 
@@ -73,7 +75,10 @@ class AdytonKeystoreManager(private val context: Context) {
             signKpg.generateKeyPair()
         }
 
-        // Reload keystore to get fresh references
+        // AES-256-GCM wrap key: per-use biometric, no device credential.
+        // Every vault key decrypt must go through BiometricPrompt with CryptoObject.
+        generateWrapKey(deviceId)
+
         ks.load(null)
         val ecdhPub = ks.getCertificate(ecdhAlias(deviceId)).publicKey
         val signPub = ks.getCertificate(signAlias(deviceId)).publicKey
@@ -89,121 +94,118 @@ class AdytonKeystoreManager(private val context: Context) {
         return PublicKeyPair(base64SpkiOf(ecdhPub), base64SpkiOf(signPub))
     }
 
-    // --- Vault key sealing ---
+    // --- AES wrap key management ---
 
-    fun sealVaultKey(deviceId: String, vaultKeyRaw: String) {
+    private fun generateWrapKey(deviceId: String) {
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        if (ks.containsAlias(wrapAlias(deviceId))) return
+
+        // Per-use biometric (timeout=0): every decrypt requires a fresh BiometricPrompt.
+        // No AUTH_DEVICE_CREDENTIAL: a plain lockscreen unlock cannot authorize vault key release.
+        // setInvalidatedByBiometricEnrollment: if the user adds a new fingerprint the key is wiped —
+        // re-enrollment is required, preventing key inheritance by a newly added biometric.
+        val spec = KeyGenParameterSpec.Builder(
+            wrapAlias(deviceId),
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setKeySize(256)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setUserAuthenticationRequired(true)
+            .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+            .setInvalidatedByBiometricEnrollment(true)
+            .build()
+
+        val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        kg.init(spec)
+        kg.generateKey()
+    }
+
+    // Returns a Cipher initialised for ENCRYPT_MODE with the wrap key.
+    // The caller must pass this to BiometricPrompt.authenticate(CryptoObject(cipher))
+    // before calling sealWithCipher — the OS enforces biometric before key use.
+    fun getSealCipher(deviceId: String): Cipher {
+        generateWrapKey(deviceId)
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val key = ks.getKey(wrapAlias(deviceId), null)
+            ?: throw IllegalStateException("Wrap key not found for deviceId=$deviceId")
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        return cipher
+    }
+
+    // Seals vault key bytes using the authenticated cipher from BiometricPrompt.
+    // Stores ciphertext + IV + format version in the sealed-key file.
+    fun sealWithCipher(deviceId: String, vaultKeyRaw: String, cipher: Cipher) {
         val vaultKeyBytes = Base64.decode(vaultKeyRaw, Base64.DEFAULT)
         require(vaultKeyBytes.size == 32) { "vaultKeyRaw must decode to exactly 32 bytes" }
-
-        // Generate ephemeral EC P-256 keypair in SOFTWARE (not Keystore)
-        val ephemeralKpg = KeyPairGenerator.getInstance("EC")
-        ephemeralKpg.initialize(ECGenParameterSpec("secp256r1"))
-        val ephemeralKp = ephemeralKpg.generateKeyPair()
-
-        // Get persistent ECDH private key from Keystore
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val persistentPrivKey = ks.getKey(ecdhAlias(deviceId), null)
-            ?: throw IllegalStateException("ECDH key not found for deviceId=$deviceId")
-
-        // ECDH: persistent priv + ephemeral pub → shared secret
-        val ka = KeyAgreement.getInstance("ECDH")
-        ka.init(persistentPrivKey)
-        ka.doPhase(ephemeralKp.public, true)
-        val sharedSecret = ka.generateSecret()
-
-        // HKDF with info = "adyton-seal-v1"
-        val okm = hkdf(
-            ikm = sharedSecret,
-            salt = ByteArray(32),
-            info = "adyton-seal-v1".toByteArray(Charsets.UTF_8),
-            length = 32
-        )
-
-        // AES-GCM encrypt
-        val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
-        val secretKey = SecretKeySpec(okm, "AES")
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
-        cipher.updateAAD("seal:$deviceId".toByteArray(Charsets.UTF_8))
+        cipher.updateAAD("adyton-wrap-v2:$deviceId".toByteArray(Charsets.UTF_8))
         val ciphertext = cipher.doFinal(vaultKeyBytes)
-
-        // Store JSON
+        val iv = cipher.parameters.getParameterSpec(GCMParameterSpec::class.java).iv
         val json = JSONObject().apply {
             put("ct", Base64.encodeToString(ciphertext, Base64.DEFAULT))
             put("iv", Base64.encodeToString(iv, Base64.DEFAULT))
-            put("eph", base64SpkiOf(ephemeralKp.public))
+            put("v", 2)
         }
         sealedKeyFile(deviceId).writeText(json.toString())
     }
 
-    fun unsealVaultKey(deviceId: String): String {
+    // Returns a Cipher initialised for DECRYPT_MODE with the stored IV.
+    // The caller must pass this to BiometricPrompt.authenticate(CryptoObject(cipher))
+    // before calling unsealWithCipher.
+    fun getUnsealCipher(deviceId: String): Cipher {
+        val file = sealedKeyFile(deviceId)
+        if (!file.exists()) throw IllegalStateException("No sealed vault key for deviceId=$deviceId — enroll first")
+        val json = JSONObject(file.readText())
+        val version = json.optInt("v", 1)
+        if (version != 2) {
+            throw IllegalStateException("Sealed key is format v$version (expected v2) — re-enroll biometric unlock")
+        }
+        val iv = Base64.decode(json.getString("iv"), Base64.DEFAULT)
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val key = ks.getKey(wrapAlias(deviceId), null)
+            ?: throw IllegalStateException("Wrap key not found for deviceId=$deviceId — re-enroll biometric unlock")
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        return cipher
+    }
+
+    // Decrypts vault key bytes using the authenticated cipher from BiometricPrompt.
+    // Returns the 32-byte vault key as base64.
+    fun unsealWithCipher(deviceId: String, cipher: Cipher): String {
         val json = JSONObject(sealedKeyFile(deviceId).readText())
         val ciphertext = Base64.decode(json.getString("ct"), Base64.DEFAULT)
-        val iv = Base64.decode(json.getString("iv"), Base64.DEFAULT)
-        val ephPubSpki = Base64.decode(json.getString("eph"), Base64.DEFAULT)
-
-        // Reconstruct ephemeral public key
-        val ephPub = KeyFactory.getInstance("EC")
-            .generatePublic(X509EncodedKeySpec(ephPubSpki))
-
-        // Get persistent ECDH private key from Keystore (triggers biometric if needed)
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val persistentPrivKey = ks.getKey(ecdhAlias(deviceId), null)
-            ?: throw IllegalStateException("ECDH key not found for deviceId=$deviceId")
-
-        // ECDH: persistent priv + ephemeral pub → same shared secret
-        val ka = KeyAgreement.getInstance("ECDH")
-        ka.init(persistentPrivKey)
-        ka.doPhase(ephPub, true)
-        val sharedSecret = ka.generateSecret()
-
-        // HKDF same parameters
-        val okm = hkdf(
-            ikm = sharedSecret,
-            salt = ByteArray(32),
-            info = "adyton-seal-v1".toByteArray(Charsets.UTF_8),
-            length = 32
-        )
-
-        // AES-GCM decrypt
-        val secretKey = SecretKeySpec(okm, "AES")
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
-        cipher.updateAAD("seal:$deviceId".toByteArray(Charsets.UTF_8))
+        cipher.updateAAD("adyton-wrap-v2:$deviceId".toByteArray(Charsets.UTF_8))
         val plaintext = cipher.doFinal(ciphertext)
-
         return Base64.encodeToString(plaintext, Base64.DEFAULT)
     }
 
     // --- QR relay encryption ---
 
-    fun encryptForRelay(
+    // Encrypts vaultKeyRaw for transport using ECDH with the remote ephemeral public key.
+    // vaultKeyRaw must already be unsealed (passed from unsealWithCipher after biometric auth).
+    fun encryptForRelayWithKey(
         deviceId: String,
+        vaultKeyRaw: String,
         remotePublicKeySpki: String,
         challengeHex: String,
         sessionId: String
     ): RelayPayload {
-        // Unseal vault key (triggers biometric via the ECDH Keystore key)
-        val vaultKeyRaw = unsealVaultKey(deviceId)
         val vaultKeyBytes = Base64.decode(vaultKeyRaw, Base64.DEFAULT)
 
-        // Generate phone ephemeral keypair in SOFTWARE
         val ephemeralKpg = KeyPairGenerator.getInstance("EC")
         ephemeralKpg.initialize(ECGenParameterSpec("secp256r1"))
         val phoneEphemeralKp = ephemeralKpg.generateKeyPair()
 
-        // Decode remote public key
         val remoteSpkiBytes = Base64.decode(remotePublicKeySpki, Base64.DEFAULT)
         val remotePub = KeyFactory.getInstance("EC")
             .generatePublic(X509EncodedKeySpec(remoteSpkiBytes))
 
-        // ECDH: phone ephemeral priv + remote pub → shared secret
         val ka = KeyAgreement.getInstance("ECDH")
         ka.init(phoneEphemeralKp.private)
         ka.doPhase(remotePub, true)
         val sharedSecret = ka.generateSecret()
 
-        // HKDF: salt = challengeHex bytes, info = "adyton-qr-v1"
         val salt = hexToBytes(challengeHex)
         val okm = hkdf(
             ikm = sharedSecret,
@@ -212,7 +214,6 @@ class AdytonKeystoreManager(private val context: Context) {
             length = 32
         )
 
-        // AES-GCM encrypt vault key bytes with AAD = sessionId
         val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
         val secretKey = SecretKeySpec(okm, "AES")
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -236,7 +237,7 @@ class AdytonKeystoreManager(private val context: Context) {
         val signPrivKey = ks.getKey(signAlias(deviceId), null)
             ?: throw IllegalStateException("SIGN key not found for deviceId=$deviceId")
 
-        val sig = Signature.getInstance("SHA256withECDSA")
+        val sig = java.security.Signature.getInstance("SHA256withECDSA")
         sig.initSign(signPrivKey as java.security.PrivateKey)
         sig.update(data)
         val signature = sig.sign()
@@ -246,39 +247,37 @@ class AdytonKeystoreManager(private val context: Context) {
 
     // --- Key existence / deletion ---
 
+    // Returns true if ALL keys required for a fully enrolled device exist.
+    // For PAK: ECDH + SIGN + wrap key + sealed file must all be present.
+    // Returns false if any component is missing, triggering re-enrollment.
     fun hasKeys(deviceId: String): Boolean {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        return ks.containsAlias(ecdhAlias(deviceId)) && ks.containsAlias(signAlias(deviceId))
+        return ks.containsAlias(ecdhAlias(deviceId)) &&
+               ks.containsAlias(signAlias(deviceId)) &&
+               ks.containsAlias(wrapAlias(deviceId)) &&
+               sealedKeyFile(deviceId).exists()
+    }
+
+    // Returns true if a Phase 8 (non-PAK) biometric enrollment exists:
+    // the wrap key + sealed file are present (no ECDH/SIGN keys required).
+    fun hasRawKey(deviceId: String): Boolean {
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return ks.containsAlias(wrapAlias(deviceId)) && sealedKeyFile(deviceId).exists()
     }
 
     fun deleteKeys(deviceId: String) {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        if (ks.containsAlias(ecdhAlias(deviceId))) {
-            ks.deleteEntry(ecdhAlias(deviceId))
-        }
-        if (ks.containsAlias(signAlias(deviceId))) {
-            ks.deleteEntry(signAlias(deviceId))
+        listOf(ecdhAlias(deviceId), signAlias(deviceId), wrapAlias(deviceId)).forEach { alias ->
+            if (ks.containsAlias(alias)) ks.deleteEntry(alias)
         }
         val file = sealedKeyFile(deviceId)
-        if (file.exists()) {
-            file.delete()
-        }
+        if (file.exists()) file.delete()
     }
 
     // --- HKDF (RFC 5869) using HmacSHA256 ---
 
-    /**
-     * HKDF extract-then-expand.
-     *
-     * Extract: PRK = HMAC-SHA256(salt, IKM)
-     * Expand:  OKM = T(1) || T(2) || ... where T(i) = HMAC-SHA256(PRK, T(i-1) || info || i)
-     *          T(0) = empty
-     */
     private fun hkdf(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
-        // Extract
         val prk = hmacSha256(salt, ikm)
-
-        // Expand
         val output = ByteArray(length)
         var tPrev = ByteArray(0)
         var offset = 0
@@ -302,11 +301,9 @@ class AdytonKeystoreManager(private val context: Context) {
 
     // --- Helpers ---
 
-    /** Returns the DER-encoded SPKI of a public key as base64 (NO_WRAP for clean transport). */
     private fun base64SpkiOf(pubKey: PublicKey): String =
         Base64.encodeToString(pubKey.encoded, Base64.NO_WRAP)
 
-    /** Decodes a lowercase or uppercase hex string to a ByteArray. */
     private fun hexToBytes(hex: String): ByteArray {
         val normalized = hex.lowercase()
         require(normalized.length % 2 == 0) { "Hex string must have even length" }

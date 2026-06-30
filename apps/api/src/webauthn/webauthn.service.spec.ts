@@ -179,6 +179,17 @@ describe('WebauthnService', () => {
       ]);
       expect(mockRedis.setex).toHaveBeenCalledWith(REG_CHALLENGE_KEY, 300, 'reg-challenge');
     });
+
+    // VULN-003 regression: userVerification must be 'required' at registration too.
+    it('passes userVerification: required to generateRegistrationOptions', async () => {
+      mockEm.findOneOrFail.mockResolvedValue(makeUser({ totpEnabled: true }));
+      mockEm.find.mockResolvedValue([]);
+
+      await service.registrationOptions('user-uuid-1');
+
+      const optsArg = mockGenerateRegistrationOptions.mock.calls[0][0];
+      expect(optsArg.authenticatorSelection?.userVerification).toBe('required');
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -376,6 +387,18 @@ describe('WebauthnService', () => {
       ]);
       expect(mockRedis.setex).toHaveBeenCalledWith(AUTH_CHALLENGE_KEY, 300, 'auth-challenge');
     });
+
+    // VULN-003 regression: userVerification must be 'required', not 'preferred'.
+    // A possession-only passkey (UV=false) must not satisfy 2FA.
+    it('passes userVerification: required to generateAuthenticationOptions', async () => {
+      mockRedis.get.mockResolvedValue('user-uuid-1');
+      mockEm.find.mockResolvedValue([makeCredentialRow()]);
+
+      await service.authenticationOptions(MFA_TOKEN);
+
+      const optsArg = mockGenerateAuthenticationOptions.mock.calls[0][0];
+      expect(optsArg.userVerification).toBe('required');
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -480,6 +503,25 @@ describe('WebauthnService', () => {
         service.authenticationVerify(MFA_TOKEN, RESPONSE, '127.0.0.1', 'agent'),
       ).rejects.toThrow('Invalid passkey');
       expect(mockRedis.del).not.toHaveBeenCalled();
+    });
+
+    // VULN-003 regression: requireUserVerification must be true so possession-only
+    // passkeys (UV=false) are rejected during assertion verification.
+    it('passes requireUserVerification: true to verifyAuthenticationResponse', async () => {
+      mockRedis.get.mockResolvedValue('user-uuid-1');
+      mockRedis.getdel.mockResolvedValue('auth-challenge');
+      const populatedUser = makeUser({ totpEnabled: true });
+      const row = makeCredentialRow({ signCount: 0, user: populatedUser });
+      mockEm.findOne.mockResolvedValue(row);
+      mockVerifyAuthenticationResponse.mockResolvedValue({
+        verified: true,
+        authenticationInfo: { newCounter: 1 },
+      });
+
+      await service.authenticationVerify(MFA_TOKEN, { id: 'cred-id-abc' } as never, 'ip', 'ua');
+
+      const verifyArg = mockVerifyAuthenticationResponse.mock.calls[0][0];
+      expect(verifyArg.requireUserVerification).toBe(true);
     });
 
     it('happy path: updates signCount + lastUsedAt, drops token, completes login, returns its result', async () => {
