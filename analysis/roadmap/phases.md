@@ -162,6 +162,58 @@ The following features are architecturally sound but outside current V1 implemen
 | **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
 | **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |
 | **Trusted device enrollment UI** | V1 (backend done) | S | Backend complete (`TrustedDevice` entity, `POST /devices/register` OTP flow, `GET/DELETE /devices`, email alert on new device). Missing: login flow does not consume `newDeviceId` from `completeLogin` — no "Trust this device?" step shown to user. `TrustedDevicesCard` in settings lists and revokes but is always empty. Work: (1) `useAuthStore.login()` checks `newDeviceId` in response, (2) new `TrustDevicePrompt` component shown post-login (skip or trust → `POST /devices/register`), (3) `deviceId` cookie then sent on future logins, bypassing new-device alert. |
+| **Encrypted metadata** | Phase 5 ✅ | S | DB scaffold complete (columns `encryptedMetadata`/`metadataIv`/`metadataAuthTag` nullable on `vault_entries`, accepted by backend DTOs). Only frontend wiring missing. See dedicated section below. |
+
+---
+
+### Encrypted Metadata — Implementation Notes
+
+**Status:** DB + backend scaffold done in Phase 3. Frontend never implemented. All three columns are always `null` in API responses today.
+
+**What it protects:** `environmentTag` is the only current plaintext leak this feature eliminates. Label, domain, URL, and all secret fields already live inside `encryptedData` (ZK from day one). `entryType` is kept plaintext by design (needed for client-side rendering before decrypt; type-distribution leak is accepted — see `analysis/security/architecture.md` §3.1).
+
+**What stays plaintext (by design, do not move):**
+- `entryType` — structural, needed pre-decrypt for rendering
+- `labelHash` — SHA-256 for server-side dedup hints; removing breaks the index without real gain (client already does full `fetchAll`, no server search on ciphertext)
+- `createdAt` / `updatedAt` / `version` — timing metadata, accepted trade-off
+
+**AAD contract (load-bearing, cannot change post-ship):**
+```
+main blob:     ${userId}:${entryId}
+metadata blob: ${userId}:${entryId}:meta
+```
+Both already implemented in `packages/shared/src/crypto.ts` (`encryptSecret` / `decryptSecret`). AAD is enforced by AES-256-GCM — a mismatch causes a hard decrypt failure.
+
+**Metadata blob schema (client-defined JSON, server-opaque):**
+```ts
+interface EntryMetadata {
+  environmentTag?: EnvironmentTag; // 'production' | 'staging' | 'development' | 'custom'
+  // Extend here in future versions — blob is schema-flexible
+}
+```
+
+**Files to change:**
+
+1. `apps/api/src/vault/dto/create-vault-entry.dto.ts` — add `@ApiProperty` / `@ApiPropertyOptional` to all fields including the three metadata fields (Swagger gap, violates CLAUDE.md convention; can ship independently of the feature).
+2. `apps/api/src/vault/dto/update-vault-entry.dto.ts` — same.
+3. `apps/web/app/utils/vault-crypto.ts`:
+   - Extend `CreateEntryPayload` and `UpdateEntryPayload` to include `encryptedMetadata?`, `metadataIv?`, `metadataAuthTag?`.
+   - Add `encryptMetadata(draft, key, userId, entryId)` → calls `encryptSecret(key, JSON.stringify({ environmentTag: draft.environment }), \`${userId}:${entryId}:meta\`)`.
+   - Wire into `encryptEntry` and `encryptEntryUpdate` — call `encryptMetadata` when `draft.environment` is set; omit metadata blob entirely when environment is absent (saves a crypto op for non-ENV_FILE types).
+   - Update `decryptRawEntry`: if `raw.encryptedMetadata` is non-null, decrypt under AAD `${userId}:${entryId}:meta` and merge `environmentTag` from the result. Fallback: if null, use `raw.environmentTag` column (backward compat for existing entries).
+   - After client reads the fallback path (old entry), do NOT immediately PATCH — lazy migration on next user edit is cleaner than a silent background re-encrypt-all (avoids a bulk write storm on first unlock).
+4. Stop writing `environmentTag` as a plaintext column for new entries after the feature ships — the column stays in the schema and in the response DTO as the backward-compat read path; just stop populating it on write.
+
+**Version history impact:** `VaultEntryVersion` has no metadata columns and does not need them. The metadata blob (environment tag) is entry-level metadata that does not change version-by-version. Existing version snapshots decrypt correctly without metadata.
+
+**No DB migration needed.** Columns are already nullable and present in the entity. Zero backend changes required beyond the Swagger decorator fix.
+
+**Testing requirements (per CLAUDE.md invariants):**
+- Unit: `encryptMetadata` round-trip; AAD mismatch rejection (wrong entryId → hard fail); null metadata path (no encrypt call, no metadata fields sent); backward-compat path (null `encryptedMetadata` + populated `environmentTag` column → correct `environment` on `DecryptedEntry`).
+- Integration: `POST /vault` with metadata fields → `GET /vault/:id` returns them; `PATCH /vault/:id` with metadata fields → persisted; old entry (null metadata) → reads `environmentTag` column correctly.
+- No regression on existing vault CRUD tests.
+
+**Suggested timing:** before PAK. PAK adds native Android clients that read the same vault API; having a consistent ZK story across all clients is cleaner than patching the metadata gap post-PAK. Complexity is S — pure frontend + Swagger fix, no DB work.
 
 ---
 
