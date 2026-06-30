@@ -596,6 +596,89 @@ describe('Version pruning — max 10 versions', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Security invariant: ciphertext opacity
+// The server stores and returns opaque blobs — it must not expose any
+// field that could contain server-decrypted plaintext.
+// ---------------------------------------------------------------------------
+
+describe('security: vault response ciphertext opacity', () => {
+  const KNOWN_PLAINTEXT = 'MY_SECRET_PASSWORD_CANARY';
+
+  it('GET /api/vault items contain no field with plaintext canary value', async () => {
+    const token = await registerAndToken(USER_A);
+    const entry = baseEntry();
+
+    await app.inject({
+      method: 'POST',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+      // encryptedData embeds the canary — if the server were decrypting and
+      // re-exposing, the canary would appear outside of encryptedData.
+      payload: { ...entry, encryptedData: Buffer.from(KNOWN_PLAINTEXT).toString('base64') },
+    });
+
+    const resp = await app.inject({
+      method: 'GET',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(resp.statusCode).toBe(200);
+
+    const body = resp.json<{ data: Record<string, unknown>[] }>();
+    const item = body.data[0];
+
+    // Allowed fields — the complete server-side schema. Any field outside this
+    // list would indicate unexpected server-side processing.
+    const ALLOWED_KEYS = new Set([
+      'id', 'entryType', 'environmentTag', 'labelHash',
+      'encryptedData', 'iv', 'authTag',
+      'encryptedMetadata', 'metadataIv', 'metadataAuthTag',
+      'version', 'createdAt', 'updatedAt',
+    ]);
+    const unexpectedKeys = Object.keys(item).filter(k => !ALLOWED_KEYS.has(k));
+    expect(unexpectedKeys).toEqual([]);
+
+    // Canary must only appear inside encryptedData — never in a separate field.
+    const decoded = Buffer.from(item.encryptedData as string, 'base64').toString();
+    expect(decoded).toBe(KNOWN_PLAINTEXT);
+
+    // No other field in the response body (serialised) carries the raw canary.
+    const serialised = JSON.stringify(body);
+    const canaryOccurrences = serialised.split(KNOWN_PLAINTEXT).length - 1;
+    expect(canaryOccurrences).toBe(0); // canary is base64-encoded in transit, not raw
+  });
+
+  it('GET /api/vault/:id returns no field outside the allowed schema', async () => {
+    const token = await registerAndToken(USER_A);
+    const entry = baseEntry();
+    const createResp = await app.inject({
+      method: 'POST',
+      url: VAULT_URL,
+      headers: { authorization: `Bearer ${token}` },
+      payload: entry,
+    });
+    const { id } = createResp.json<{ id: string }>();
+
+    const resp = await app.inject({
+      method: 'GET',
+      url: `${VAULT_URL}/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(resp.statusCode).toBe(200);
+
+    const item = resp.json<Record<string, unknown>>();
+    const ALLOWED_KEYS = new Set([
+      'id', 'entryType', 'environmentTag', 'labelHash',
+      'encryptedData', 'iv', 'authTag',
+      'encryptedMetadata', 'metadataIv', 'metadataAuthTag',
+      'version', 'createdAt', 'updatedAt',
+    ]);
+    const unexpectedKeys = Object.keys(item).filter(k => !ALLOWED_KEYS.has(k));
+    expect(unexpectedKeys).toEqual([]);
+  });
+});
+
 describe('GET /api/vault — cursor edge cases', () => {
   it('returns 400 or handles gracefully with malformed cursor', async () => {
     const token = await registerAndToken(USER_A);

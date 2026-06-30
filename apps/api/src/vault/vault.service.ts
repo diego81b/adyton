@@ -7,6 +7,7 @@ import { AuditAction } from '../entities/audit-log.entity';
 import { CreateVaultEntryDto } from './dto/create-vault-entry.dto';
 import { UpdateVaultEntryDto } from './dto/update-vault-entry.dto';
 import { ListVaultEntriesQueryDto } from './dto/list-vault-entries-query.dto';
+import { VaultEntryResponseDto } from './dto/vault-entry.response.dto';
 import { User } from '../entities/user.entity';
 
 const MAX_VERSIONS = 10;
@@ -38,6 +39,24 @@ export class VaultService {
     private readonly em: EntityManager,
     private readonly auditService: AuditService,
   ) {}
+
+  toDto(entry: VaultEntry): VaultEntryResponseDto {
+    return {
+      id: entry.id,
+      entryType: entry.entryType,
+      encryptedData: entry.encryptedData,
+      iv: entry.iv,
+      authTag: entry.authTag,
+      labelHash: entry.labelHash,
+      encryptedMetadata: entry.encryptedMetadata,
+      metadataIv: entry.metadataIv,
+      metadataAuthTag: entry.metadataAuthTag,
+      environmentTag: entry.environmentTag,
+      version: entry.version,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    };
+  }
 
   async list(
     userId: string,

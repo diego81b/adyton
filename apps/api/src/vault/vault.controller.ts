@@ -44,8 +44,9 @@ export class VaultController {
   @ApiResponse({ status: 200, description: 'Paginated entry list', type: PaginatedVaultEntriesResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @Get()
-  list(@Req() req: RequestWithUser, @Query() query: ListVaultEntriesQueryDto) {
-    return this.vaultService.list(req.user.userId, query);
+  async list(@Req() req: RequestWithUser, @Query() query: ListVaultEntriesQueryDto) {
+    const result = await this.vaultService.list(req.user.userId, query);
+    return { ...result, data: result.data.map(e => this.vaultService.toDto(e)) };
   }
 
   @ApiOperation({ summary: 'Create a new vault entry' })
@@ -54,12 +55,13 @@ export class VaultController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(
+  async create(
     @Req() req: RequestWithUser,
     @Headers('user-agent') ua: string,
     @Body() dto: CreateVaultEntryDto,
   ) {
-    return this.vaultService.create(req.user.userId, dto, req.ip, ua ?? '');
+    const entry = await this.vaultService.create(req.user.userId, dto, req.ip, ua ?? '');
+    return this.vaultService.toDto(entry);
   }
 
   @ApiOperation({ summary: 'Get a single vault entry' })
@@ -67,12 +69,13 @@ export class VaultController {
   @ApiResponse({ status: 200, description: 'Entry found', type: VaultEntryResponseDto })
   @ApiResponse({ status: 404, description: 'Entry not found or not owned by caller' })
   @Get(':id')
-  findOne(
+  async findOne(
     @Req() req: RequestWithUser,
     @Headers('user-agent') ua: string,
     @Param('id') id: string,
   ) {
-    return this.vaultService.findOneAndAudit(req.user.userId, id, req.ip, ua ?? '');
+    const entry = await this.vaultService.findOneAndAudit(req.user.userId, id, req.ip, ua ?? '');
+    return this.vaultService.toDto(entry);
   }
 
   @ApiOperation({ summary: 'Update a vault entry (snapshots current version)' })
@@ -80,13 +83,14 @@ export class VaultController {
   @ApiResponse({ status: 200, description: 'Entry updated, version incremented', type: VaultEntryResponseDto })
   @ApiResponse({ status: 404, description: 'Entry not found or not owned by caller' })
   @Patch(':id')
-  update(
+  async update(
     @Req() req: RequestWithUser,
     @Headers('user-agent') ua: string,
     @Param('id') id: string,
     @Body() dto: UpdateVaultEntryDto,
   ) {
-    return this.vaultService.update(req.user.userId, id, dto, req.ip, ua ?? '');
+    const entry = await this.vaultService.update(req.user.userId, id, dto, req.ip, ua ?? '');
+    return this.vaultService.toDto(entry);
   }
 
   @ApiOperation({ summary: 'Wipe all vault entries for the authenticated user (import restore)' })
@@ -131,12 +135,13 @@ export class VaultController {
   @ApiResponse({ status: 404, description: 'Entry or version not found' })
   @Post(':id/versions/:versionId/restore')
   @HttpCode(HttpStatus.OK)
-  restore(
+  async restore(
     @Req() req: RequestWithUser,
     @Headers('user-agent') ua: string,
     @Param('id') id: string,
     @Param('versionId') versionId: string,
   ) {
-    return this.vaultService.restoreVersion(req.user.userId, id, versionId, req.ip, ua ?? '');
+    const entry = await this.vaultService.restoreVersion(req.user.userId, id, versionId, req.ip, ua ?? '');
+    return this.vaultService.toDto(entry);
   }
 }
