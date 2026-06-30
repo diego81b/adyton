@@ -161,6 +161,7 @@ The following features are architecturally sound but outside current V1 implemen
 | **Emergency access (trusted contact)** | V2 (EC keypairs) | M | V5 in roadmap (decided 2026-06-28). ECDH-wrapped vault key snapshot for designated Adyton contact, 7-day timeout, ZK preserved. See `analysis/roadmap/v5-emergency-access.md` for full design + security analysis. |
 | **TOTP vault entries** | Phase 5 | S | store TOTP secrets as vault entries, display live codes |
 | **CLI tool** | Phase 7 | M | `@adyton/cli` using shared crypto, reads/writes vault via API |
+| **Trusted device enrollment UI** | V1 (backend done) | S | Backend complete (`TrustedDevice` entity, `POST /devices/register` OTP flow, `GET/DELETE /devices`, email alert on new device). Missing: login flow does not consume `newDeviceId` from `completeLogin` — no "Trust this device?" step shown to user. `TrustedDevicesCard` in settings lists and revokes but is always empty. Work: (1) `useAuthStore.login()` checks `newDeviceId` in response, (2) new `TrustDevicePrompt` component shown post-login (skip or trust → `POST /devices/register`), (3) `deviceId` cookie then sent on future logins, bypassing new-device alert. |
 
 ---
 

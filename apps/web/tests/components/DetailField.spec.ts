@@ -56,7 +56,6 @@ describe('DetailField', () => {
     const w = mountField({
       label: 'Site URL',
       value: 'x',
-      // eslint-disable-next-line no-script-url
       link: 'javascript:alert(1)',
     });
     expect(w.find('[aria-label="Open Site URL"]').exists()).toBe(false);

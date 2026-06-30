@@ -108,6 +108,18 @@ export default defineNuxtConfig({
   typescript: {
     strict: true,
     typeCheck: false,
+    tsConfig: {
+      compilerOptions: {
+        paths: {
+          // @adyton/capacitor-keystore is a workspace package whose source imports
+          // @capacitor/core. TypeScript resolves the keystore via its symlink at
+          // apps/web/node_modules, then traverses into packages/capacitor-adyton-keystore/src.
+          // From that path, @capacitor/core is not directly discoverable (no local
+          // node_modules for the package), so we pin it explicitly here.
+          '@capacitor/core': ['../../../node_modules/.pnpm/@capacitor+core@8.4.0/node_modules/@capacitor/core'],
+        },
+      },
+    },
   },
 
   vite: {

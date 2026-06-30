@@ -34,9 +34,10 @@ const activeFilterCount = computed(
 async function onAdd(draft: EntryDraft) {
   try {
     const created = await vault.createEntry(draft);
-    addOpen.value = false;
     toast.add({ title: 'Entry created', color: 'success' });
     router.push(`/vault/${created.id}`);
+    // addOpen stays true — the index page unmounts on navigation,
+    // taking the drawer with it. Closing first would flash the list.
   } catch (err) {
     toast.add({
       title: 'Create failed',

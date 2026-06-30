@@ -180,12 +180,87 @@ All project output must be in English: commit messages, code comments, documenta
 
 ## Branch workflow — MANDATORY
 
-Branches are per **phase** (and, in future, per issue) — NOT per step.
+This repo uses **Git Flow**. Permanent branches: `main` (production releases only), `develop` (integration). All work branches off `develop` and merges back to `develop`.
 
-- Phase branch: `feature/phase-N-<short-name>` (e.g. `feature/phase-5-vault-ui`)
-- Numbered steps within a phase are committed **directly to the phase branch** as separate commits (one or more `feat`/`fix`/`test` commits per step). Do NOT create a branch per step.
-- No step→phase merge step exists anymore; a "step" is a logical grouping of commits, not a branch.
-- (Historical note: Step 0 used a `feature/phase-5-step-0-foundation` branch; that per-step-branch convention is retired as of 2026-06-03.)
+### Feature branches
+
+Branches are per **phase or feature** — NOT per step.
+
+```
+git checkout develop
+git checkout -b feature/<short-name>   # e.g. feature/pak, feature/phase-5-vault-ui
+# ... commits ...
+git checkout develop
+git merge --no-ff feature/<short-name> -m "Merge branch 'feature/<short-name>' into develop"
+git branch -d feature/<short-name>
+```
+
+- Numbered steps within a phase are committed directly to the feature branch as separate commits. Do NOT create a branch per step.
+- No tags on feature merges. Tags are for releases only.
+- Pass the step / phase completion checklist before merging.
+
+### Release branches — MANDATORY on every version bump
+
+```
+git checkout develop
+git checkout -b release/X.Y.Z
+# bump versions + write CHANGELOG (see below)
+git add . && git commit -m "chore(release): vX.Y.Z"
+git checkout main
+git merge --no-ff release/X.Y.Z -m "Merge branch 'release/X.Y.Z'"
+git tag -a vX.Y.Z -m "vX.Y.Z — <one-line summary>"
+git checkout develop
+git merge --no-ff main -m "Merge branch 'main' into develop"
+git branch -d release/X.Y.Z
+```
+
+On the release branch, before committing:
+- Bump `version` in **all** `package.json` files: root, `apps/api`, `apps/web`, `apps/mobile`, `packages/shared`
+- Add a new entry at the top of `CHANGELOG.md` (format below)
+
+### Hotfix branches — for production bugs only
+
+Hotfixes branch off `main` (not `develop`) and merge to both `main` and `develop`.
+
+```
+git checkout main
+git checkout -b hotfix/<short-name>   # e.g. hotfix/csrf-token-leak
+# fix + test
+git add . && git commit -m "fix(...): <description>"
+git checkout main
+git merge --no-ff hotfix/<short-name> -m "Merge branch 'hotfix/<short-name>'"
+git tag -a vX.Y.Z -m "vX.Y.Z — hotfix: <description>"   # bump patch version
+git checkout develop
+git merge --no-ff main -m "Merge branch 'main' into develop"
+git branch -d hotfix/<short-name>
+```
+
+- Always bump patch version (`X.Y.Z+1`) and add a CHANGELOG entry on hotfix.
+- Run the full test suite before merging to `main`.
+
+### CHANGELOG format
+
+`CHANGELOG.md` lives at repo root. One entry per version tag — **synthetic** (milestone-level, not commit-per-commit). Write by hand as part of the release/hotfix branch. Do not auto-generate from commits.
+
+```markdown
+## [X.Y.Z] — YYYY-MM-DD
+
+One-sentence summary of the release.
+
+### Added
+- Feature A
+
+### Changed
+- Behaviour X changed to Y
+
+### Fixed
+- Bug Z
+
+### Security
+- CVE or audit finding addressed
+```
+
+Omit empty sections. `Security` only when there is a user-facing security fix.
 
 ## README maintenance — MANDATORY
 
