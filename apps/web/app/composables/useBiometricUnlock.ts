@@ -1,26 +1,16 @@
-import { hexToBytes } from '@adyton/shared';
 import { useNativeRuntime } from './useNativeRuntime';
-
-// Storage key prefix — Phase 8 secure-storage enrolled vault keys.
-const KEY_PREFIX = 'adyton.vaultKey.';
 
 // PAK (Phone-as-Key) device ID lookup — written by /pak/enroll after SE sealing.
 const PAK_DEVICE_KEY_PREFIX = 'adyton_pak_device_';
 
-// ---------------------------------------------------------------------------
-// Local helper: ArrayBuffer → lowercase hex string.
-// bytesToHex is not exported from @adyton/shared (only hexToBytes is present),
-// so we keep this as a private utility here.
-// ---------------------------------------------------------------------------
-function bytesToHex(buf: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
+// Phase 8 biometric device ID — generated at enroll time, used as the wrap-key alias.
+// Unlike PAK, Phase 8 does not have ECDH/SIGN keys — only the AES wrap key + sealed file.
+const PHASE8_DEVICE_KEY_PREFIX = 'adyton.phase8_device_';
 
 // ---------------------------------------------------------------------------
-// Cancel / fallback error codes from BiometricAuth that are NOT bugs.
-// The user intentionally dismissed the prompt or the OS cancelled it.
+// Cancel / fallback error codes from BiometricPrompt (mapped in Kotlin plugin)
+// and @aparajita/capacitor-biometric-auth. These represent intentional user
+// dismissal or OS-level cancellation — not bugs or stale-key conditions.
 // ---------------------------------------------------------------------------
 const CANCEL_CODES = new Set([
   'userCancel',
@@ -38,25 +28,16 @@ function errorCode(err: unknown): string | null {
   return null;
 }
 
-/**
- * Validates that a stored value is a 64-character hex string (32 decoded bytes).
- * Returns the decoded ArrayBuffer or null if invalid.
- */
-function decodeStoredHex(value: unknown): ArrayBuffer | null {
-  if (typeof value !== 'string') return null;
-  if (!/^[0-9a-fA-F]{64}$/.test(value)) return null;
-  const bytes = hexToBytes(value);
-  // Copy into a plain ArrayBuffer to avoid the SharedArrayBuffer union type that
-  // TypedArray.buffer can have — Web Crypto APIs require a plain ArrayBuffer.
-  const buf = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buf).set(bytes);
-  return buf;
-}
-
 /** Read the PAK device ID from localStorage, or null if not enrolled. */
 function readPakDeviceId(userId: string): string | null {
   if (typeof localStorage === 'undefined') return null;
   return localStorage.getItem(PAK_DEVICE_KEY_PREFIX + userId);
+}
+
+/** Read the Phase 8 biometric device ID from localStorage, or null if not enrolled. */
+function readPhase8DeviceId(userId: string): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  return localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + userId);
 }
 
 // ---------------------------------------------------------------------------
@@ -79,9 +60,10 @@ export function useBiometricUnlock() {
   /**
    * Returns true if the user has enrolled biometric unlock for the given userId.
    *
-   * PAK path: checks localStorage for a device ID, then verifies SE keys still
-   * exist in Android Keystore (handles app reinstall / key erasure).
-   * Phase 8 fallback: checks @aparajita/capacitor-secure-storage.
+   * PAK path: checks localStorage for a PAK device ID, then verifies all SE keys
+   * still exist in Android Keystore (handles app reinstall / key erasure).
+   * Phase 8 path: checks localStorage for a Phase 8 device ID, then verifies the
+   * AES wrap key + sealed file exist via AdytonKeystore.hasRawKey.
    */
   async function isEnrolled(userId: string): Promise<boolean> {
     // PAK path: device enrolled via /pak/enroll
@@ -98,27 +80,34 @@ export function useBiometricUnlock() {
       }
     }
 
-    // Phase 8 fallback: vault key stored directly in secure storage
-    try {
-      const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
-      const value = await SecureStorage.get(KEY_PREFIX + userId);
-      return value !== null;
-    } catch {
-      return false;
+    // Phase 8 path: biometric enrollment backed by AES Keystore wrap key
+    const phase8DeviceId = readPhase8DeviceId(userId);
+    if (phase8DeviceId) {
+      try {
+        const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
+        const { exists } = await AdytonKeystore.hasRawKey({ deviceId: phase8DeviceId });
+        if (exists) return true;
+        // Wrap key gone — clean up
+        localStorage.removeItem(PHASE8_DEVICE_KEY_PREFIX + userId);
+      } catch {
+        // Plugin not available
+      }
     }
+
+    return false;
   }
 
   /**
-   * Persists the raw key bytes in native secure storage (iOS Keychain /
-   * Android Keystore) so the user can unlock with biometrics instead of
-   * re-typing their master password.
+   * Enrolls biometric unlock for a user on the Phase 8 path.
    *
-   * Throws if called on the web platform — biometric enrollment is a
-   * native-only capability (localStorage / IndexedDB are forbidden for
-   * key material per the security model).
+   * Generates a device ID (UUID), stores it in localStorage, then calls
+   * AdytonKeystore.sealVaultKey which shows a BiometricPrompt and seals the vault
+   * key under an OS-biometric-bound AES Keystore key.
    *
-   * Note: PAK enrollment goes through /pak/enroll + AdytonKeystore.sealVaultKey.
-   * This method is used for the Phase 8 non-PAK biometric path only.
+   * PAK enrollment goes through /pak/enroll + AdytonKeystore.generateKeys +
+   * AdytonKeystore.sealVaultKey — this method is for non-PAK biometric only.
+   *
+   * Throws if called on the web platform.
    */
   async function enroll(userId: string, raw: ArrayBuffer): Promise<void> {
     const { isNative } = useNativeRuntime();
@@ -129,90 +118,95 @@ export function useBiometricUnlock() {
       );
     }
 
-    const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
-    await SecureStorage.set(KEY_PREFIX + userId, bytesToHex(raw));
+    // Generate a stable device ID for this enrollment; reuse if already enrolled.
+    let phase8DeviceId = readPhase8DeviceId(userId);
+    if (!phase8DeviceId) {
+      phase8DeviceId = crypto.randomUUID();
+      localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + userId, phase8DeviceId);
+    }
+
+    // Convert ArrayBuffer to base64 for the plugin (expects base64-encoded 32 bytes).
+    const base64Raw = btoa(String.fromCharCode(...new Uint8Array(raw)));
+
+    const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
+    // sealVaultKey shows BiometricPrompt and uses the authenticated CryptoObject cipher
+    // to encrypt under the AES Keystore wrap key — OS enforces biometric at seal time.
+    await AdytonKeystore.sealVaultKey({ deviceId: phase8DeviceId, vaultKeyRaw: base64Raw });
   }
 
   /**
-   * Removes the stored vault key for a given user.
+   * Removes biometric enrollment for a user.
    *
    * Handles both storage backends:
-   * - PAK: deletes keys from Android Keystore + removes localStorage entry.
-   * - Phase 8: removes from @aparajita/capacitor-secure-storage.
+   * - PAK: deletes Keystore keys + removes PAK localStorage entry.
+   * - Phase 8: deletes Keystore wrap key + sealed file via AdytonKeystore.deleteKeys
+   *   + removes Phase 8 localStorage entry.
    *
-   * Silent no-op if the user is not enrolled — safe to call without a prior
-   * isEnrolled check.
+   * Silent no-op if the user is not enrolled.
    */
   async function unenroll(userId: string): Promise<void> {
+    const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
+
     // PAK path
     const pakDeviceId = readPakDeviceId(userId);
     if (pakDeviceId) {
       try {
-        const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
         await AdytonKeystore.deleteKeys({ deviceId: pakDeviceId });
       } catch {
-        // Ignore — keys may already be absent (app reinstall, etc.)
+        // Ignore — keys may already be absent
       }
       localStorage.removeItem(PAK_DEVICE_KEY_PREFIX + userId);
     }
 
-    // Phase 8 fallback — remove regardless of PAK state so both paths are cleaned
-    // up if migration left both coexisting during a transition window.
-    try {
-      const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
-      await SecureStorage.remove(KEY_PREFIX + userId);
-    } catch {
-      // Key was never enrolled or already removed — nothing to do.
+    // Phase 8 path
+    const phase8DeviceId = readPhase8DeviceId(userId);
+    if (phase8DeviceId) {
+      try {
+        await AdytonKeystore.deleteKeys({ deviceId: phase8DeviceId });
+      } catch {
+        // Ignore — keys may already be absent
+      }
+      localStorage.removeItem(PHASE8_DEVICE_KEY_PREFIX + userId);
     }
   }
 
   /**
-   * Prompts the user for biometric authentication. On success, reads the
-   * stored raw key bytes and calls `cryptoStore.unlockWithRawKey`.
+   * Prompts the user for biometric authentication. On success, decrypts the
+   * stored vault key and calls `cryptoStore.unlockWithRawKey`.
    *
    * PAK path:
-   *  - `AdytonKeystore.unsealVaultKey` triggers the biometric prompt internally.
-   *  - On success, the raw key bytes are decoded and imported as a non-extractable
-   *    AES-GCM CryptoKey.
-   *  - PAK hardware/OS errors (not user cancellation) are re-thrown — do NOT
-   *    auto-unenroll on hardware errors, only on stale-key detect.
+   *  - `AdytonKeystore.unsealVaultKey` triggers the biometric prompt via BiometricPrompt
+   *    CryptoObject — the OS enforces biometric before the AES wrap key is released.
+   *  - Cancel codes → return false; hardware errors → re-throw (do NOT auto-unenroll).
    *
-   * Phase 8 path (SecureStorage):
-   *  - BiometricAuth.authenticate prompts separately.
-   *  - Corrupt stored data → auto-unenroll + return false.
+   * Phase 8 path:
+   *  - Same mechanism as PAK: AdytonKeystore.unsealVaultKey triggers BiometricPrompt
+   *    internally — biometric is OS-enforced, not a JS gate.
+   *  - Cancel codes → return false; hardware errors → re-throw.
    *
    * Returns:
    *  - `true`  — authentication succeeded and the vault is now unlocked.
-   *  - `false` — the user cancelled, biometry is locked out, not enrolled,
-   *              or the stored data was corrupt (auto-unenrolled).
+   *  - `false` — user cancelled, biometry locked out, or not enrolled.
    *
-   * Re-throws unexpected errors (hardware failures, OS-level errors) so
-   * callers can surface them to the user.
+   * Re-throws unexpected errors (hardware failures, OS-level errors).
    */
   async function unlockWithBiometrics(userId: string): Promise<boolean> {
-    // PAK path — biometric prompt is internal to unsealVaultKey
+    const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
+
+    // PAK path — ECDH + SIGN + wrap key enrolled
     const pakDeviceId = readPakDeviceId(userId);
     if (pakDeviceId) {
       try {
-        const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
-
-        // Verify keys still exist before triggering the biometric prompt
         const { exists } = await AdytonKeystore.hasKeys({ deviceId: pakDeviceId });
         if (!exists) {
-          // Stale entry (app reinstall, etc.) — clean up and report not enrolled
           localStorage.removeItem(PAK_DEVICE_KEY_PREFIX + userId);
           return false;
         }
 
-        // unsealVaultKey triggers the biometric prompt and decrypts in SE
         const { vaultKeyRaw } = await AdytonKeystore.unsealVaultKey({ deviceId: pakDeviceId });
-
-        // Decode base64 raw key → ArrayBuffer
         const raw = Uint8Array.from(atob(vaultKeyRaw), c => c.charCodeAt(0)).buffer as ArrayBuffer;
 
-        // Validate: must be exactly 32 bytes (256-bit AES key)
         if (raw.byteLength !== 32) {
-          // Corrupt SE data — unenroll to prevent repeated failures
           localStorage.removeItem(PAK_DEVICE_KEY_PREFIX + userId);
           return false;
         }
@@ -227,60 +221,44 @@ export function useBiometricUnlock() {
       } catch (err: unknown) {
         const code = errorCode(err);
         if (code !== null && CANCEL_CODES.has(code)) return false;
-        // PAK hardware/OS error — do NOT unenroll (keys may still be valid).
-        // Let the caller decide whether to surface this as an error.
         throw err;
       }
     }
 
-    // Phase 8 fallback — @aparajita/capacitor-secure-storage + BiometricAuth
-    const { SecureStorage, StorageErrorType } = await import('@aparajita/capacitor-secure-storage');
+    // Phase 8 path — wrap key only (non-PAK biometric enrollment)
+    const phase8DeviceId = readPhase8DeviceId(userId);
+    if (phase8DeviceId) {
+      try {
+        const { exists } = await AdytonKeystore.hasRawKey({ deviceId: phase8DeviceId });
+        if (!exists) {
+          localStorage.removeItem(PHASE8_DEVICE_KEY_PREFIX + userId);
+          return false;
+        }
 
-    // Read the stored key — handle corrupt data before prompting biometrics.
-    let storedValue: unknown = null;
-    try {
-      storedValue = await SecureStorage.get(KEY_PREFIX + userId);
-    } catch (err: unknown) {
-      if (errorCode(err) === StorageErrorType.invalidData) {
-        await unenroll(userId);
-        return false;
+        // unsealVaultKey shows BiometricPrompt with CryptoObject — OS-enforced biometric.
+        const { vaultKeyRaw } = await AdytonKeystore.unsealVaultKey({ deviceId: phase8DeviceId });
+        const raw = Uint8Array.from(atob(vaultKeyRaw), c => c.charCodeAt(0)).buffer as ArrayBuffer;
+
+        if (raw.byteLength !== 32) {
+          localStorage.removeItem(PHASE8_DEVICE_KEY_PREFIX + userId);
+          return false;
+        }
+
+        const { useCryptoStore } = await import('../stores/crypto');
+        try {
+          await useCryptoStore().unlockWithRawKey(raw);
+        } finally {
+          new Uint8Array(raw).fill(0);
+        }
+        return true;
+      } catch (err: unknown) {
+        const code = errorCode(err);
+        if (code !== null && CANCEL_CODES.has(code)) return false;
+        throw err;
       }
-      throw err;
     }
 
-    // Not enrolled.
-    if (storedValue === null) return false;
-
-    // Validate the stored hex before opening the biometric prompt.
-    const raw = decodeStoredHex(storedValue);
-    if (raw === null) {
-      await unenroll(userId);
-      return false;
-    }
-
-    // Prompt biometric authentication.
-    try {
-      const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
-      await BiometricAuth.authenticate({
-        reason: 'Unlock Adyton vault',
-        cancelTitle: 'Cancel',
-      });
-    } catch (err: unknown) {
-      const code = errorCode(err);
-      if (code !== null && CANCEL_CODES.has(code)) return false;
-      throw err;
-    }
-
-    // Authentication succeeded — import the key and unlock the store.
-    const { useCryptoStore } = await import('../stores/crypto');
-    try {
-      await useCryptoStore().unlockWithRawKey(raw);
-    } finally {
-      // Best-effort zeroize: once imported as a non-extractable CryptoKey the
-      // raw bytes have no reason to stay on the JS heap.
-      new Uint8Array(raw).fill(0);
-    }
-    return true;
+    return false;
   }
 
   /**
@@ -322,7 +300,6 @@ export function useBiometricUnlock() {
       const decryptedBytes = new Uint8Array(decrypted);
       return plaintext.every((b, i) => b === decryptedBytes[i]);
     } catch {
-      // AES-GCM tag mismatch — keys differ.
       return false;
     }
   }

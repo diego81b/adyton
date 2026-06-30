@@ -1,11 +1,5 @@
 import { registerPlugin } from '@capacitor/core';
 
-export interface SealedVaultKey {
-  ciphertext: string;   // base64
-  iv: string;           // base64, 12 bytes
-  ephemeralPub: string; // base64 SPKI
-}
-
 export interface AdytonKeystorePlugin {
   /**
    * Generate (or retrieve if exists) the persistent P-256 ECDH key + SIGN key in Android Keystore.
@@ -20,14 +14,16 @@ export interface AdytonKeystorePlugin {
   getPublicKeys(options: { deviceId: string }): Promise<{ ecdhPublicKey: string; signPublicKey: string }>;
 
   /**
-   * Seal raw vault key bytes using the persistent ECDH key (self-ECDH wrap).
-   * Stores sealed key in app files dir. Requires biometric auth.
+   * Seal raw vault key bytes using the OS-biometric-bound AES Keystore wrap key.
+   * Shows a BiometricPrompt (BIOMETRIC_STRONG, no device credential).
+   * The OS enforces fresh biometric authentication before the key is used.
    * vaultKeyRaw: base64 encoded 32 bytes
    */
   sealVaultKey(options: { deviceId: string; vaultKeyRaw: string }): Promise<void>;
 
   /**
-   * Unseal vault key. Requires biometric auth.
+   * Unseal vault key. Shows a BiometricPrompt and uses the authenticated CryptoObject
+   * cipher to decrypt — the OS enforces biometric before key release.
    * Returns vaultKeyRaw: base64 encoded 32 bytes.
    */
   unsealVaultKey(options: { deviceId: string }): Promise<{ vaultKeyRaw: string }>;
@@ -62,9 +58,15 @@ export interface AdytonKeystorePlugin {
   sign(options: { deviceId: string; dataBase64: string }): Promise<{ signatureBase64: string }>;
 
   /**
-   * Check if keys exist for this deviceId.
+   * Check if all PAK keys exist for this deviceId (ECDH + SIGN + wrap + sealed file).
    */
   hasKeys(options: { deviceId: string }): Promise<{ exists: boolean }>;
+
+  /**
+   * Check if a Phase 8 (non-PAK) biometric enrollment exists for this deviceId.
+   * Returns true if the wrap key + sealed file are present (no ECDH/SIGN required).
+   */
+  hasRawKey(options: { deviceId: string }): Promise<{ exists: boolean }>;
 
   /**
    * Delete all keys for this deviceId from Keystore + remove sealed vault key file.
