@@ -143,7 +143,7 @@ export function usePakSelfRevoke() {
 
       // Step 7: notify server
       const auth = useAuthStore();
-      await auth.apiFetch(`/devices/${deviceId}?reason=safe`, { method: 'DELETE' });
+      await auth.apiFetch(`/pak/devices/${deviceId}?reason=safe`, { method: 'DELETE' });
 
       // Step 8: done
       return true;

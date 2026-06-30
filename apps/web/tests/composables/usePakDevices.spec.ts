@@ -57,7 +57,7 @@ describe('usePakDevices.fetchDevices', () => {
     expect(devices.value).toEqual(list);
     expect(loading.value).toBe(false);
     expect(error.value).toBeNull();
-    expect(mockApiFetch).toHaveBeenCalledWith('/devices');
+    expect(mockApiFetch).toHaveBeenCalledWith('/pak/devices');
   });
 
   it('sets error on failure and clears loading', async () => {
@@ -99,7 +99,7 @@ describe('usePakDevices.renameDevice', () => {
 
     await renameDevice('dev-1', 'New Name');
 
-    expect(mockApiFetch).toHaveBeenCalledWith('/devices/dev-1', {
+    expect(mockApiFetch).toHaveBeenCalledWith('/pak/devices/dev-1', {
       method: 'PATCH',
       body: { deviceName: 'New Name' },
     });
@@ -141,7 +141,7 @@ describe('usePakDevices.revokeDevice', () => {
     await revokeDevice('dev-1', 'safe');
 
     expect(devices.value).toHaveLength(0);
-    expect(mockApiFetch).toHaveBeenCalledWith('/devices/dev-1?reason=safe', { method: 'DELETE' });
+    expect(mockApiFetch).toHaveBeenCalledWith('/pak/devices/dev-1?reason=safe', { method: 'DELETE' });
   });
 
   it('passes reason=compromised in the query string', async () => {
@@ -154,7 +154,7 @@ describe('usePakDevices.revokeDevice', () => {
     await fetchDevices();
     await revokeDevice('dev-2', 'compromised');
 
-    expect(mockApiFetch).toHaveBeenCalledWith('/devices/dev-2?reason=compromised', { method: 'DELETE' });
+    expect(mockApiFetch).toHaveBeenCalledWith('/pak/devices/dev-2?reason=compromised', { method: 'DELETE' });
   });
 
   it('sets error on DELETE failure and keeps device in list', async () => {

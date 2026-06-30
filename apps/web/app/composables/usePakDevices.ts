@@ -24,7 +24,7 @@ export function usePakDevices() {
     error.value = null;
     try {
       const auth = useAuthStore();
-      const result = await auth.apiFetch<PakDevice[]>('/devices');
+      const result = await auth.apiFetch<PakDevice[]>('/pak/devices');
       devices.value = result;
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to load devices.';
@@ -38,7 +38,7 @@ export function usePakDevices() {
     error.value = null;
     try {
       const auth = useAuthStore();
-      const updated = await auth.apiFetch<PakDevice>(`/devices/${id}`, {
+      const updated = await auth.apiFetch<PakDevice>(`/pak/devices/${id}`, {
         method: 'PATCH',
         body: { deviceName: name },
       });
@@ -58,7 +58,7 @@ export function usePakDevices() {
     error.value = null;
     try {
       const auth = useAuthStore();
-      await auth.apiFetch<void>(`/devices/${id}?reason=${reason}`, { method: 'DELETE' });
+      await auth.apiFetch<void>(`/pak/devices/${id}?reason=${reason}`, { method: 'DELETE' });
       devices.value = devices.value.filter(d => d.id !== id);
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to revoke device.';

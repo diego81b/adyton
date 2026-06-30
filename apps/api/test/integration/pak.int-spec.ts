@@ -13,13 +13,13 @@ let app: NestFastifyApplication;
 let redis: Redis;
 
 const REGISTER_URL = '/api/auth/register';
-const ENROLL_URL = '/api/devices/enroll';
-const DEVICES_URL = '/api/devices';
+const ENROLL_URL = '/api/pak/devices/enroll';
+const DEVICES_URL = '/api/pak/devices';
 const QR_URL = '/api/auth/qr';
 const ENROLL_SESSION_URL = '/api/auth/enroll-session';
 
-const USER_A = { email: 'pak-a@adyton.test', password: 'PakIntA123!' };
-const USER_B = { email: 'pak-b@adyton.test', password: 'PakIntB123!' };
+const USER_A = { email: 'pak-a@adyton.test', password: 'PakIntA123!@x' };
+const USER_B = { email: 'pak-b@adyton.test', password: 'PakIntB123!@x' };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -111,10 +111,10 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/devices/enroll
+// POST /api/pak/devices/enroll
 // ---------------------------------------------------------------------------
 
-describe('POST /api/devices/enroll', () => {
+describe('POST /api/pak/devices/enroll', () => {
   it('returns 401 without a bearer token', async () => {
     const resp = await app.inject({ method: 'POST', url: ENROLL_URL, payload: makeEnrollPayload() });
     expect(resp.statusCode).toBe(401);
@@ -204,10 +204,10 @@ describe('POST /api/devices/enroll', () => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/devices
+// GET /api/pak/devices
 // ---------------------------------------------------------------------------
 
-describe('GET /api/devices', () => {
+describe('GET /api/pak/devices', () => {
   it('returns 401 without a bearer token', async () => {
     const resp = await app.inject({ method: 'GET', url: DEVICES_URL });
     expect(resp.statusCode).toBe(401);
@@ -255,10 +255,10 @@ describe('GET /api/devices', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/devices/:id
+// PATCH /api/pak/devices/:id
 // ---------------------------------------------------------------------------
 
-describe('PATCH /api/devices/:id', () => {
+describe('PATCH /api/pak/devices/:id', () => {
   it('renames a device and returns the updated name', async () => {
     const { accessToken } = await registerUser(USER_A);
 
@@ -278,6 +278,15 @@ describe('PATCH /api/devices/:id', () => {
     });
     expect(renameResp.statusCode).toBe(200);
     expect(renameResp.json<{ deviceName: string }>().deviceName).toBe('Renamed Device');
+  });
+
+  it('returns 401 without a bearer token', async () => {
+    const resp = await app.inject({
+      method: 'PATCH',
+      url: `${DEVICES_URL}/00000000-0000-0000-0000-000000000000`,
+      payload: { deviceName: 'x' },
+    });
+    expect(resp.statusCode).toBe(401);
   });
 
   it('returns 404 when renaming a device belonging to another user', async () => {
@@ -303,10 +312,10 @@ describe('PATCH /api/devices/:id', () => {
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/devices/:id
+// DELETE /api/pak/devices/:id
 // ---------------------------------------------------------------------------
 
-describe('DELETE /api/devices/:id', () => {
+describe('DELETE /api/pak/devices/:id', () => {
   it('revokes a device — device no longer appears in list', async () => {
     const { accessToken } = await registerUser(USER_A);
 

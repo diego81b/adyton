@@ -6,7 +6,7 @@ import { AdytonKeystore } from '@adyton/capacitor-keystore';
 
 definePageMeta({ ssr: false, layout: false });
 
-// DeviceResponseDto as returned by GET /devices
+// DeviceResponseDto as returned by GET /pak/devices
 interface DeviceResponseDto {
   id: string;
   deviceName: string;
@@ -82,7 +82,7 @@ onMounted(async () => {
 
   // Look up the active Android device enrolled for PAK
   try {
-    const devices = await authStore.apiFetch<DeviceResponseDto[]>('/devices');
+    const devices = await authStore.apiFetch<DeviceResponseDto[]>('/pak/devices');
     enrolledDevice = devices.find((d) => d.platform === 'android' && d.revokedAt === null) ?? null;
   } catch {
     approvePhase.value = 'error';

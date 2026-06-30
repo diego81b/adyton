@@ -161,10 +161,10 @@ async function runEnrollment() {
       dataBase64: btoa(qrData.s),
     });
 
-    // Step 8: POST /devices/enroll
+    // Step 8: POST /pak/devices/enroll
     // _device: server-assigned ID unused here; Keystore is keyed to localDeviceId throughout
     statusText.value = 'Registering device…';
-    const _device = await authStore.apiFetch<DeviceResponseDto>('/devices/enroll', {
+    const _device = await authStore.apiFetch<DeviceResponseDto>('/pak/devices/enroll', {
       method: 'POST',
       body: {
         devicePublicKeySpki: persistent.ecdhPublicKey,

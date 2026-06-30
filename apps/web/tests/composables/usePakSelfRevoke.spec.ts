@@ -173,7 +173,7 @@ describe('usePakSelfRevoke.revokeThisDevice', () => {
 
     // Step 7: DELETE API called with correct URL and method
     expect(apiFetchSpy).toHaveBeenCalledWith(
-      '/devices/device-uuid-pak?reason=safe',
+      '/pak/devices/device-uuid-pak?reason=safe',
       { method: 'DELETE' },
     );
   });

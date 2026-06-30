@@ -146,7 +146,7 @@ export class PakController {
   // Device management — requires JWT auth
   // ---------------------------------------------------------------------------
 
-  @Post('devices/enroll')
+  @Post('pak/devices/enroll')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
@@ -162,7 +162,7 @@ export class PakController {
     return this.pakService.toDeviceResponse(device);
   }
 
-  @Get('devices')
+  @Get('pak/devices')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'List enrolled PAK devices for the authenticated user' })
@@ -172,7 +172,7 @@ export class PakController {
     return devices.map((d) => this.pakService.toDeviceResponse(d));
   }
 
-  @Delete('devices/:id')
+  @Delete('pak/devices/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
@@ -189,7 +189,7 @@ export class PakController {
     await this.pakService.revokeDevice(req.user.userId, id, reason, req.ip, ua ?? '');
   }
 
-  @Patch('devices/:id')
+  @Patch('pak/devices/:id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Rename a PAK device' })
