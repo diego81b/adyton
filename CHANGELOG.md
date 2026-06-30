@@ -6,6 +6,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.0] — 2026-06-30
+
+Bug fixes and security hardening found during v1.1.0 test campaign.
+
+### Fixed
+
+- **Route collision:** `PakController` and `DevicesController` both registered `GET /api/devices`, causing Fastify to throw `Method already declared` at startup when both modules loaded. All PAK device management routes moved to `/api/pak/devices/*`.
+- **Vault response user field leak:** `VaultController` returned raw MikroORM entities; the `@ManyToOne` user relation serialised to `{ id: "..." }` in JSON responses. Added `VaultService.toDto()` explicit allowlist mapper applied on all five entry-returning endpoints.
+- **Vault entry create drawer flash:** closing the slideover before `router.push` caused the vault list to render for one frame before navigation. The page unmounts naturally on route change — the explicit close was removed.
+
+### Security
+
+- Integration tests now assert vault response ciphertext opacity: `GET /api/vault` and `GET /api/vault/:id` must return only the 13 allowed fields and must not expose any user-owned relation or plaintext canary value.
+- `PATCH /api/pak/devices/:id` now covered by a 401-without-token integration test.
+
+---
+
 ## [1.0.0] — 2026-06-28
 
 First production release. Complete self-hosted zero-knowledge personal password and secrets vault.
