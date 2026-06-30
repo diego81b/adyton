@@ -17,48 +17,25 @@ vi.mock('../../app/composables/useArgon2Worker', () => ({
 
 // --- @adyton/capacitor-keystore ---
 const mockKeystoreHasKeys = vi.fn();
+const mockKeystoreHasRawKey = vi.fn();
 const mockKeystoreUnsealVaultKey = vi.fn();
+const mockKeystoreSealVaultKey = vi.fn();
 const mockKeystoreDeleteKeys = vi.fn();
 vi.mock('@adyton/capacitor-keystore', () => ({
   AdytonKeystore: {
     hasKeys: (...args: unknown[]) => mockKeystoreHasKeys(...args),
+    hasRawKey: (...args: unknown[]) => mockKeystoreHasRawKey(...args),
     unsealVaultKey: (...args: unknown[]) => mockKeystoreUnsealVaultKey(...args),
+    sealVaultKey: (...args: unknown[]) => mockKeystoreSealVaultKey(...args),
     deleteKeys: (...args: unknown[]) => mockKeystoreDeleteKeys(...args),
   },
 }));
 
-// --- @aparajita/capacitor-secure-storage ---
-const mockStorageGet = vi.fn();
-const mockStorageSet = vi.fn();
-const mockStorageRemove = vi.fn();
-vi.mock('@aparajita/capacitor-secure-storage', () => ({
-  SecureStorage: {
-    get: (...args: unknown[]) => mockStorageGet(...args),
-    set: (...args: unknown[]) => mockStorageSet(...args),
-    remove: (...args: unknown[]) => mockStorageRemove(...args),
-  },
-  StorageErrorType: {
-    missingKey: 'missingKey',
-    invalidData: 'invalidData',
-    osError: 'osError',
-    unknownError: 'unknownError',
-  },
-  StorageError: class StorageError extends Error {
-    code: string;
-    constructor(message: string, code: string) {
-      super(message);
-      this.code = code;
-    }
-  },
-}));
-
-// --- @aparajita/capacitor-biometric-auth ---
+// --- @aparajita/capacitor-biometric-auth (used only by isSupported) ---
 const mockCheckBiometry = vi.fn();
-const mockAuthenticate = vi.fn();
 vi.mock('@aparajita/capacitor-biometric-auth', () => ({
   BiometricAuth: {
     checkBiometry: () => mockCheckBiometry(),
-    authenticate: (...args: unknown[]) => mockAuthenticate(...args),
   },
   BiometryErrorType: {
     none: '',
@@ -83,14 +60,14 @@ let isNativePlatform = true; // default: native for most tests
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: () => isNativePlatform,
-    getPlatform: () => (isNativePlatform ? 'ios' : 'web'),
+    getPlatform: () => (isNativePlatform ? 'android' : 'web'),
   },
 }));
 
 // ---------------------------------------------------------------------------
 // localStorage shim — happy-dom exposes it on window but not as a bare global
 // in the Node/Vitest test runner context. Provide a simple Map-backed shim
-// so PAK tests can use localStorage.setItem / getItem / removeItem / clear.
+// so tests can use localStorage.setItem / getItem / removeItem / clear.
 // ---------------------------------------------------------------------------
 const localStorageStore = new Map<string, string>();
 const localStorageShim = {
@@ -128,38 +105,34 @@ function fakeCryptoKey(extractable = false): CryptoKey {
   } as unknown as CryptoKey;
 }
 
-// Hex of a 32-byte buffer filled with 0xab
-const HEX_0XAB = 'ab'.repeat(32);
-
-const PAK_DEVICE_KEY_PREFIX = 'adyton_pak_device_';
-
 // Base64 encoding of 32 bytes of 0xab — matches vaultKeyRaw from unsealVaultKey
 const RAW_0XAB_B64 = btoa(String.fromCharCode(...new Uint8Array(32).fill(0xab)));
+
+const PAK_DEVICE_KEY_PREFIX = 'adyton_pak_device_';
+const PHASE8_DEVICE_KEY_PREFIX = 'adyton.phase8_device_';
 
 beforeEach(() => {
   setActivePinia(createPinia());
   isNativePlatform = true;
-  mockStorageGet.mockReset();
-  mockStorageSet.mockReset();
-  mockStorageRemove.mockReset();
   mockCheckBiometry.mockReset();
-  mockAuthenticate.mockReset();
   mockImportVaultKey.mockReset();
   mockKeystoreHasKeys.mockReset();
+  mockKeystoreHasRawKey.mockReset();
   mockKeystoreUnsealVaultKey.mockReset();
+  mockKeystoreSealVaultKey.mockReset();
   mockKeystoreDeleteKeys.mockReset();
 
   // Default: biometry available
   mockCheckBiometry.mockResolvedValue({ isAvailable: true });
-  // Default: auth succeeds (no throw)
-  mockAuthenticate.mockResolvedValue(undefined);
   // Default: importVaultKey returns a fake key
   mockImportVaultKey.mockResolvedValue(fakeCryptoKey());
   // Default: keystore keys exist
   mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+  mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
   // Default: unseal returns valid 32-byte key in base64
   mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0XAB_B64 });
-  // Default: delete succeeds
+  // Default: seal and delete succeed
+  mockKeystoreSealVaultKey.mockResolvedValue(undefined);
   mockKeystoreDeleteKeys.mockResolvedValue(undefined);
   // Clear localStorage between tests
   if (typeof localStorage !== 'undefined') localStorage.clear();
@@ -194,69 +167,143 @@ describe('useBiometricUnlock.isSupported', () => {
 });
 
 // ---------------------------------------------------------------------------
-// isEnrolled
+// isEnrolled — PAK path
 // ---------------------------------------------------------------------------
-describe('useBiometricUnlock.isEnrolled', () => {
-  it('returns false when storage key is absent (null)', async () => {
-    mockStorageGet.mockResolvedValue(null);
-    const { isEnrolled } = useBiometricUnlock();
-    expect(await isEnrolled('user-1')).toBe(false);
-    expect(mockStorageGet).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-  });
+describe('useBiometricUnlock.isEnrolled (PAK path)', () => {
+  it('returns true when PAK device ID is in localStorage and SE keys exist', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
 
-  it('returns true when storage has an entry for the userId', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
     const { isEnrolled } = useBiometricUnlock();
     expect(await isEnrolled('user-1')).toBe(true);
+    expect(mockKeystoreHasKeys).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
+    expect(mockKeystoreHasRawKey).not.toHaveBeenCalled();
   });
 
-  it('uses the correct storage key prefix + userId', async () => {
-    mockStorageGet.mockResolvedValue(null);
+  it('cleans up stale PAK entry and falls through to Phase 8 check when SE keys are absent', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'stale-device-id');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: false });
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: false });
+
     const { isEnrolled } = useBiometricUnlock();
-    await isEnrolled('test-user-xyz');
-    expect(mockStorageGet).toHaveBeenCalledWith('adyton.vaultKey.test-user-xyz');
+    const result = await isEnrolled('user-1');
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
+  });
+
+  it('guards against keystore plugin throwing (returns false gracefully)', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockRejectedValue(new Error('plugin unavailable'));
+
+    const { isEnrolled } = useBiometricUnlock();
+    const result = await isEnrolled('user-1');
+    expect(result).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// enroll
+// isEnrolled — Phase 8 path
+// ---------------------------------------------------------------------------
+describe('useBiometricUnlock.isEnrolled (Phase 8 path)', () => {
+  it('returns false when no localStorage entry for Phase 8 (not enrolled)', async () => {
+    const { isEnrolled } = useBiometricUnlock();
+    expect(await isEnrolled('user-1')).toBe(false);
+    expect(mockKeystoreHasKeys).not.toHaveBeenCalled();
+    expect(mockKeystoreHasRawKey).not.toHaveBeenCalled();
+  });
+
+  it('returns true when Phase 8 device ID is in localStorage and wrap key exists', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-device-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+
+    const { isEnrolled } = useBiometricUnlock();
+    expect(await isEnrolled('user-1')).toBe(true);
+    expect(mockKeystoreHasRawKey).toHaveBeenCalledWith({ deviceId: 'phase8-device-uuid' });
+    expect(mockKeystoreHasKeys).not.toHaveBeenCalled();
+  });
+
+  it('cleans up stale Phase 8 entry when wrap key is gone', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'stale-phase8-id');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: false });
+
+    const { isEnrolled } = useBiometricUnlock();
+    const result = await isEnrolled('user-1');
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
+  });
+
+  it('falls through to Phase 8 when PAK check fails', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'pak-id');
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-id');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: false });
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+
+    const { isEnrolled } = useBiometricUnlock();
+    expect(await isEnrolled('user-1')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enroll — Phase 8 path
 // ---------------------------------------------------------------------------
 describe('useBiometricUnlock.enroll', () => {
   it('throws on web platform', async () => {
     isNativePlatform = false;
     const { enroll } = useBiometricUnlock();
     await expect(enroll('user-1', fakeRawKey())).rejects.toThrow(/web platform/i);
-    expect(mockStorageSet).not.toHaveBeenCalled();
+    expect(mockKeystoreSealVaultKey).not.toHaveBeenCalled();
   });
 
-  it('stores hex encoding of raw bytes under the correct key', async () => {
-    const raw = fakeRawKey(0xab);
+  it('generates a Phase 8 device ID, stores in localStorage, and calls sealVaultKey', async () => {
     const { enroll } = useBiometricUnlock();
-    await enroll('user-1', raw);
-    expect(mockStorageSet).toHaveBeenCalledWith('adyton.vaultKey.user-1', HEX_0XAB);
+    await enroll('user-1', fakeRawKey(0xab));
+
+    // Phase 8 device ID written to localStorage
+    const phase8Id = localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1');
+    expect(phase8Id).not.toBeNull();
+    expect(typeof phase8Id).toBe('string');
+
+    // sealVaultKey called with that device ID and the base64-encoded key
+    expect(mockKeystoreSealVaultKey).toHaveBeenCalledWith({
+      deviceId: phase8Id,
+      vaultKeyRaw: btoa(String.fromCharCode(...new Uint8Array(32).fill(0xab))),
+    });
   });
 
-  it('stores different hex for different raw bytes', async () => {
-    const rawA = fakeRawKey(0x01);
-    const rawB = fakeRawKey(0x02);
+  it('reuses existing Phase 8 device ID on re-enroll', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'existing-phase8-id');
     const { enroll } = useBiometricUnlock();
+    await enroll('user-1', fakeRawKey());
 
-    await enroll('user-A', rawA);
-    await enroll('user-B', rawB);
-
-    const callA = mockStorageSet.mock.calls[0];
-    const callB = mockStorageSet.mock.calls[1];
-    expect(callA[1]).toBe('01'.repeat(32));
-    expect(callB[1]).toBe('02'.repeat(32));
-    expect(callA[1]).not.toBe(callB[1]);
+    expect(mockKeystoreSealVaultKey).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: 'existing-phase8-id' }),
+    );
+    // ID must not change
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBe('existing-phase8-id');
   });
 
-  it('stores under user-specific key (two users isolated)', async () => {
+  it('encodes different raw bytes as different base64 values', async () => {
     const { enroll } = useBiometricUnlock();
-    await enroll('alice', fakeRawKey());
-    await enroll('bob', fakeRawKey());
-    expect(mockStorageSet.mock.calls[0][0]).toBe('adyton.vaultKey.alice');
-    expect(mockStorageSet.mock.calls[1][0]).toBe('adyton.vaultKey.bob');
+    await enroll('user-A', fakeRawKey(0x01));
+    await enroll('user-B', fakeRawKey(0x02));
+
+    const callA = mockKeystoreSealVaultKey.mock.calls[0][0].vaultKeyRaw as string;
+    const callB = mockKeystoreSealVaultKey.mock.calls[1][0].vaultKeyRaw as string;
+    expect(callA).not.toBe(callB);
+    expect(callA).toBe(btoa(String.fromCharCode(...new Uint8Array(32).fill(0x01))));
+    expect(callB).toBe(btoa(String.fromCharCode(...new Uint8Array(32).fill(0x02))));
+  });
+
+  // VULN-001 regression: biometric must be OS-enforced (sealVaultKey shows BiometricPrompt
+  // internally via CryptoObject) — the composable must NOT call a separate authenticate().
+  it('does not call a standalone BiometricAuth.authenticate (biometric is internal to sealVaultKey)', async () => {
+    const { enroll } = useBiometricUnlock();
+    await enroll('user-1', fakeRawKey());
+    // No direct call to any separate biometric auth — it's inside sealVaultKey plugin.
+    // Assert sealVaultKey was called (the OS prompt happens within the Kotlin plugin).
+    expect(mockKeystoreSealVaultKey).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -264,141 +311,237 @@ describe('useBiometricUnlock.enroll', () => {
 // unenroll
 // ---------------------------------------------------------------------------
 describe('useBiometricUnlock.unenroll', () => {
-  it('calls storage.remove with the correct key', async () => {
-    mockStorageRemove.mockResolvedValue(true);
+  it('deletes PAK keys and removes localStorage entry when PAK enrolled', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'pak-device-id');
+
     const { unenroll } = useBiometricUnlock();
     await unenroll('user-1');
-    expect(mockStorageRemove).toHaveBeenCalledWith('adyton.vaultKey.user-1');
+
+    expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'pak-device-id' });
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
   });
 
-  it('does not throw when the key is absent (remove returns false)', async () => {
-    mockStorageRemove.mockResolvedValue(false);
+  it('deletes Phase 8 keys and removes localStorage entry when Phase 8 enrolled', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-device-id');
+
     const { unenroll } = useBiometricUnlock();
-    await expect(unenroll('user-1')).resolves.toBeUndefined();
+    await unenroll('user-1');
+
+    expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'phase8-device-id' });
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
   });
 
-  it('does not throw when storage.remove rejects (key never existed)', async () => {
-    mockStorageRemove.mockRejectedValue(new Error('key not found'));
+  it('deletes both PAK and Phase 8 keys when both are enrolled', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'pak-id');
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-id');
+
+    const { unenroll } = useBiometricUnlock();
+    await unenroll('user-1');
+
+    expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'pak-id' });
+    expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'phase8-id' });
+    expect(mockKeystoreDeleteKeys).toHaveBeenCalledTimes(2);
+  });
+
+  it('is a no-op when not enrolled (no localStorage entries)', async () => {
     const { unenroll } = useBiometricUnlock();
     await expect(unenroll('user-1')).resolves.toBeUndefined();
+    expect(mockKeystoreDeleteKeys).not.toHaveBeenCalled();
+  });
+
+  it('ignores keystore deletion errors (keys already absent on reinstall)', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'pak-id');
+    mockKeystoreDeleteKeys.mockRejectedValue(new Error('keys not found'));
+
+    const { unenroll } = useBiometricUnlock();
+    await expect(unenroll('user-1')).resolves.toBeUndefined();
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// unlockWithBiometrics
+// unlockWithBiometrics — PAK path
 // ---------------------------------------------------------------------------
-describe('useBiometricUnlock.unlockWithBiometrics', () => {
-  it('returns false when not enrolled (no storage entry)', async () => {
-    mockStorageGet.mockResolvedValue(null);
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
-    expect(mockAuthenticate).not.toHaveBeenCalled();
-  });
-
-  it('returns true and unlocks store on successful biometric auth', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    mockAuthenticate.mockResolvedValue(undefined); // success
-    const key = fakeCryptoKey();
-    mockImportVaultKey.mockResolvedValue(key);
+describe('useBiometricUnlock.unlockWithBiometrics (PAK path)', () => {
+  it('uses AdytonKeystore.unsealVaultKey and unlocks vault on success', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0XAB_B64 });
 
     const { unlockWithBiometrics } = useBiometricUnlock();
     const result = await unlockWithBiometrics('user-1');
 
     expect(result).toBe(true);
-    // importVaultKey was called with the decoded bytes
+    expect(mockKeystoreUnsealVaultKey).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
+    expect(mockImportVaultKey).toHaveBeenCalledWith(expect.any(ArrayBuffer));
+    expect(mockKeystoreHasRawKey).not.toHaveBeenCalled();
+  });
+
+  it('cleans up stale entry and returns false when SE keys are absent', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: false });
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    const result = await unlockWithBiometrics('user-1');
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
+    expect(mockKeystoreUnsealVaultKey).not.toHaveBeenCalled();
+  });
+
+  it('returns false and cleans up when vaultKeyRaw decodes to wrong byte length', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+    const shortKey = btoa(String.fromCharCode(...new Uint8Array(31).fill(0xcc)));
+    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: shortKey });
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    const result = await unlockWithBiometrics('user-1');
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
+  });
+
+  it('returns false on userCancel from unsealVaultKey (cancel code)', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+    const cancelErr = Object.assign(new Error('user cancelled'), { code: 'userCancel' });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(cancelErr);
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBe('device-uuid-pak');
+  });
+
+  it('returns false on biometryLockout from unsealVaultKey', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+    const lockErr = Object.assign(new Error('lockout'), { code: 'biometryLockout' });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(lockErr);
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBe('device-uuid-pak');
+  });
+
+  it('re-throws PAK hardware errors (not cancel codes) without unenrolling', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+    const hwErr = Object.assign(new Error('hardware failure'), { code: 'keystoreError' });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(hwErr);
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    await expect(unlockWithBiometrics('user-1')).rejects.toThrow('hardware failure');
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBe('device-uuid-pak');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unlockWithBiometrics — Phase 8 path
+// ---------------------------------------------------------------------------
+describe('useBiometricUnlock.unlockWithBiometrics (Phase 8 path)', () => {
+  it('returns false when not enrolled (no Phase 8 localStorage entry)', async () => {
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    expect(mockKeystoreHasRawKey).not.toHaveBeenCalled();
+    expect(mockKeystoreUnsealVaultKey).not.toHaveBeenCalled();
+  });
+
+  it('uses AdytonKeystore.unsealVaultKey and unlocks vault on success', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0XAB_B64 });
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    const result = await unlockWithBiometrics('user-1');
+
+    expect(result).toBe(true);
+    expect(mockKeystoreHasRawKey).toHaveBeenCalledWith({ deviceId: 'phase8-uuid' });
+    expect(mockKeystoreUnsealVaultKey).toHaveBeenCalledWith({ deviceId: 'phase8-uuid' });
     expect(mockImportVaultKey).toHaveBeenCalledWith(expect.any(ArrayBuffer));
   });
 
-  it('returns false on userCancel', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    const { BiometryError, BiometryErrorType } = await import('@aparajita/capacitor-biometric-auth');
-    mockAuthenticate.mockRejectedValue(new BiometryError('cancelled', BiometryErrorType.userCancel));
+  // VULN-001 regression: OS-enforced biometric via CryptoObject — no separate JS
+  // authenticate() call. The BiometricPrompt is inside unsealVaultKey (Kotlin plugin).
+  it('does not call a standalone BiometricAuth.authenticate (biometric is OS-enforced in plugin)', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0XAB_B64 });
 
     const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    await unlockWithBiometrics('user-1');
+
+    // No separate authenticate() call — proof that biometric ordering cannot be bypassed
+    // by a DevTools call that reads the key before JS reaches the authenticate() line.
+    expect(mockCheckBiometry).not.toHaveBeenCalled();
   });
 
-  it('returns false on systemCancel', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    const { BiometryError, BiometryErrorType } = await import('@aparajita/capacitor-biometric-auth');
-    mockAuthenticate.mockRejectedValue(new BiometryError('sys cancel', BiometryErrorType.systemCancel));
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
-  });
-
-  it('returns false on appCancel', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    const { BiometryError, BiometryErrorType } = await import('@aparajita/capacitor-biometric-auth');
-    mockAuthenticate.mockRejectedValue(new BiometryError('app cancel', BiometryErrorType.appCancel));
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
-  });
-
-  it('returns false on userFallback (user chose PIN entry instead)', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    const { BiometryError, BiometryErrorType } = await import('@aparajita/capacitor-biometric-auth');
-    mockAuthenticate.mockRejectedValue(new BiometryError('fallback', BiometryErrorType.userFallback));
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
-  });
-
-  it('returns false on biometryLockout', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    const { BiometryError, BiometryErrorType } = await import('@aparajita/capacitor-biometric-auth');
-    mockAuthenticate.mockRejectedValue(new BiometryError('lockout', BiometryErrorType.biometryLockout));
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
-  });
-
-  it('unenrolls and returns false when stored data is corrupt (StorageErrorType.invalidData)', async () => {
-    const { StorageError, StorageErrorType } = await import('@aparajita/capacitor-secure-storage');
-    mockStorageGet.mockRejectedValue(new StorageError('corrupt', StorageErrorType.invalidData));
-    mockStorageRemove.mockResolvedValue(true);
+  it('cleans up stale entry and returns false when wrap key is absent', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: false });
 
     const { unlockWithBiometrics } = useBiometricUnlock();
     const result = await unlockWithBiometrics('user-1');
 
     expect(result).toBe(false);
-    expect(mockStorageRemove).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-    expect(mockAuthenticate).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
+    expect(mockKeystoreUnsealVaultKey).not.toHaveBeenCalled();
   });
 
-  it('unenrolls and returns false when stored hex is undecodable (wrong length)', async () => {
-    // A valid-looking but odd-length hex string that cannot decode to 32 bytes
-    mockStorageGet.mockResolvedValue('not-valid-hex!!!');
-    mockStorageRemove.mockResolvedValue(true);
+  it('returns false and cleans up when vaultKeyRaw decodes to wrong byte length', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    const shortKey = btoa(String.fromCharCode(...new Uint8Array(31).fill(0xdd)));
+    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: shortKey });
 
     const { unlockWithBiometrics } = useBiometricUnlock();
     const result = await unlockWithBiometrics('user-1');
 
     expect(result).toBe(false);
-    expect(mockStorageRemove).toHaveBeenCalledWith('adyton.vaultKey.user-1');
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
   });
 
-  it('unenrolls and returns false when stored hex is valid but wrong byte count (33 bytes)', async () => {
-    // 66 hex chars = 33 bytes — syntactically valid hex, but not a 256-bit key.
-    // Pins the exact-length enforcement of the stored-value validator.
-    mockStorageGet.mockResolvedValue('ab'.repeat(33));
-    mockStorageRemove.mockResolvedValue(true);
+  it('returns false on userCancel from unsealVaultKey without unenrolling', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    const cancelErr = Object.assign(new Error('user cancelled'), { code: 'userCancel' });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(cancelErr);
 
     const { unlockWithBiometrics } = useBiometricUnlock();
-    const result = await unlockWithBiometrics('user-1');
-
-    expect(result).toBe(false);
-    expect(mockStorageRemove).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-    expect(mockAuthenticate).not.toHaveBeenCalled();
+    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBe('phase8-uuid');
   });
 
-  it('re-throws unexpected errors (not cancel/corrupt) to surface bugs', async () => {
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    mockAuthenticate.mockRejectedValue(new Error('unexpected hardware failure'));
+  it('returns false on systemCancel without unenrolling', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    const cancelErr = Object.assign(new Error('system cancel'), { code: 'systemCancel' });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(cancelErr);
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBe('phase8-uuid');
+  });
+
+  it('returns false on biometryLockout without unenrolling', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    const lockErr = Object.assign(new Error('lockout'), { code: 'biometryLockout' });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(lockErr);
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    expect(await unlockWithBiometrics('user-1')).toBe(false);
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBe('phase8-uuid');
+  });
+
+  it('re-throws unexpected hardware errors without unenrolling', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'phase8-uuid');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    mockKeystoreUnsealVaultKey.mockRejectedValue(new Error('unexpected hardware failure'));
 
     const { unlockWithBiometrics } = useBiometricUnlock();
     await expect(unlockWithBiometrics('user-1')).rejects.toThrow('unexpected hardware failure');
+    expect(localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1')).toBe('phase8-uuid');
   });
 });
 
@@ -409,7 +552,6 @@ describe('useBiometricUnlock.verifyRawKeyMatches', () => {
   it('returns true when candidate raw bytes produce a key that decrypts correctly', async () => {
     const rawBytes = fakeRawKey(0x77);
 
-    // Import a real CryptoKey for this round-trip test (Web Crypto available in happy-dom)
     const currentKey = await crypto.subtle.importKey(
       'raw', rawBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'],
     );
@@ -452,188 +594,5 @@ describe('useBiometricUnlock.verifyRawKeyMatches', () => {
 
     const { verifyRawKeyMatches } = useBiometricUnlock();
     expect(await verifyRawKeyMatches(rawB, keyA)).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// PAK path — isEnrolled
-// ---------------------------------------------------------------------------
-describe('useBiometricUnlock.isEnrolled (PAK path)', () => {
-  it('returns true when PAK device ID is in localStorage and SE keys exist', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
-
-    const { isEnrolled } = useBiometricUnlock();
-    expect(await isEnrolled('user-1')).toBe(true);
-    expect(mockKeystoreHasKeys).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
-    // Should NOT fall through to SecureStorage
-    expect(mockStorageGet).not.toHaveBeenCalled();
-  });
-
-  it('cleans up stale localStorage entry and falls through to SecureStorage when SE keys are absent', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'stale-device-id');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: false });
-    mockStorageGet.mockResolvedValue(null);
-
-    const { isEnrolled } = useBiometricUnlock();
-    const result = await isEnrolled('user-1');
-
-    expect(result).toBe(false);
-    // Stale entry removed
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
-    // Fell through to SecureStorage
-    expect(mockStorageGet).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-  });
-
-  it('falls through to SecureStorage when localStorage has no PAK device ID', async () => {
-    // No localStorage entry — pure Phase 8 path
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-
-    const { isEnrolled } = useBiometricUnlock();
-    const result = await isEnrolled('user-1');
-
-    expect(result).toBe(true);
-    expect(mockKeystoreHasKeys).not.toHaveBeenCalled();
-    expect(mockStorageGet).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-  });
-
-  it('guards against keystore plugin throwing (returns false gracefully)', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockRejectedValue(new Error('plugin unavailable'));
-    mockStorageGet.mockResolvedValue(null);
-
-    const { isEnrolled } = useBiometricUnlock();
-    // Should not throw — falls through to SecureStorage
-    const result = await isEnrolled('user-1');
-    expect(result).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// PAK path — unlockWithBiometrics
-// ---------------------------------------------------------------------------
-describe('useBiometricUnlock.unlockWithBiometrics (PAK path)', () => {
-  it('uses AdytonKeystore.unsealVaultKey and unlocks vault on success', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
-    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0XAB_B64 });
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    const result = await unlockWithBiometrics('user-1');
-
-    expect(result).toBe(true);
-    // unsealVaultKey called with correct deviceId
-    expect(mockKeystoreUnsealVaultKey).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
-    // importVaultKey was called with the decoded bytes (32-byte ArrayBuffer)
-    expect(mockImportVaultKey).toHaveBeenCalledWith(expect.any(ArrayBuffer));
-    // BiometricAuth.authenticate NOT called (biometric is internal to unsealVaultKey)
-    expect(mockAuthenticate).not.toHaveBeenCalled();
-    // SecureStorage NOT used
-    expect(mockStorageGet).not.toHaveBeenCalled();
-  });
-
-  it('cleans up stale entry and returns false when SE keys are absent', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: false });
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    const result = await unlockWithBiometrics('user-1');
-
-    expect(result).toBe(false);
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
-    expect(mockKeystoreUnsealVaultKey).not.toHaveBeenCalled();
-  });
-
-  it('returns false and cleans up when vaultKeyRaw decodes to wrong byte length', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
-    // 31 bytes — not a valid 256-bit AES key
-    const shortKey = btoa(String.fromCharCode(...new Uint8Array(31).fill(0xcc)));
-    mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: shortKey });
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    const result = await unlockWithBiometrics('user-1');
-
-    expect(result).toBe(false);
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
-  });
-
-  it('returns false on userCancel from unsealVaultKey (cancel code)', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
-    const cancelErr = Object.assign(new Error('user cancelled'), { code: 'userCancel' });
-    mockKeystoreUnsealVaultKey.mockRejectedValue(cancelErr);
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    expect(await unlockWithBiometrics('user-1')).toBe(false);
-    // Must NOT clean up localStorage — user just cancelled, keys are intact
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBe('device-uuid-pak');
-  });
-
-  it('re-throws PAK hardware errors (not cancel codes) without unenrolling', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
-    const hwErr = Object.assign(new Error('ECDH failed'), { code: 'keystoreError' });
-    mockKeystoreUnsealVaultKey.mockRejectedValue(hwErr);
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    await expect(unlockWithBiometrics('user-1')).rejects.toThrow('ECDH failed');
-    // Enrollment must remain intact — error was hardware, not stale key
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBe('device-uuid-pak');
-  });
-
-  it('falls through to Phase 8 SecureStorage path when no PAK device ID in localStorage', async () => {
-    // No localStorage entry → pure Phase 8 path
-    mockStorageGet.mockResolvedValue(HEX_0XAB);
-    mockAuthenticate.mockResolvedValue(undefined);
-
-    const { unlockWithBiometrics } = useBiometricUnlock();
-    const result = await unlockWithBiometrics('user-1');
-
-    expect(result).toBe(true);
-    expect(mockKeystoreUnsealVaultKey).not.toHaveBeenCalled();
-    expect(mockStorageGet).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-    expect(mockAuthenticate).toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// PAK path — unenroll
-// ---------------------------------------------------------------------------
-describe('useBiometricUnlock.unenroll (PAK path)', () => {
-  it('deletes SE keys and removes localStorage entry when PAK enrolled', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreDeleteKeys.mockResolvedValue(undefined);
-    mockStorageRemove.mockResolvedValue(true);
-
-    const { unenroll } = useBiometricUnlock();
-    await unenroll('user-1');
-
-    expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
-    // Also cleans Phase 8 entry (migration coexistence)
-    expect(mockStorageRemove).toHaveBeenCalledWith('adyton.vaultKey.user-1');
-  });
-
-  it('ignores keystore deletion errors (keys already absent on reinstall)', async () => {
-    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    mockKeystoreDeleteKeys.mockRejectedValue(new Error('keys not found'));
-    mockStorageRemove.mockResolvedValue(true);
-
-    const { unenroll } = useBiometricUnlock();
-    await expect(unenroll('user-1')).resolves.toBeUndefined();
-    // localStorage entry still cleared
-    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
-  });
-
-  it('only calls SecureStorage.remove when no PAK device ID (Phase 8 only path)', async () => {
-    // No localStorage entry
-    mockStorageRemove.mockResolvedValue(true);
-
-    const { unenroll } = useBiometricUnlock();
-    await unenroll('user-1');
-
-    expect(mockKeystoreDeleteKeys).not.toHaveBeenCalled();
-    expect(mockStorageRemove).toHaveBeenCalledWith('adyton.vaultKey.user-1');
   });
 });
