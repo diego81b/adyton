@@ -90,7 +90,7 @@ export class WebauthnService {
         id: c.credentialId,
         transports: parseTransports(c.transports),
       })),
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+      authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
     });
 
     await this.redis.setex(`${REG_CHALLENGE_PREFIX}${user.id}`, CHALLENGE_TTL_SECONDS, options.challenge);
@@ -194,7 +194,7 @@ export class WebauthnService {
 
     const options = await generateAuthenticationOptions({
       rpID: rpId(),
-      userVerification: 'preferred',
+      userVerification: 'required',
       allowCredentials: credentials.map((c) => ({
         id: c.credentialId,
         transports: parseTransports(c.transports),
@@ -263,6 +263,7 @@ export class WebauthnService {
         expectedChallenge,
         expectedOrigin: expectedOrigin(),
         expectedRPID: rpId(),
+        requireUserVerification: true,
         credential: {
           id: credential.credentialId,
           publicKey: Buffer.from(credential.publicKey, 'base64url'),

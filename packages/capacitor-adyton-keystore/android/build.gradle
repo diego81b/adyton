@@ -28,4 +28,5 @@ repositories {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "com.getcapacitor:core:8.4.0"
+    implementation "androidx.biometric:biometric:1.1.0"
 }

@@ -6,6 +6,18 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.1] — 2026-06-30
+
+Security patch: three vulnerabilities found in internal audit of v1.1.0.
+
+### Security
+
+- **VULN-001 (HIGH):** Phase 8 biometric unlock no longer reads vault key from `capacitor-secure-storage` before biometric authentication. Vault key is now sealed/unsealed via `AdytonKeystore.sealVaultKey`/`unsealVaultKey` using `BiometricPrompt.authenticate(CryptoObject(cipher))` — the OS withholds the AES-GCM Keystore key until biometric succeeds. A DevTools call cannot retrieve the key by reordering JS execution.
+- **VULN-002 (HIGH):** PAK Keystore AES-GCM wrap key now uses `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` — per-use biometric, no time window, no device credential fallback. Replaced old ECDH+HKDF vault-key sealing (v1 format) with direct AES-GCM wrap (v2 format); existing v1 sealed files are rejected at unseal time, prompting re-enrollment. `BiometricPrompt` is now called with `CryptoObject` for seal and unseal operations.
+- **VULN-003 (LOW):** WebAuthn registration and authentication now enforce `userVerification: 'required'` (was `'preferred'`) and `requireUserVerification: true` in `verifyAuthenticationResponse`. Possession-only passkey assertions are rejected.
+
+---
+
 ## [1.1.0] — 2026-06-30
 
 Bug fixes and security hardening found during v1.1.0 test campaign.

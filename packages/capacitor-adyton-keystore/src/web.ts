@@ -35,6 +35,10 @@ export class AdytonKeystoreWeb extends WebPlugin implements AdytonKeystorePlugin
     return { exists: false };
   }
 
+  async hasRawKey(_opts: { deviceId: string }): Promise<{ exists: boolean }> {
+    return { exists: false };
+  }
+
   async deleteKeys(_opts: { deviceId: string }): Promise<void> {
     throw this.unavailable('AdytonKeystore is not available on web.');
   }
