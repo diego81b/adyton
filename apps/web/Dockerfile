@@ -16,7 +16,9 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/mobile/package.json ./apps/mobile/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/capacitor-adyton-keystore/package.json ./packages/capacitor-adyton-keystore/
 RUN pnpm install --frozen-lockfile
 
 # --- build: run nuxt build (pnpm scopes to apps/web workdir automatically) ---
