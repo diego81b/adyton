@@ -25,6 +25,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS build
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
+COPY packages/capacitor-adyton-keystore ./packages/capacitor-adyton-keystore
 COPY tsconfig.base.json ./
 RUN pnpm --filter @adyton/web build
 
