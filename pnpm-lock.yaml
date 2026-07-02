@@ -213,6 +213,9 @@ importers:
       '@capacitor-community/safe-area':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.4.0)
+      '@capacitor-mlkit/barcode-scanning':
+        specifier: ^8.1.0
+        version: 8.1.0(@capacitor/core@8.4.0)
       '@capacitor/android':
         specifier: ^8.4.0
         version: 8.4.0(@capacitor/core@8.4.0)
@@ -256,6 +259,9 @@ importers:
       '@aparajita/capacitor-secure-storage':
         specifier: ^8.0.0
         version: 8.0.0
+      '@capacitor-mlkit/barcode-scanning':
+        specifier: ^8.1.0
+        version: 8.1.0(@capacitor/core@8.4.0)
       '@capacitor/app':
         specifier: ^8.1.0
         version: 8.1.0(@capacitor/core@8.4.0)
@@ -646,6 +652,11 @@ packages:
 
   '@capacitor-community/safe-area@8.0.1':
     resolution: {integrity: sha512-zVVQ7k94DbOff1mHP8qrZGTJZWyhGZnKHD2eXdcobIoOBFW9CeVphLNZYDCop/DBsHXfv6r8k0/Ac8xMIlwT+A==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor-mlkit/barcode-scanning@8.1.0':
+    resolution: {integrity: sha512-lhOYHZINLOCT0i5YSbSMkouik3zh0BncJouumNTgXCT0/533Z4733jAX9zv+nEd++bE8QHeUl2g0NrewreumnQ==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -9393,6 +9404,10 @@ snapshots:
   '@borewit/text-codec@0.2.2': {}
 
   '@capacitor-community/safe-area@8.0.1(@capacitor/core@8.4.0)':
+    dependencies:
+      '@capacitor/core': 8.4.0
+
+  '@capacitor-mlkit/barcode-scanning@8.1.0(@capacitor/core@8.4.0)':
     dependencies:
       '@capacitor/core': 8.4.0
 

@@ -37,6 +37,10 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- ML Kit barcode scanning: bundles the barcode-detection model with the app
+             instead of downloading it on first use (@capacitor-mlkit/barcode-scanning) -->
+        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
     </application>
 
     <!-- Permissions -->
@@ -45,4 +49,7 @@
     <!-- Biometric prompt for vault unlock (@aparajita/capacitor-biometric-auth does
          not merge this from its library manifest) -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- In-app PAK QR scanning (@capacitor-mlkit/barcode-scanning does not merge this
+         from its library manifest) -->
+    <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

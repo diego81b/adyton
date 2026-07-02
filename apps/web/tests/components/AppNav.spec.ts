@@ -1,12 +1,22 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { ref } from 'vue';
 
 // useRoute is a Nuxt auto-import (global) in these components.
 const route = { path: '/vault' };
 vi.stubGlobal('useRoute', () => route);
 
+const mockIsNative = ref(false);
+vi.mock('../../app/composables/useNativeRuntime', () => ({
+  useNativeRuntime: () => ({ isNative: mockIsNative.value }),
+}));
+
 const { default: AppSidebar } = await import('../../app/components/AppSidebar.vue');
 const { default: AppBottomNav } = await import('../../app/components/AppBottomNav.vue');
+
+beforeEach(() => {
+  mockIsNative.value = false;
+});
 
 const UIconStub = { name: 'UIcon', props: ['name'], template: '<i :data-icon="name" />' };
 const BrandMarkStub = { name: 'BrandMark', template: '<div class="brandmark" />' };
@@ -42,6 +52,20 @@ describe('AppSidebar', () => {
     const vaultLink = w.findAll('a').find((a) => a.attributes('data-to') === '/vault')!;
     expect(vaultLink.attributes('class')).toContain('text-primary');
   });
+
+  it('hides the native-only Scan item on web', () => {
+    mockIsNative.value = false;
+    const w = mountNav(AppSidebar);
+    const links = w.findAll('a').map((a) => a.attributes('data-to'));
+    expect(links).not.toContain('/scan');
+  });
+
+  it('shows the Scan item when native', () => {
+    mockIsNative.value = true;
+    const w = mountNav(AppSidebar);
+    const links = w.findAll('a').map((a) => a.attributes('data-to'));
+    expect(links).toEqual(['/vault', '/generator', '/scan', '/settings']);
+  });
 });
 
 describe('AppBottomNav', () => {
@@ -51,5 +75,19 @@ describe('AppBottomNav', () => {
     expect(w.findAll('a')).toHaveLength(3);
     const gen = w.findAll('a').find((a) => a.attributes('data-to') === '/generator')!;
     expect(gen.attributes('class')).toContain('text-primary');
+  });
+
+  it('hides the native-only Scan item on web', () => {
+    mockIsNative.value = false;
+    const w = mountNav(AppBottomNav);
+    const links = w.findAll('a').map((a) => a.attributes('data-to'));
+    expect(links).not.toContain('/scan');
+  });
+
+  it('shows the Scan item when native', () => {
+    mockIsNative.value = true;
+    const w = mountNav(AppBottomNav);
+    const links = w.findAll('a').map((a) => a.attributes('data-to'));
+    expect(links).toEqual(['/vault', '/generator', '/scan', '/settings']);
   });
 });
