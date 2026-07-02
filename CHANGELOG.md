@@ -6,6 +6,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.2.0] — 2026-07-02
+
+PAK reliability fixes and a safer recovery kit workflow.
+
+### Added
+
+- Recovery kit "Regenerate" action (Settings): re-verify master password, rewrap the vault key under a fresh salt and mnemonic, and replace the stored kit — no longer requires enrolling a phone to get a new recovery kit.
+- PAK unlock now detects a stale/ghost enrollment (server has an active device record but local key data is missing) and offers in-place cleanup instead of a dead end.
+
+### Fixed
+
+- PAK self-revoke ("Remove" on a phone) sent the wrong device identifier to the server, so the revocation silently failed after local key material was already deleted — leaving the device active on the server indefinitely and causing later unlock attempts to fail with a misleading "Device not enrolled" error.
+- PAK phone enrollment could report "Received incomplete vault key payload" almost immediately due to a status-value mismatch between frontend and backend during polling.
+- Login no longer discards the pending QR payload and destination when it needs to redirect an unauthenticated phone to sign in first.
+
+### Changed
+
+- Recovery kit's destructive one-click "Revoke" button removed in favor of "Regenerate" — the recovery kit can no longer be deleted without immediately being replaced by a new one.
+
+---
+
 ## [1.1.1] — 2026-06-30
 
 Security patch: three vulnerabilities found in internal audit of v1.1.0.
