@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 import { useCryptoStore } from '~/stores/crypto';
 import { useWebAuthn } from '~/composables/useWebAuthn';
@@ -11,6 +11,14 @@ const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
 const { authenticateWithPasskey } = useWebAuthn();
 const router = useRouter();
+const route = useRoute();
+
+// Only honor same-origin, path-relative redirects (e.g. '/pak/enroll?d=...') — never
+// an absolute URL or protocol-relative '//host' that could send the user off-site.
+function redirectTarget(): string {
+  const raw = route.query['redirect'];
+  return typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/vault';
+}
 
 const email = ref('');
 const password = ref('');
@@ -34,7 +42,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
 async function completeLogin(kdfSalt: string) {
   await cryptoStore.deriveKey(password.value, kdfSalt);
   password.value = '';
-  await router.push('/vault');
+  await router.push(redirectTarget());
 }
 
 async function onSubmit() {
