@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Adyton uses the camera to scan phone-key QR codes.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Adyton uses Face ID to unlock your vault.</string>
 	<key>UILaunchStoryboardName</key>

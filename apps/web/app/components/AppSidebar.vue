@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { NAV_ITEMS } from '../utils/nav';
+import { useNativeRuntime } from '../composables/useNativeRuntime';
 
 // useRoute is a Nuxt auto-import (framework composable) — matches unlock.vue.
 const route = useRoute();
+const { isNative } = useNativeRuntime();
+
+const visibleNavItems = computed(() => NAV_ITEMS.filter((item) => !item.nativeOnly || isNative));
 
 const activeId = computed(() => {
   const match = NAV_ITEMS.find((item) => route.path === item.to || route.path.startsWith(`${item.to}/`));
@@ -22,7 +26,7 @@ const activeId = computed(() => {
 
     <nav class="p-3 space-y-1 flex-1">
       <NuxtLink
-        v-for="item in NAV_ITEMS"
+        v-for="item in visibleNavItems"
         :key="item.id"
         :to="item.to"
         class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition text-left group"

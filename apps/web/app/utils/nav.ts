@@ -9,10 +9,12 @@ export interface NavItem {
   subtitle: string;
   icon: string; // lucide icon name (self-hosted via @iconify-json/lucide)
   to: string;
+  nativeOnly?: boolean; // hide on web — no camera scanning use case in a desktop browser
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'vault', label: 'Vault', subtitle: 'All secrets', icon: 'i-lucide-lock', to: '/vault' },
   { id: 'generator', label: 'Generator', subtitle: 'Passwords & passphrases', icon: 'i-lucide-zap', to: '/generator' },
+  { id: 'scan', label: 'Scan', subtitle: 'Scan a phone-key QR', icon: 'i-lucide-qr-code', to: '/scan', nativeOnly: true },
   { id: 'settings', label: 'Settings', subtitle: 'Account & security', icon: 'i-lucide-settings', to: '/settings' },
 ];
