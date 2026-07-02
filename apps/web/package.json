@@ -23,6 +23,7 @@
     "@adyton/shared": "workspace:*",
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.0",
     "@nuxt/ui": "^4.0.0",

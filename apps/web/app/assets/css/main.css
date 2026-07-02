@@ -211,3 +211,10 @@ input::-ms-clear {
   -webkit-mask: radial-gradient(circle at center, transparent 56%, black 58%);
   mask: radial-gradient(circle at center, transparent 56%, black 58%);
 }
+
+/* In-app QR scanner (QrScannerOverlay, toggled on <html>/<body> via JS): the
+   barcode-scanning plugin renders the native camera preview behind the WebView, so
+   the WebView's own background must go fully transparent for it to show through. */
+@utility qr-scanner-transparent {
+  background: transparent !important;
+}
