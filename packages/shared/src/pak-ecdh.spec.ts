@@ -6,6 +6,7 @@ import {
   deriveQrSessionKey,
   encryptForTransport,
   decryptFromTransport,
+  computeDevicePublicKeyFingerprint,
   PAK_PROTOCOL,
 } from './pak-ecdh.js';
 
@@ -89,6 +90,49 @@ describe('exportPublicKeySpki / importPublicKeySpki', () => {
 
     expect(imported.type).toBe('public');
     expect((imported.algorithm as EcKeyAlgorithm).namedCurve).toBe('P-256');
+  });
+});
+
+describe('computeDevicePublicKeyFingerprint', () => {
+  it('matches a known SHA-256 test vector (server-side algorithm: sha256(base64-decode(spki)))', async () => {
+    // Vector computed independently: sha256(base64decode(btoa('adyton-test-fingerprint-vector'))).
+    const spki = 'YWR5dG9uLXRlc3QtZmluZ2VycHJpbnQtdmVjdG9y';
+    const expected = 'df5e9d207e9ec9e12779a922f95d49de33fae673073e4595ae2936a43d20bc45';
+
+    const fingerprint = await computeDevicePublicKeyFingerprint(spki);
+
+    expect(fingerprint).toBe(expected);
+  });
+
+  it('returns a 64-character lowercase hex string', async () => {
+    const pair = await generateEphemeralKeypair();
+    const spki = await exportPublicKeySpki(pair.publicKey);
+
+    const fingerprint = await computeDevicePublicKeyFingerprint(spki);
+
+    expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('is deterministic — same key produces the same fingerprint every time', async () => {
+    const pair = await generateEphemeralKeypair();
+    const spki = await exportPublicKeySpki(pair.publicKey);
+
+    const first = await computeDevicePublicKeyFingerprint(spki);
+    const second = await computeDevicePublicKeyFingerprint(spki);
+
+    expect(first).toBe(second);
+  });
+
+  it('produces different fingerprints for different keys', async () => {
+    const pairA = await generateEphemeralKeypair();
+    const pairB = await generateEphemeralKeypair();
+    const spkiA = await exportPublicKeySpki(pairA.publicKey);
+    const spkiB = await exportPublicKeySpki(pairB.publicKey);
+
+    const fingerprintA = await computeDevicePublicKeyFingerprint(spkiA);
+    const fingerprintB = await computeDevicePublicKeyFingerprint(spkiB);
+
+    expect(fingerprintA).not.toBe(fingerprintB);
   });
 });
 

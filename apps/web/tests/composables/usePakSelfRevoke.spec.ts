@@ -10,10 +10,12 @@ import { createPinia, setActivePinia } from 'pinia';
 // --- @adyton/capacitor-keystore ---
 const mockKeystoreUnsealVaultKey = vi.fn();
 const mockKeystoreDeleteKeys = vi.fn();
+const mockKeystoreGetPublicKeys = vi.fn();
 vi.mock('@adyton/capacitor-keystore', () => ({
   AdytonKeystore: {
     unsealVaultKey: (...args: unknown[]) => mockKeystoreUnsealVaultKey(...args),
     deleteKeys: (...args: unknown[]) => mockKeystoreDeleteKeys(...args),
+    getPublicKeys: (...args: unknown[]) => mockKeystoreGetPublicKeys(...args),
   },
 }));
 
@@ -62,6 +64,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 // ---------------------------------------------------------------------------
 import { usePakSelfRevoke } from '../../app/composables/usePakSelfRevoke';
 import { useAuthStore } from '../../app/stores/auth';
+import { computeDevicePublicKeyFingerprint } from '@adyton/shared';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -75,20 +78,33 @@ const RAW_0XAB_B64 = btoa(String.fromCharCode(...new Uint8Array(32).fill(0xab)))
 // Expected hex encoding of 32 bytes of 0xab (what SecureStorage.set should receive)
 const HEX_0XAB = 'ab'.repeat(32);
 
+// Fake Keystore ECDH public key (SPKI, base64) — the server-side row's
+// publicKeyFingerprint is the SHA-256 of exactly this value.
+const FAKE_ECDH_PUBLIC_KEY_B64 = btoa(String.fromCharCode(...new Uint8Array(65).fill(0x04)));
+const MATCHING_FINGERPRINT = await computeDevicePublicKeyFingerprint(FAKE_ECDH_PUBLIC_KEY_B64);
+const SERVER_DEVICE_ROW_ID = 'server-row-uuid-99';
+
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
+// Default GET /pak/devices response — one matching, non-revoked server row.
+function matchingDevicesResponse() {
+  return [{ id: SERVER_DEVICE_ROW_ID, publicKeyFingerprint: MATCHING_FINGERPRINT, revokedAt: null }];
+}
+
 beforeEach(() => {
   setActivePinia(createPinia());
   isNativePlatform = true;
   mockKeystoreUnsealVaultKey.mockReset();
   mockKeystoreDeleteKeys.mockReset();
+  mockKeystoreGetPublicKeys.mockReset();
   mockStorageSet.mockReset();
   localStorageStore.clear();
 
   // Defaults: operations succeed
   mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0XAB_B64 });
   mockKeystoreDeleteKeys.mockResolvedValue(undefined);
+  mockKeystoreGetPublicKeys.mockResolvedValue({ ecdhPublicKey: FAKE_ECDH_PUBLIC_KEY_B64 });
   mockStorageSet.mockResolvedValue(undefined);
 });
 
@@ -130,6 +146,18 @@ describe('usePakSelfRevoke.isPakDevice', () => {
 // revokeThisDevice
 // ---------------------------------------------------------------------------
 describe('usePakSelfRevoke.revokeThisDevice', () => {
+  // Shared default: GET /pak/devices resolves the one matching, non-revoked server
+  // row. Individual tests override via apiFetchSpy.mockImplementation(...) as needed.
+  let apiFetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    const auth = useAuthStore();
+    apiFetchSpy = vi.spyOn(auth, 'apiFetch').mockImplementation(async (path: unknown) => {
+      if (path === '/pak/devices') return matchingDevicesResponse();
+      return undefined;
+    });
+  });
+
   it('throws when called on web platform', async () => {
     isNativePlatform = false;
     const { revokeThisDevice } = usePakSelfRevoke();
@@ -148,10 +176,8 @@ describe('usePakSelfRevoke.revokeThisDevice', () => {
     expect(mockKeystoreDeleteKeys).not.toHaveBeenCalled();
   });
 
-  it('completes the full revocation flow in correct order', async () => {
+  it('completes the full revocation flow in correct order, using the server row id — not the local Keystore alias — for the DELETE (regression)', async () => {
     localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    const auth = useAuthStore();
-    const apiFetchSpy = vi.spyOn(auth, 'apiFetch').mockResolvedValue(undefined);
 
     const { revokeThisDevice } = usePakSelfRevoke();
     const result = await revokeThisDevice('user-1');
@@ -159,29 +185,66 @@ describe('usePakSelfRevoke.revokeThisDevice', () => {
     // Returns true on success
     expect(result).toBe(true);
 
-    // Step 3: unsealVaultKey called with correct deviceId
+    // Step 3: resolved the server row via GET /pak/devices
+    expect(apiFetchSpy).toHaveBeenCalledWith('/pak/devices');
+
+    // Step 4: unsealVaultKey called with correct local deviceId
     expect(mockKeystoreUnsealVaultKey).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
 
-    // Step 4: SecureStorage.set called with base64-decoded hex (not raw base64)
+    // Step 5: SecureStorage.set called with base64-decoded hex (not raw base64)
     expect(mockStorageSet).toHaveBeenCalledWith(KEY_PREFIX + 'user-1', HEX_0XAB);
 
-    // Step 5: SE keys deleted
+    // Step 6: SE keys deleted
     expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
 
-    // Step 6: localStorage marker removed
+    // Step 7: localStorage marker removed
     expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
 
-    // Step 7: DELETE API called with correct URL and method
+    // Step 8: DELETE uses the SERVER row id resolved by fingerprint — NOT 'device-uuid-pak'
+    // (the local Keystore alias). Sending the local alias always 404s server-side; this is
+    // the bug that used to leave the server enrollment active forever.
     expect(apiFetchSpy).toHaveBeenCalledWith(
-      '/pak/devices/device-uuid-pak?reason=safe',
+      `/pak/devices/${SERVER_DEVICE_ROW_ID}?reason=safe`,
       { method: 'DELETE' },
     );
   });
 
+  it('skips the DELETE call when no matching, non-revoked server device is found — but still cleans up local state', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    apiFetchSpy.mockImplementation(async (path: unknown) => {
+      if (path === '/pak/devices') return []; // nothing matches server-side
+      return undefined;
+    });
+
+    const { revokeThisDevice } = usePakSelfRevoke();
+    const result = await revokeThisDevice('user-1');
+
+    expect(result).toBe(true);
+    expect(mockKeystoreDeleteKeys).toHaveBeenCalledWith({ deviceId: 'device-uuid-pak' });
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBeNull();
+    // Only the GET was made — no DELETE, since there was nothing to revoke server-side
+    expect(apiFetchSpy).toHaveBeenCalledTimes(1);
+    expect(apiFetchSpy).toHaveBeenCalledWith('/pak/devices');
+  });
+
+  it('propagates a resolution network error WITHOUT touching any local Keystore/localStorage state', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    apiFetchSpy.mockRejectedValue(new Error('Network error'));
+
+    const { revokeThisDevice, error, loading } = usePakSelfRevoke();
+    await expect(revokeThisDevice('user-1')).rejects.toThrow('Network error');
+
+    expect(error.value).toBe('Network error');
+    expect(loading.value).toBe(false);
+    // Nothing destructive happened — resolution failed before any local teardown step
+    expect(mockKeystoreUnsealVaultKey).not.toHaveBeenCalled();
+    expect(mockStorageSet).not.toHaveBeenCalled();
+    expect(mockKeystoreDeleteKeys).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PAK_DEVICE_KEY_PREFIX + 'user-1')).toBe('device-uuid-pak');
+  });
+
   it('stores Phase-8 fallback BEFORE deleting SE keys (order is safety-critical)', async () => {
     localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    const auth = useAuthStore();
-    vi.spyOn(auth, 'apiFetch').mockResolvedValue(undefined);
 
     const callOrder: string[] = [];
     mockStorageSet.mockImplementation(async () => { callOrder.push('SecureStorage.set'); });
@@ -241,8 +304,6 @@ describe('usePakSelfRevoke.revokeThisDevice', () => {
 
   it('resets loading to false after success', async () => {
     localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
-    const auth = useAuthStore();
-    vi.spyOn(auth, 'apiFetch').mockResolvedValue(undefined);
 
     const { revokeThisDevice, loading } = usePakSelfRevoke();
     await revokeThisDevice('user-1');
@@ -282,8 +343,6 @@ describe('usePakSelfRevoke.revokeThisDevice', () => {
     const RAW_0X01_B64 = btoa(String.fromCharCode(...new Uint8Array(32).fill(0x01)));
     localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
     mockKeystoreUnsealVaultKey.mockResolvedValue({ vaultKeyRaw: RAW_0X01_B64 });
-    const auth = useAuthStore();
-    vi.spyOn(auth, 'apiFetch').mockResolvedValue(undefined);
 
     const { revokeThisDevice } = usePakSelfRevoke();
     await revokeThisDevice('user-1');
