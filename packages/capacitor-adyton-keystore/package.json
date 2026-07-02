@@ -18,7 +18,6 @@
   },
   "keywords": ["capacitor", "plugin", "android", "keystore", "ecdh"],
   "capacitor": {
-    "ios": { "src": "ios" },
     "android": { "src": "android" }
   },
   "scripts": {

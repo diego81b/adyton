@@ -44,7 +44,7 @@ if "%1"=="shell-db"        ( docker compose -f docker-compose.yml -f docker-comp
 REM mobile-build: generate static web assets (API URL baked in) + cap sync → ready for Android Studio
 if "%1"=="mobile-build" (
     set NUXT_PUBLIC_API_BASE_URL=https://api-adyton.diegobaldeschi.dev
-    pnpm --filter @adyton/web generate && pnpm --filter @adyton/mobile sync
+    call pnpm --filter @adyton/web generate && call pnpm --filter @adyton/mobile sync
 ) & exit /b
 
 REM mobile-open-android: open Android Studio for APK/AAB build
@@ -57,7 +57,7 @@ if "%1"=="mobile-dev" (
     adb reverse tcp:30000 tcp:30000
     adb reverse tcp:3000 tcp:3000
     set CAP_SERVER_URL=http://localhost:30000
-    pnpm --filter @adyton/mobile sync && pnpm --filter @adyton/mobile run:android
+    call pnpm --filter @adyton/mobile sync && call pnpm --filter @adyton/mobile run:android
 ) & exit /b
 
 if "%1"=="prod-up"         ( docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d ) & exit /b

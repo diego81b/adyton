@@ -21,9 +21,9 @@ interface EnrollQrPayload {
   m: 'enroll';
 }
 
-// Backend poll response
+// Backend poll response — mirrors EnrollVaultStatusResponseDto (apps/api/src/pak/dto/pak-response.dto.ts)
 interface EnrollVaultPollResponse {
-  status: 'pending' | 'ready' | 'expired';
+  status: 'waiting' | 'ready';
   ciphertext?: string;
   iv?: string;
 }
@@ -107,7 +107,7 @@ async function runEnrollment() {
   if (!authStore.user) {
     const ok = await authStore.initialize();
     if (!ok) {
-      await router.push('/login');
+      await router.push({ path: '/login', query: { redirect: route.fullPath } });
       return;
     }
   }
@@ -211,13 +211,8 @@ async function pollEnrollVault() {
       `/auth/enroll-vault/${qrData.s}`,
     );
 
-    if (response.status === 'pending') {
+    if (response.status === 'waiting') {
       schedulePoll();
-      return;
-    }
-
-    if (response.status === 'expired') {
-      setError('Enrollment session expired. Please scan the QR code again.');
       return;
     }
 

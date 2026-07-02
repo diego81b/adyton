@@ -25,7 +25,15 @@ interface QrPayload {
   c: string; // challengeHex
 }
 
-type ApprovePhase = 'loading' | 'ready' | 'approving' | 'success' | 'error' | 'not-enrolled';
+type ApprovePhase =
+  | 'loading'
+  | 'ready'
+  | 'approving'
+  | 'success'
+  | 'error'
+  | 'not-enrolled'
+  | 'stale-enrollment'
+  | 'cleaning-up';
 
 const PAK_DEVICE_KEY_PREFIX = 'adyton_pak_device_';
 
@@ -53,7 +61,7 @@ onMounted(async () => {
   if (!authStore.user) {
     const ok = await authStore.initialize();
     if (!ok) {
-      await router.push('/login');
+      await router.push({ path: '/login', query: { redirect: route.fullPath } });
       return;
     }
   }
@@ -100,9 +108,13 @@ onMounted(async () => {
 
 async function approve() {
   if (!qrData || !enrolledDevice) return;
+  // Reaching this point already proved (onMounted) that the server has an active
+  // enrollment for this account. If local Keystore/localStorage doesn't back it up,
+  // that's a stale/ghost enrollment (e.g. app reinstalled), not "never enrolled" —
+  // see stale-enrollment phase below for the distinction.
   const localDeviceId = localStorage.getItem(PAK_DEVICE_KEY_PREFIX + authStore.user!.id);
   if (!localDeviceId) {
-    approvePhase.value = 'not-enrolled';
+    approvePhase.value = 'stale-enrollment';
     return;
   }
   approvePhase.value = 'approving';
@@ -112,7 +124,7 @@ async function approve() {
     // Verify keys are still present in Keystore before attempting biometric prompt
     const { exists } = await AdytonKeystore.hasKeys({ deviceId: localDeviceId });
     if (!exists) {
-      approvePhase.value = 'not-enrolled';
+      approvePhase.value = 'stale-enrollment';
       return;
     }
 
@@ -150,6 +162,25 @@ async function approve() {
       err !== null && typeof err === 'object' && 'message' in err
         ? String((err as { message: unknown }).message)
         : 'Approval failed. Please try again.';
+  }
+}
+
+async function removeStaleEnrollment() {
+  if (!enrolledDevice) return;
+  approvePhase.value = 'cleaning-up';
+  approveError.value = null;
+
+  try {
+    // Uses the real server-side row id (from GET /pak/devices), not any local marker —
+    // exactly the id class of bug that left this enrollment stale in the first place.
+    await authStore.apiFetch(`/pak/devices/${enrolledDevice.id}?reason=safe`, { method: 'DELETE' });
+    await router.push('/settings');
+  } catch (err: unknown) {
+    approvePhase.value = 'error';
+    approveError.value =
+      err !== null && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'Failed to remove the stale enrollment. Please try again from Settings.';
   }
 }
 
@@ -192,6 +223,38 @@ async function decline() {
         <UButton block size="lg" variant="ghost" @click="router.push('/settings')">
           Go to Settings
         </UButton>
+      </div>
+
+      <!-- Stale enrollment: server has this device enrolled, but local key data is gone -->
+      <div v-else-if="approvePhase === 'stale-enrollment' || approvePhase === 'cleaning-up'" class="space-y-4">
+        <UAlert
+          color="warning"
+          variant="soft"
+          icon="i-lucide-shield-alert"
+          title="Stale enrollment"
+          description="The server still lists this device as a phone key, but its local key data is missing (for example, the app was reinstalled or its storage was cleared). Remove the stale enrollment, then re-enroll this phone from your desktop."
+        />
+        <div class="space-y-2">
+          <UButton
+            block
+            size="lg"
+            color="primary"
+            :loading="approvePhase === 'cleaning-up'"
+            :disabled="approvePhase === 'cleaning-up'"
+            @click="removeStaleEnrollment"
+          >
+            Remove stale enrollment
+          </UButton>
+          <UButton
+            block
+            size="lg"
+            variant="ghost"
+            :disabled="approvePhase === 'cleaning-up'"
+            @click="router.push('/vault')"
+          >
+            Back to Vault
+          </UButton>
+        </div>
       </div>
 
       <!-- Ready to approve -->

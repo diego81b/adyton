@@ -1,6 +1,8 @@
 import { ref } from 'vue';
+import { computeDevicePublicKeyFingerprint } from '@adyton/shared';
 import { useNativeRuntime } from './useNativeRuntime';
 import { useAuthStore } from '../stores/auth';
+import type { PakDevice } from './usePakDevices';
 
 // Storage key prefix — Phase 8 secure-storage enrolled vault keys.
 const KEY_PREFIX = 'adyton.vaultKey.';
@@ -62,19 +64,44 @@ export function usePakSelfRevoke() {
   }
 
   /**
+   * Resolves the server-side DeviceVaultKey row for the local Keystore alias `deviceId`.
+   *
+   * `deviceId` (the Keystore alias / localStorage marker) is a purely client-generated UUID
+   * (see enroll.vue) — the server never sees or stores it. The server only knows the device
+   * by its own generated row `id` and by `publicKeyFingerprint` (SHA-256 of the SPKI public
+   * key). To revoke the right row we recompute that fingerprint locally from the still-present
+   * Keystore public key and match it against GET /pak/devices.
+   *
+   * Returns null if no matching, non-revoked server row is found (e.g. it was already
+   * revoked from another device) — the caller should still clean up local state in that case.
+   */
+  async function resolveServerDeviceId(deviceId: string): Promise<string | null> {
+    const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
+    const { ecdhPublicKey } = await AdytonKeystore.getPublicKeys({ deviceId });
+    const fingerprint = await computeDevicePublicKeyFingerprint(ecdhPublicKey);
+
+    const auth = useAuthStore();
+    const devices = await auth.apiFetch<PakDevice[]>('/pak/devices');
+    const match = devices.find((d) => d.publicKeyFingerprint === fingerprint && d.revokedAt === null);
+    return match?.id ?? null;
+  }
+
+  /**
    * Revokes THIS device as a PAK key.
    *
    * Steps (in order):
    * 1. Read device ID from localStorage ('adyton_pak_device_' + userId)
    * 2. If missing: throw Error('This device is not enrolled as a PAK key')
-   * 3. Call AdytonKeystore.unsealVaultKey({ deviceId }) — triggers biometric prompt
+   * 3. Resolve the server-side device row ID via resolveServerDeviceId() — done before any
+   *    destructive local step so a network failure here leaves nothing torn down.
+   * 4. Call AdytonKeystore.unsealVaultKey({ deviceId }) — triggers biometric prompt
    *    - On user cancel (errorCode in CANCEL_CODES): return false
    *    - On other error: rethrow
-   * 4. Store raw bytes in SecureStorage under KEY_PREFIX + userId (Phase 8 restore)
-   * 5. Call AdytonKeystore.deleteKeys({ deviceId }) — removes SE keypair
-   * 6. Remove localStorage marker ('adyton_pak_device_' + userId)
-   * 7. DELETE /devices/:id?reason=safe
-   * 8. Return true on success
+   * 5. Store raw bytes in SecureStorage under KEY_PREFIX + userId (Phase 8 restore)
+   * 6. Call AdytonKeystore.deleteKeys({ deviceId }) — removes SE keypair
+   * 7. Remove localStorage marker ('adyton_pak_device_' + userId)
+   * 8. If a server device row was resolved: DELETE /pak/devices/:id?reason=safe
+   * 9. Return true on success
    *
    * Sets loading=true during the operation; always resets loading=false in finally.
    * Sets error on failure (user cancel returns false cleanly without setting error).
@@ -103,7 +130,10 @@ export function usePakSelfRevoke() {
     error.value = null;
 
     try {
-      // Step 3: unseal vault key from SE (triggers biometric prompt internally)
+      // Step 3: resolve the server-side row BEFORE any destructive local step
+      const serverDeviceId = await resolveServerDeviceId(deviceId);
+
+      // Step 4: unseal vault key from SE (triggers biometric prompt internally)
       const { AdytonKeystore } = await import('@adyton/capacitor-keystore');
       let vaultKeyRaw: string;
       try {
@@ -126,26 +156,28 @@ export function usePakSelfRevoke() {
       }
       const raw = rawBytes.buffer as ArrayBuffer;
 
-      // Step 4: restore Phase 8 fallback BEFORE deleting SE keys.
+      // Step 5: restore Phase 8 fallback BEFORE deleting SE keys.
       // Order is safety-critical: if SecureStorage.set fails after deleteKeys, the user
       // loses biometric unlock entirely with no fallback.
       const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
       await SecureStorage.set(KEY_PREFIX + userId, bytesToHex(raw));
       rawBytes.fill(0); // zeroize sensitive bytes after storing hex
 
-      // Step 5: delete SE keypair from Android Keystore
+      // Step 6: delete SE keypair from Android Keystore
       await AdytonKeystore.deleteKeys({ deviceId });
 
-      // Step 6: remove localStorage marker — useBiometricUnlock now routes to Phase 8
+      // Step 7: remove localStorage marker — useBiometricUnlock now routes to Phase 8
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem(PAK_DEVICE_KEY_PREFIX + userId);
       }
 
-      // Step 7: notify server
-      const auth = useAuthStore();
-      await auth.apiFetch(`/pak/devices/${deviceId}?reason=safe`, { method: 'DELETE' });
+      // Step 8: notify server — only if a matching, still-active row was found
+      if (serverDeviceId !== null) {
+        const auth = useAuthStore();
+        await auth.apiFetch(`/pak/devices/${serverDeviceId}?reason=safe`, { method: 'DELETE' });
+      }
 
-      // Step 8: done
+      // Step 9: done
       return true;
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : String(err);
