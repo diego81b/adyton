@@ -37,6 +37,13 @@ const statusHint = computed(() =>
 // the explicit retry button.
 const biometricAvailable = ref(false);
 const biometricLoading = ref(false);
+// While biometric is available, the password form stays collapsed behind a manual
+// toggle so the auto-attempt genuinely reads as "no further clicks needed" instead of
+// showing both the biometric CTA and the full form at once. Any failure path (cancel,
+// hardware error, stale-key unenroll, network error) reveals it immediately so the
+// fallback is never more than one tap away.
+const passwordFormRevealed = ref(false);
+const showPasswordForm = computed(() => !biometricAvailable.value || passwordFormRevealed.value);
 
 // PAK QR unlock — desktop-only (phone has the key, desktop shows the QR)
 const pak = usePakQrLogin();
@@ -103,7 +110,8 @@ async function attemptBiometric() {
   try {
     const ok = await biometric.unlockWithBiometrics(authStore.user.id);
     if (!ok) {
-      // User cancelled the prompt — stay on the page, show the retry button.
+      // User cancelled the prompt — stay on the page, reveal the password fallback.
+      passwordFormRevealed.value = true;
       biometricLoading.value = false;
       return;
     }
@@ -112,6 +120,9 @@ async function attemptBiometric() {
     await vault.fetchAll();
     await router.push('/vault');
   } catch (err: unknown) {
+    // Every failure branch below is a dead end for the biometric path this round —
+    // reveal the password fallback immediately rather than leaving it hidden.
+    passwordFormRevealed.value = true;
     cryptoStore.lock();
     vault.clear();
     // A fetch/API failure carries a `status` — the key may be fine, the network
@@ -208,11 +219,19 @@ async function onSubmit() {
         >
           Unlock with biometrics
         </UButton>
-        <div class="relative my-5 flex items-center">
+        <div v-if="showPasswordForm" class="relative my-5 flex items-center">
           <div class="flex-1 border-t border-default" />
           <span class="mx-3 text-[11px] text-muted">or use master password</span>
           <div class="flex-1 border-t border-default" />
         </div>
+        <button
+          v-else
+          type="button"
+          class="mt-4 block w-full text-center text-xs text-muted hover:text-default hover:underline"
+          @click="passwordFormRevealed = true"
+        >
+          Use master password instead
+        </button>
       </div>
 
       <!-- PAK QR unlock: desktop-only — phone holds the encrypted vault key -->
@@ -258,7 +277,7 @@ async function onSubmit() {
         </div>
       </template>
 
-      <UForm v-show="!showQr" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
+      <UForm v-show="!showQr && showPasswordForm" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
         <UFormField
           name="password"
           label="Master Password"

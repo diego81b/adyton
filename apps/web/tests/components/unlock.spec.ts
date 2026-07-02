@@ -238,6 +238,66 @@ describe('unlock page — biometric: native, enrolled', () => {
 });
 
 // =============================================================================
+// `isVisible()` relies on jsdom's getComputedStyle, which doesn't reliably resolve
+// inline styles on elements detached from `document` (VTU's default mount target) —
+// so these assertions read the v-show'd <form>'s own style attribute directly.
+function passwordFormHidden(w: ReturnType<typeof mountPage>): boolean {
+  const style = w.find('form').attributes('style') ?? '';
+  return style.includes('display: none') || style.includes('display:none');
+}
+
+describe('unlock page — password form visibility toggle', () => {
+  beforeEach(() => {
+    mockIsNative.value = true;
+    mockIsEnrolled.mockResolvedValue(true);
+  });
+
+  it('hides the password form while the biometric auto-attempt is in flight, shows a text fallback link instead', async () => {
+    // Never-resolving promise: keeps attemptBiometric() suspended mid-attempt so we
+    // can inspect the "hidden" state before any failure path reveals the form.
+    mockUnlockWithBiometrics.mockReturnValue(new Promise(() => {}));
+
+    const w = mountPage();
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(true);
+    expect(w.text()).toContain('Use master password instead');
+  });
+
+  it('reveals the password form when the fallback link is clicked', async () => {
+    mockUnlockWithBiometrics.mockReturnValue(new Promise(() => {}));
+
+    const w = mountPage();
+    await flushPromises();
+
+    const fallbackLink = w.findAll('button').find((b) => b.text().includes('Use master password instead'));
+    expect(fallbackLink).toBeTruthy();
+    await fallbackLink!.trigger('click');
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
+  });
+
+  it('reveals the password form after the biometric prompt is cancelled', async () => {
+    mockUnlockWithBiometrics.mockResolvedValue(false);
+
+    const w = mountPage();
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
+  });
+
+  it('reveals the password form on a hardware-error biometric failure', async () => {
+    mockUnlockWithBiometrics.mockRejectedValue(new Error('hardware failure'));
+
+    const w = mountPage();
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
+  });
+});
+
+// =============================================================================
 describe('unlock page — password form (regression)', () => {
   it('navigates to /vault after a successful password unlock', async () => {
     const crypto = useCryptoStore();
