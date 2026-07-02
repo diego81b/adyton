@@ -129,6 +129,8 @@ async function copyEntry(entry: DecryptedEntry) {
 
 <template>
   <div class="mx-auto w-full max-w-4xl space-y-4">
+    <RecoveryKitNudge />
+
     <!-- Search + Filters + Add. Search stays inline (primary action); type + environment
          filters live in a slideover to keep the list clean. -->
     <div class="flex gap-2.5">

@@ -64,7 +64,7 @@ export function useRecoveryKit() {
       status.value = 'error';
 
       if (err !== null && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {
-        error.value = 'No recovery kit is set up. Enroll a phone first, then set up a recovery kit.';
+        error.value = 'No recovery kit is set up. Set one up from Settings before you lose access.';
       } else if (err instanceof DOMException && err.name === 'OperationError') {
         error.value = 'Incorrect recovery phrase. Check each word and try again.';
       } else if (err instanceof Error) {
