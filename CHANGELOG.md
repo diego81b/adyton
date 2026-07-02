@@ -6,6 +6,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.3.0] — 2026-07-02
+
+Recovery kit is now discoverable independent of PAK enrollment.
+
+### Added
+
+- Dismissible recovery-kit reminder on the vault landing page for any user who has not set one up yet. Previously a recovery kit was only ever offered during phone (PAK) enrollment or by a manual visit to Settings — a user who never used either had no backup path and no warning if they forgot their master password.
+
+### Fixed
+
+- The "lost your phone" recovery page told users with no recovery kit to "enroll a phone first," even though a recovery kit has always been generatable from Settings without a phone.
+
+---
+
 ## [1.2.0] — 2026-07-02
 
 PAK reliability fixes and a safer recovery kit workflow.

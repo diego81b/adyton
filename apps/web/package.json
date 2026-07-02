@@ -1,6 +1,6 @@
 {
   "name": "@adyton/web",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Adyton Web — Nuxt 4 + NuxtUI 4",
   "license": "UNLICENSED",
