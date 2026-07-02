@@ -11,6 +11,7 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PublicKey
 import java.security.SecureRandom
+import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
@@ -230,19 +231,26 @@ class AdytonKeystoreManager(private val context: Context) {
 
     // --- Signing ---
 
-    fun sign(deviceId: String, dataBase64: String): String {
-        val data = Base64.decode(dataBase64, Base64.DEFAULT)
-
+    // Returns a Signature initialised for signing with the SIGN key.
+    // The SIGN key requires BIOMETRIC_STRONG auth within a 30-second window — the
+    // caller must pass this to BiometricPrompt.authenticate(CryptoObject(signature))
+    // before calling signWithSignature, otherwise the OS throws UserNotAuthenticatedException.
+    fun getSignatureObject(deviceId: String): Signature {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val signPrivKey = ks.getKey(signAlias(deviceId), null)
             ?: throw IllegalStateException("SIGN key not found for deviceId=$deviceId")
 
-        val sig = java.security.Signature.getInstance("SHA256withECDSA")
+        val sig = Signature.getInstance("SHA256withECDSA")
         sig.initSign(signPrivKey as java.security.PrivateKey)
-        sig.update(data)
-        val signature = sig.sign()
+        return sig
+    }
 
-        return Base64.encodeToString(signature, Base64.DEFAULT)
+    // Signs dataBase64 using the authenticated Signature from BiometricPrompt.
+    fun signWithSignature(signature: Signature, dataBase64: String): String {
+        val data = Base64.decode(dataBase64, Base64.DEFAULT)
+        signature.update(data)
+        val result = signature.sign()
+        return Base64.encodeToString(result, Base64.DEFAULT)
     }
 
     // --- Key existence / deletion ---

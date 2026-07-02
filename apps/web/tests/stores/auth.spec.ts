@@ -313,4 +313,21 @@ describe('useAuthStore.apiFetch — 401 handling (session-dead redirect)', () =>
     expect(mockFetch).toHaveBeenCalledTimes(1); // no silent refresh attempt
     assign.mockRestore();
   });
+
+  // Regression: JwtAuthGuard-protected endpoints nested under /auth/ for URL-scheme
+  // reasons (PAK's qr-relay, enroll-vault, plus /auth/me, /auth/account) were being
+  // treated like credential endpoints by a blanket path.startsWith('/auth/') check,
+  // so an expired access token surfaced as a raw 401 instead of silently refreshing —
+  // e.g. approving a PAK QR unlock after the 15-min access token lapsed failed with
+  // "user not authenticated" instead of transparently refreshing and retrying.
+  it('silently refreshes and retries a 401 on a JWT-guarded /auth/ endpoint (PAK qr-relay)', async () => {
+    const store = useAuthStore();
+    mockFetch.mockResolvedValueOnce(errorResponse(401, 'Unauthorized'));   // POST /auth/qr-relay/:id
+    mockFetch.mockResolvedValueOnce(okResponse(buildAuthResponse()));     // POST /auth/refresh
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 204, json: () => Promise.resolve(undefined) }); // retried relay
+
+    await store.apiFetch('/auth/qr-relay/session-1', { method: 'POST', body: {} });
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(String(mockFetch.mock.calls[1]![0])).toContain('/auth/refresh');
+  });
 });

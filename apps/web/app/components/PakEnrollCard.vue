@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { ref, watchEffect } from 'vue';
+import { ref, watch, watchEffect } from 'vue';
 import QRCode from 'qrcode';
 import { usePakEnrollment } from '~/composables/usePakEnrollment';
 import { useNativeRuntime } from '~/composables/useNativeRuntime';
 import SettingRow from './SettingRow.vue';
 
+const emit = defineEmits<{ enrolled: [] }>();
+
 const { isNative } = useNativeRuntime();
 const { phase, qrUrl, error, pendingMnemonic, start, confirmAndSend, finalizeEnrollment, cancel, reset } = usePakEnrollment();
 const masterPassword = ref('');
 const canvasEl = ref<HTMLCanvasElement | null>(null);
+
+watch(phase, (next) => {
+  if (next === 'enrolled') emit('enrolled');
+});
 
 watchEffect(() => {
   if (!canvasEl.value || !qrUrl.value) return;

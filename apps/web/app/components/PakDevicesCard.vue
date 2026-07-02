@@ -104,6 +104,8 @@ onMounted(async () => {
     isPakEnrolled.value = await selfRevoke.isPakDevice(auth.user?.id ?? '');
   }
 });
+
+defineExpose({ refresh: fetchDevices });
 </script>
 
 <template>
