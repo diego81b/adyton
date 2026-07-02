@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '~/stores/auth';
+import { useRecoveryKitRegenerate } from '~/composables/useRecoveryKitRegenerate';
 import SettingsGroup from './SettingsGroup.vue';
 import SettingRow from './SettingRow.vue';
+import PasswordPromptModal from './PasswordPromptModal.vue';
+import RecoveryKitSetupStep from './RecoveryKitSetupStep.vue';
 
 const auth = useAuthStore();
+const regenerate = useRecoveryKitRegenerate();
 
 const loading = ref(true);
-const revoking = ref(false);
 const hasKit = ref(false);
 const confirmedAt = ref<string | null>(null);
 const error = ref<string | null>(null);
+
+const showPasswordPrompt = ref(false);
+const showMnemonic = ref(false);
 
 async function fetchStatus() {
   loading.value = true;
@@ -28,18 +34,24 @@ async function fetchStatus() {
   }
 }
 
-async function revokeKit() {
-  revoking.value = true;
-  error.value = null;
-  try {
-    await auth.apiFetch('/auth/recovery/setup', { method: 'DELETE' });
-    hasKit.value = false;
-    confirmedAt.value = null;
-  } catch {
-    error.value = 'Failed to revoke recovery kit.';
-  } finally {
-    revoking.value = false;
+function openRegenerate() {
+  regenerate.reset();
+  showPasswordPrompt.value = true;
+}
+
+async function onPasswordConfirm(password: string) {
+  const ok = await regenerate.regenerate(password);
+  if (ok) {
+    showPasswordPrompt.value = false;
+    showMnemonic.value = true;
   }
+  // On failure regenerate.error is shown inline in the password modal; it stays open.
+}
+
+async function onMnemonicConfirmed() {
+  showMnemonic.value = false;
+  regenerate.reset();
+  await fetchStatus();
 }
 
 function formatDate(iso: string): string {
@@ -71,16 +83,15 @@ onMounted(() => void fetchStatus());
       >
         <template #action>
           <UButton
-            color="error"
+            color="neutral"
             variant="subtle"
             size="md"
-            icon="i-lucide-trash-2"
-            aria-label="Revoke recovery kit"
+            icon="i-lucide-refresh-cw"
+            aria-label="Regenerate recovery kit"
             class="flex-1 justify-center sm:flex-none"
-            :loading="revoking"
-            @click="revokeKit"
+            @click="openRegenerate"
           >
-            <span class="hidden sm:inline">Revoke</span>
+            <span class="hidden sm:inline">Regenerate</span>
           </UButton>
         </template>
       </SettingRow>
@@ -89,9 +100,54 @@ onMounted(() => void fetchStatus());
     <template v-else>
       <SettingRow
         label="Recovery kit"
-        helper="No recovery kit configured. Enroll a phone to generate one."
+        helper="No recovery kit configured. Generate one to recover your vault without a phone."
         dot="bg-warning"
-      />
+      >
+        <template #action>
+          <UButton
+            color="primary"
+            variant="subtle"
+            size="md"
+            icon="i-lucide-key-round"
+            aria-label="Generate recovery kit"
+            class="flex-1 justify-center sm:flex-none"
+            @click="openRegenerate"
+          >
+            <span class="hidden sm:inline">Generate</span>
+          </UButton>
+        </template>
+      </SettingRow>
     </template>
+
+    <!-- Password confirmation before (re)generating the kit -->
+    <PasswordPromptModal
+      v-model:open="showPasswordPrompt"
+      :title="hasKit ? 'Regenerate recovery kit' : 'Generate recovery kit'"
+      confirm-label="Continue"
+      :loading="regenerate.loading.value"
+      :error="regenerate.error.value"
+      @confirm="onPasswordConfirm"
+    />
+
+    <!-- New mnemonic — shown once, must be written down before dismissing -->
+    <UModal
+      :open="showMnemonic"
+      title="Your new recovery phrase"
+      :dismissible="false"
+      :close="false"
+    >
+      <template #content>
+        <div class="p-5">
+          <p class="mb-4 text-sm leading-relaxed text-toned">
+            This replaces any previous recovery phrase — the old one no longer works.
+          </p>
+          <RecoveryKitSetupStep
+            :mnemonic="regenerate.mnemonic.value ?? []"
+            :loading="false"
+            @confirm="onMnemonicConfirmed"
+          />
+        </div>
+      </template>
+    </UModal>
   </SettingsGroup>
 </template>

@@ -117,6 +117,20 @@ export async function deriveQrSessionKey(
 }
 
 /**
+ * Compute the SHA-256 fingerprint (lowercase hex) of a base64-encoded SPKI public key.
+ * Mirrors the server-side computation in apps/api/src/pak/pak.service.ts (enrollDevice) —
+ * lets a client resolve its own server-assigned device row (via GET /pak/devices) without
+ * ever persisting the server's row ID locally.
+ */
+export async function computeDevicePublicKeyFingerprint(spkiBase64: string): Promise<string> {
+  const spkiBytes = fromStdBase64(spkiBase64);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', spkiBytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
  * Encrypt plaintext for transport using the QR session key.
  *
  * Uses AES-256-GCM with a random 12-byte IV.
