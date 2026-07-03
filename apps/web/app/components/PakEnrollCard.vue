@@ -19,8 +19,10 @@ watch(phase, (next) => {
 watchEffect(() => {
   if (!canvasEl.value || !qrUrl.value) return;
   QRCode.toCanvas(canvasEl.value, qrUrl.value, {
-    width: 220,
-    margin: 2,
+    width: 260,
+    margin: 4,
+    // See PakQrPanel.vue for the rationale — same payload shape, same fix.
+    errorCorrectionLevel: 'L',
     color: { dark: '#011a1f', light: '#f8fafb' },
   }).catch(() => {
     // QR render error — canvas stays blank
