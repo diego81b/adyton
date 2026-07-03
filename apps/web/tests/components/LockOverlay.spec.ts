@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { ref } from 'vue';
 
 vi.mock('../../app/composables/useArgon2Worker', () => ({ useArgon2Worker: vi.fn() }));
 
@@ -20,6 +21,21 @@ vi.mock('../../app/composables/useBiometricUnlock', () => ({
     unlockWithBiometrics: mockUnlockWithBiometrics,
     unenroll: mockUnenroll,
   }),
+}));
+
+// --- usePakQrLogin mock -------------------------------------------------
+const mockPakStart = vi.fn<[], Promise<void>>();
+const mockPakCancel = vi.fn<[], Promise<void>>();
+const mockPakReset = vi.fn<[], void>();
+const pakPhase = ref('idle');
+const pakQrUrl = ref<string | null>(null);
+const pakError = ref<string | null>(null);
+const mockUsePakQrLogin = vi.fn((opts?: { navigateOnUnlock?: boolean }) => {
+  void opts;
+  return { phase: pakPhase, qrUrl: pakQrUrl, error: pakError, start: mockPakStart, cancel: mockPakCancel, reset: mockPakReset };
+});
+vi.mock('../../app/composables/usePakQrLogin', () => ({
+  usePakQrLogin: (opts?: { navigateOnUnlock?: boolean }) => mockUsePakQrLogin(opts),
 }));
 
 const { default: LockOverlay } = await import('../../app/components/LockOverlay.vue');
@@ -53,6 +69,12 @@ const stubs = {
   },
   BrandLogo: passthrough('BrandLogo'),
   KeyDerivationStatus: passthrough('KeyDerivationStatus'),
+  PakQrPanel: {
+    name: 'PakQrPanel',
+    props: ['qrUrl', 'phase', 'error'],
+    emits: ['cancel', 'retry'],
+    template: '<div data-testid="pak-panel">{{ phase }}</div>',
+  },
 };
 
 const FAKE_KEY = { type: 'secret' } as unknown as CryptoKey;
@@ -61,6 +83,11 @@ beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
   mockIsNative = false;
+  pakPhase.value = 'idle';
+  pakQrUrl.value = null;
+  pakError.value = null;
+  mockPakStart.mockResolvedValue(undefined);
+  mockPakCancel.mockResolvedValue(undefined);
   const auth = useAuthStore();
   auth.user = { id: 'u1', email: 'a@b.com', kdfSalt: 'a'.repeat(64), totpEnabled: false };
 });
@@ -251,5 +278,76 @@ describe('LockOverlay — biometric attempt', () => {
 
     expect(mockUnenroll).not.toHaveBeenCalled();
     expect(w.find('.ualert').text()).toContain('server');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PAK QR unlock — the bug this suite guards: manual lock shows THIS overlay
+// (not /unlock.vue), so PAK must be reachable here too.
+// ---------------------------------------------------------------------------
+describe('LockOverlay — PAK QR unlock', () => {
+  it('opts out of the composable default navigation (overlay unlocks in place)', () => {
+    mount(LockOverlay, { global: { stubs } });
+    expect(mockUsePakQrLogin).toHaveBeenCalledWith({ navigateOnUnlock: false });
+  });
+
+  it('shows "Unlock with Phone" on desktop (isNative=false)', () => {
+    mockIsNative = false;
+    const w = mount(LockOverlay, { global: { stubs } });
+    expect(w.find('[aria-label="Unlock with Phone"]').exists()).toBe(true);
+  });
+
+  it('hides PAK unlock on native (phone has no other phone to relay from)', () => {
+    mockIsNative = true;
+    const w = mount(LockOverlay, { global: { stubs } });
+    expect(w.find('[aria-label="Unlock with Phone"]').exists()).toBe(false);
+  });
+
+  it('starts a PAK session and shows the QR panel on click', async () => {
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    await w.find('[aria-label="Unlock with Phone"]').trigger('click');
+    await flushPromises();
+
+    expect(mockPakStart).toHaveBeenCalledOnce();
+    expect(w.find('[data-testid="pak-panel"]').exists()).toBe(true);
+  });
+
+  it('cancels the PAK session when the overlay closes via a successful password unlock', async () => {
+    const crypto = useCryptoStore();
+    const vault = useVaultStore();
+    vi.spyOn(crypto, 'deriveKey').mockImplementation(async () => {
+      crypto.cryptoKey = FAKE_KEY;
+    });
+    vi.spyOn(vault, 'fetchEntries').mockResolvedValue();
+
+    const w = mount(LockOverlay, { global: { stubs } });
+    await w.find('[aria-label="Unlock with Phone"]').trigger('click');
+    await flushPromises();
+    mockPakCancel.mockClear();
+
+    await w.find('input').setValue('correct-pw');
+    await w.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(mockPakCancel).toHaveBeenCalled();
+  });
+
+  it('resets the QR panel back to the button on the next lock (no stale session)', async () => {
+    const crypto = useCryptoStore();
+    crypto.cryptoKey = FAKE_KEY; // start unlocked
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    await w.find('[aria-label="Unlock with Phone"]').trigger('click');
+    await flushPromises();
+    expect(w.find('[data-testid="pak-panel"]').exists()).toBe(true);
+    mockPakCancel.mockClear();
+
+    crypto.lock();
+    await flushPromises();
+
+    expect(mockPakCancel).toHaveBeenCalled();
+    expect(w.find('[data-testid="pak-panel"]').exists()).toBe(false);
+    expect(w.find('[aria-label="Unlock with Phone"]').exists()).toBe(true);
   });
 });
