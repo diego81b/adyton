@@ -20,8 +20,15 @@ watchEffect(() => {
   // Reading canvasEl.value inside the effect makes it track mount/unmount.
   if (!canvasEl.value || !props.qrUrl) return;
   QRCode.toCanvas(canvasEl.value, props.qrUrl, {
-    width: 220,
-    margin: 2,
+    width: 260,
+    margin: 4,
+    // The relay payload (ECDH pubkey + challenge + session id, base64-encoded) is
+    // large enough to need ~QR version 11-13 — 'L' keeps the module count (and thus
+    // module size at a fixed canvas width) as low as the data allows, since this
+    // code is only ever screen-displayed and re-generated per session (no print
+    // durability need for 'M'/'Q'). Margin bumped to the spec-recommended 4-module
+    // quiet zone — both changes target reported camera-autofocus difficulty.
+    errorCorrectionLevel: 'L',
     color: { dark: '#011a1f', light: '#f8fafb' },
   }).catch(() => {
     // QR render error — silently ignore (canvas stays blank)
