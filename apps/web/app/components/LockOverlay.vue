@@ -5,6 +5,7 @@ import { useCryptoStore } from '../stores/crypto';
 import { useVaultStore } from '../stores/vault';
 import { useNativeRuntime } from '../composables/useNativeRuntime';
 import { useBiometricUnlock } from '../composables/useBiometricUnlock';
+import { usePakQrLogin } from '../composables/usePakQrLogin';
 
 const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
@@ -20,11 +21,43 @@ const open = computed(() => !cryptoStore.isUnlocked);
 
 const biometricAvailable = ref(false);
 const biometricLoading = ref(false);
+// While biometric is available and hasn't failed yet, it's the ONLY unlock
+// affordance shown — no password form, no manual fallback link (mirrors
+// /unlock.vue). Failure paths in attemptBiometric() (cancel/hardware-error/
+// stale-key/network) set this so the form appears as a fallback.
+const passwordFormRevealed = ref(false);
+const showPasswordForm = computed(() => !biometricAvailable.value || passwordFormRevealed.value);
+
+// PAK QR unlock — desktop-only. Unlike /unlock.vue (a route page that tears down
+// its own PAK state on navigation), this overlay never unmounts — only `open`
+// toggles. The watch below resets/cancels PAK on every open AND close so a stale
+// poll/relay session never survives past unlocking via password or biometrics,
+// and a fresh QR is always generated the next time the overlay opens.
+const pak = usePakQrLogin({ navigateOnUnlock: false });
+const showQr = ref(false);
+
+function openQr() {
+  showQr.value = true;
+  void pak.start();
+}
+
+function closeQr() {
+  void pak.cancel();
+  showQr.value = false;
+}
+
+function retryQr() {
+  pak.reset();
+  void pak.start();
+}
 
 // When the overlay opens, check enrollment and show the biometric button if available.
 // No auto-attempt here — the user chose to lock explicitly, so we let them decide
 // whether to use biometrics or the password form.
 watch(open, async (isOpen) => {
+  void pak.cancel();
+  showQr.value = false;
+  passwordFormRevealed.value = false;
   if (!isOpen || !isNative || !authStore.user?.id) return;
   biometricAvailable.value = false;
   try {
@@ -43,6 +76,8 @@ async function attemptBiometric() {
   try {
     const ok = await biometric.unlockWithBiometrics(authStore.user.id);
     if (!ok) {
+      // User cancelled the prompt — reveal the password fallback.
+      passwordFormRevealed.value = true;
       biometricLoading.value = false;
       return;
     }
@@ -51,6 +86,7 @@ async function attemptBiometric() {
     await vaultStore.fetchEntries(true);
     // overlay closes automatically when cryptoStore.isUnlocked becomes true
   } catch (err: unknown) {
+    passwordFormRevealed.value = true;
     if (err !== null && typeof err === 'object' && 'status' in err) {
       // Network error — key may be fine, keep enrollment.
       cryptoStore.lock();
@@ -113,7 +149,11 @@ async function onSubmit() {
           </p>
         </div>
 
-        <!-- Biometric button: native only, shown when a key is enrolled. -->
+        <!-- Biometric button: native only, shown when a key is enrolled. Biometric
+             is the default affordance, but the manual "use master password"
+             link is ALWAYS present — never gated behind a biometric failure. A
+             hung or silently-dropped native BiometricPrompt (OS/lifecycle issue,
+             no callback ever fires) must never be a dead end. -->
         <div v-if="biometricAvailable" class="mb-5">
           <UButton
             block
@@ -128,14 +168,54 @@ async function onSubmit() {
           >
             Unlock with biometrics
           </UButton>
-          <div class="relative my-5 flex items-center">
+          <div v-if="showPasswordForm" class="relative my-5 flex items-center">
             <div class="flex-1 border-t border-default" />
             <span class="mx-3 text-[11px] text-muted">or use master password</span>
             <div class="flex-1 border-t border-default" />
           </div>
+          <button
+            v-else
+            type="button"
+            class="mt-4 block w-full text-center text-xs text-muted hover:text-default hover:underline"
+            @click="passwordFormRevealed = true"
+          >
+            Use master password instead
+          </button>
         </div>
 
-        <UForm :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
+        <!-- PAK QR unlock: desktop-only — phone holds the encrypted vault key -->
+        <template v-if="!isNative">
+          <div v-if="!showQr" class="mb-5">
+            <UButton
+              block
+              size="lg"
+              color="primary"
+              variant="subtle"
+              icon="i-lucide-smartphone"
+              aria-label="Unlock with Phone"
+              @click="openQr"
+            >
+              Unlock with Phone
+            </UButton>
+            <div class="relative my-5 flex items-center">
+              <div class="flex-1 border-t border-default" />
+              <span class="mx-3 text-[11px] text-muted">or use master password</span>
+              <div class="flex-1 border-t border-default" />
+            </div>
+          </div>
+
+          <div v-if="showQr" class="mb-5">
+            <PakQrPanel
+              :qr-url="pak.qrUrl.value"
+              :phase="pak.phase.value"
+              :error="pak.error.value"
+              @cancel="closeQr"
+              @retry="retryQr"
+            />
+          </div>
+        </template>
+
+        <UForm v-show="!showQr && showPasswordForm" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
           <UFormField
             name="password"
             label="Master Password"

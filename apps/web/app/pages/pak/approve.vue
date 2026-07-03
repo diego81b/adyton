@@ -128,18 +128,24 @@ async function approve() {
       return;
     }
 
-    // Sign the sessionId to prove possession of the Keystore SIGN key
-    const signResult = await AdytonKeystore.sign({
-      deviceId: localDeviceId,
-      dataBase64: btoa(qrData.s),
-    });
-
-    // ECDH with the desktop's ephemeral key, AES-GCM encrypt the vault key
+    // ECDH with the desktop's ephemeral key, AES-GCM encrypt the vault key.
+    // Runs BEFORE sign(): the wrap key always needs its own per-operation
+    // BiometricPrompt (no way around that — it's the ZK gate on vault key
+    // release), while the SIGN key uses a 30s time-based auth window. Doing
+    // this first means sign()'s opportunistic fast path (native side) usually
+    // finds the window already satisfied by this prompt and skips its own —
+    // collapsing approve from two fingerprint prompts to one in the common case.
     const relayResult = await AdytonKeystore.encryptForRelay({
       deviceId: localDeviceId,
       remotePublicKeySpki: qrData.p,
       challengeHex: qrData.c,
       sessionId: qrData.s,
+    });
+
+    // Sign the sessionId to prove possession of the Keystore SIGN key
+    const signResult = await AdytonKeystore.sign({
+      deviceId: localDeviceId,
+      dataBase64: btoa(qrData.s),
     });
 
     // Submit the encrypted payload to the relay endpoint

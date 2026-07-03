@@ -437,6 +437,65 @@ describe('useBiometricUnlock.unlockWithBiometrics (PAK path)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// unlockWithBiometrics — native call timeout safety net
+//
+// Regression: observed on a real Android device that after ~10s+ in the
+// background, the native plugin call silently never resolves (no success, no
+// error, no log at all reaching the Capacitor bridge) — leaving the caller's
+// `biometricLoading` stuck true forever, and the "Unlock with biometrics"
+// button permanently disabled with no way to recover short of a force-close.
+// Root cause is still unconfirmed; this bounds the failure mode regardless.
+// ---------------------------------------------------------------------------
+describe('useBiometricUnlock.unlockWithBiometrics — native call timeout', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('rejects with a timeout error if hasKeys never resolves (PAK path)', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockReturnValue(new Promise(() => {}));
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    const assertion = expect(unlockWithBiometrics('user-1')).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+  });
+
+  it('rejects with a timeout error if unsealVaultKey never resolves (PAK path)', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    mockKeystoreHasKeys.mockResolvedValue({ exists: true });
+    mockKeystoreUnsealVaultKey.mockReturnValue(new Promise(() => {}));
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    const assertion = expect(unlockWithBiometrics('user-1')).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+  });
+
+  it('rejects with a timeout error if unsealVaultKey never resolves (Phase 8 path)', async () => {
+    localStorage.setItem(PHASE8_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-phase8');
+    mockKeystoreHasRawKey.mockResolvedValue({ exists: true });
+    mockKeystoreUnsealVaultKey.mockReturnValue(new Promise(() => {}));
+
+    const { unlockWithBiometrics } = useBiometricUnlock();
+    const assertion = expect(unlockWithBiometrics('user-1')).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+  });
+
+  it('does not time out when the native call resolves well within the window', async () => {
+    localStorage.setItem(PAK_DEVICE_KEY_PREFIX + 'user-1', 'device-uuid-pak');
+    const { unlockWithBiometrics } = useBiometricUnlock();
+
+    expect(await unlockWithBiometrics('user-1')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // unlockWithBiometrics — Phase 8 path
 // ---------------------------------------------------------------------------
 describe('useBiometricUnlock.unlockWithBiometrics (Phase 8 path)', () => {

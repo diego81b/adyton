@@ -1,20 +1,28 @@
 <script setup lang="ts">
-import { ref, watchEffect } from 'vue';
+import { ref, watch, watchEffect } from 'vue';
 import QRCode from 'qrcode';
 import { usePakEnrollment } from '~/composables/usePakEnrollment';
 import { useNativeRuntime } from '~/composables/useNativeRuntime';
 import SettingRow from './SettingRow.vue';
+
+const emit = defineEmits<{ enrolled: [] }>();
 
 const { isNative } = useNativeRuntime();
 const { phase, qrUrl, error, pendingMnemonic, start, confirmAndSend, finalizeEnrollment, cancel, reset } = usePakEnrollment();
 const masterPassword = ref('');
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 
+watch(phase, (next) => {
+  if (next === 'enrolled') emit('enrolled');
+});
+
 watchEffect(() => {
   if (!canvasEl.value || !qrUrl.value) return;
   QRCode.toCanvas(canvasEl.value, qrUrl.value, {
-    width: 220,
-    margin: 2,
+    width: 260,
+    margin: 4,
+    // See PakQrPanel.vue for the rationale — same payload shape, same fix.
+    errorCorrectionLevel: 'L',
     color: { dark: '#011a1f', light: '#f8fafb' },
   }).catch(() => {
     // QR render error — canvas stays blank

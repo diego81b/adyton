@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, useTemplateRef } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useSettingsStore } from '~/stores/settings';
 import { useAppChrome } from '~/composables/useAppChrome';
@@ -14,6 +14,7 @@ const { setChrome } = useAppChrome();
 
 const exportOpen = ref(false);
 const importOpen = ref(false);
+const pakDevicesCard = useTemplateRef<{ refresh: () => Promise<void> }>('pakDevicesCard');
 
 function onImported(count: number) {
   toast.add({ title: `Imported ${count} ${count === 1 ? 'entry' : 'entries'}`, color: 'success' });
@@ -118,14 +119,14 @@ async function onDeleted() {
     <SettingsGroup id="settings-security" title="Security">
       <TwoFactorCard />
       <BiometricUnlockCard />
-      <PakEnrollCard />
+      <PakEnrollCard @enrolled="pakDevicesCard?.refresh()" />
     </SettingsGroup>
 
     <!-- Credential lists — each owns its group (dynamic count subtitle). -->
     <PasskeysCard />
     <SessionsCard />
     <TrustedDevicesCard />
-    <PakDevicesCard />
+    <PakDevicesCard ref="pakDevicesCard" />
     <RecoveryKitCard />
 
     <!-- ============== VAULT ============== -->

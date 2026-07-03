@@ -252,9 +252,11 @@ describe('unlock page — password form visibility toggle', () => {
     mockIsEnrolled.mockResolvedValue(true);
   });
 
-  it('hides the password form while the biometric auto-attempt is in flight, shows a text fallback link instead', async () => {
-    // Never-resolving promise: keeps attemptBiometric() suspended mid-attempt so we
-    // can inspect the "hidden" state before any failure path reveals the form.
+  it('hides the password form but keeps the manual fallback link visible while the biometric auto-attempt is in flight', async () => {
+    // Never-resolving promise: keeps attemptBiometric() suspended mid-attempt (or
+    // simulates a hung/silently-dropped native prompt that never calls back) so we
+    // can confirm the escape hatch is available even before any failure fires —
+    // a hang must never require force-closing the app.
     mockUnlockWithBiometrics.mockReturnValue(new Promise(() => {}));
 
     const w = mountPage();

@@ -40,6 +40,40 @@ function readPhase8DeviceId(userId: string): string | null {
   return localStorage.getItem(PHASE8_DEVICE_KEY_PREFIX + userId);
 }
 
+// A native biometric call can hang indefinitely on Android after the app has spent
+// long enough in the background — observed as the Capacitor bridge silently never
+// dispatching the plugin call after certain resume transitions (no native log, no
+// callback, nothing). Without a bound, this leaves the unlock button permanently
+// disabled (`:disabled="biometricLoading"`) with no way to recover short of a
+// force-close. This timeout is a client-side safety net, not a fix for the native
+// root cause (still under investigation) — it guarantees the caller always gets a
+// settled promise, so the existing failure-path UI (reveal password form, show
+// error) always has a chance to run.
+const NATIVE_CALL_TIMEOUT_MS = 15000;
+
+class BiometricTimeoutError extends Error {
+  constructor() {
+    super('Biometric authentication timed out — the native prompt did not respond.');
+    this.name = 'BiometricTimeoutError';
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new BiometricTimeoutError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 // ---------------------------------------------------------------------------
 // useBiometricUnlock
 // ---------------------------------------------------------------------------
@@ -197,13 +231,16 @@ export function useBiometricUnlock() {
     const pakDeviceId = readPakDeviceId(userId);
     if (pakDeviceId) {
       try {
-        const { exists } = await AdytonKeystore.hasKeys({ deviceId: pakDeviceId });
+        const { exists } = await withTimeout(AdytonKeystore.hasKeys({ deviceId: pakDeviceId }), NATIVE_CALL_TIMEOUT_MS);
         if (!exists) {
           localStorage.removeItem(PAK_DEVICE_KEY_PREFIX + userId);
           return false;
         }
 
-        const { vaultKeyRaw } = await AdytonKeystore.unsealVaultKey({ deviceId: pakDeviceId });
+        const { vaultKeyRaw } = await withTimeout(
+          AdytonKeystore.unsealVaultKey({ deviceId: pakDeviceId }),
+          NATIVE_CALL_TIMEOUT_MS,
+        );
         const raw = Uint8Array.from(atob(vaultKeyRaw), c => c.charCodeAt(0)).buffer as ArrayBuffer;
 
         if (raw.byteLength !== 32) {
@@ -229,14 +266,17 @@ export function useBiometricUnlock() {
     const phase8DeviceId = readPhase8DeviceId(userId);
     if (phase8DeviceId) {
       try {
-        const { exists } = await AdytonKeystore.hasRawKey({ deviceId: phase8DeviceId });
+        const { exists } = await withTimeout(AdytonKeystore.hasRawKey({ deviceId: phase8DeviceId }), NATIVE_CALL_TIMEOUT_MS);
         if (!exists) {
           localStorage.removeItem(PHASE8_DEVICE_KEY_PREFIX + userId);
           return false;
         }
 
         // unsealVaultKey shows BiometricPrompt with CryptoObject — OS-enforced biometric.
-        const { vaultKeyRaw } = await AdytonKeystore.unsealVaultKey({ deviceId: phase8DeviceId });
+        const { vaultKeyRaw } = await withTimeout(
+          AdytonKeystore.unsealVaultKey({ deviceId: phase8DeviceId }),
+          NATIVE_CALL_TIMEOUT_MS,
+        );
         const raw = Uint8Array.from(atob(vaultKeyRaw), c => c.charCodeAt(0)).buffer as ArrayBuffer;
 
         if (raw.byteLength !== 32) {

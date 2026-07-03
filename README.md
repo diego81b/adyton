@@ -23,13 +23,15 @@ Adyton is a vault. Like a physical safe, only you can open it — not the server
 
 **Recovery codes** are eight single-use emergency tickets generated when you enable 2FA. If you lose your phone, one code gets you in. The server stores only their hashes — never the codes themselves. Each works exactly once.
 
+**A recovery kit is an optional backup for the vault itself**, separate from 2FA recovery codes above. Generate it any time from Settings, or during phone (Phone-as-Key) enrollment. It gives you a one-time 24-word phrase, shown to you once — write it down and keep it somewhere safe. That phrase can later unwrap your vault key directly, without your master password, if you ever forget it or lose every enrolled device. The server stores only the encrypted vault key, never the phrase itself; losing the paper is the same as never having set one up. If you haven't generated one yet, the vault page reminds you until you do (or dismiss the reminder).
+
 **On the mobile app (iOS / Android), biometric unlock is optional.** If you turn it on in Settings, the key derived from your master password is placed in your phone's hardware-protected secure storage (iOS Keychain / Android Keystore) and released only after Face ID, Touch ID, or a fingerprint check. This trades a little of the "key exists nowhere at rest" purity for daily usability — on your own device only, never on the server, and never the master password itself. The app also locks the vault every time it goes to the background; biometrics make re-opening a one-tap action. Turning the feature off (or a failed match against your vault) removes the stored key immediately. The server is not involved and learns nothing.
 
 **What the server knows:** your email, a hashed password, and ciphertext it cannot read. Nothing else.
 
 **What the server will never know:** your master password, the key derived from it, or any plaintext secret.
 
-> **No password recovery.** If you forget your master password, your vault cannot be recovered — not by you, not by the server, not by anyone. The server never sees or stores the master password or the key it produces. There is no reset link, no email recovery, no back door. Write your master password down and store it somewhere safe (a physical safe, a trusted person, a separate backup manager). This is not a bug; it is the zero-knowledge property.
+> **No password recovery — unless you set one up.** By default, forgetting your master password means permanent loss: not you, not the server, not anyone can get it back. The server never sees or stores the master password or the key it produces. There is no reset link, no email recovery, no back door. The one exception is the recovery kit described above — a 24-word phrase only you hold, generated in advance. Without one, write your master password down and store it somewhere safe (a physical safe, a trusted person, a separate backup manager). This is the zero-knowledge property; the recovery kit is an opt-in escape hatch you control, not a bypass of it.
 
 ## Security model
 

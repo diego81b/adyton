@@ -203,8 +203,12 @@ async function onSubmit() {
         </p>
       </div>
 
-      <!-- Biometric retry button: shown on native when a key is enrolled, so the
-           user can re-trigger the prompt after cancelling or after auto-attempt. -->
+      <!-- Biometric button: shown on native when a key is enrolled. Biometric is the
+           default/primary affordance (password form collapsed behind it), but a
+           manual "use master password instead" link is ALWAYS present — never
+           gated behind a biometric failure. A hung or silently-dropped native
+           BiometricPrompt (OS/lifecycle issue, no callback ever fires) must never
+           be a dead end requiring a force-close; this link is the escape hatch. -->
       <div v-if="biometricAvailable" class="mb-5">
         <UButton
           block
