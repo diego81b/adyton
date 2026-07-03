@@ -1,5 +1,6 @@
 package dev.diegobaldeschi.adyton.keystore
 
+import android.security.keystore.UserNotAuthenticatedException
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -117,15 +118,27 @@ class AdytonKeystorePlugin : Plugin() {
         }
     }
 
-    // The SIGN key requires BIOMETRIC_STRONG auth (30s window, no AUTH_DEVICE_CREDENTIAL —
-    // see VULN-001/002 fix). Without a BiometricPrompt CryptoObject here, the OS almost
-    // always rejects with UserNotAuthenticatedException since nothing else in the enroll
-    // flow triggers a fresh biometric auth.
+    // The SIGN key uses a 30s time-based auth window (setUserAuthenticationParameters(30,
+    // BIOMETRIC_STRONG) — see VULN-001/002 fix), unlike the wrap key which requires a
+    // fresh per-operation prompt. In the PAK approve flow, sign() and encryptForRelay()
+    // (wrap key) run back-to-back — if the wrap key's prompt just satisfied the device's
+    // BIOMETRIC_STRONG auth timer, initSign() below succeeds immediately with no UI.
+    // Only show a BiometricPrompt if the OS says the window has actually lapsed
+    // (UserNotAuthenticatedException), so a fresh enroll (no prior prompt this session)
+    // still gets exactly one prompt, and approve collapses from two prompts to one.
     @PluginMethod
     fun sign(call: PluginCall) {
         val deviceId = call.getString("deviceId") ?: return call.reject("deviceId required")
         val dataBase64 = call.getString("dataBase64") ?: return call.reject("dataBase64 required")
         try {
+            try {
+                val signature = manager.getSignatureObject(deviceId)
+                val sig = manager.signWithSignature(signature, dataBase64)
+                call.resolve(JSObject().apply { put("signatureBase64", sig) })
+                return
+            } catch (e: UserNotAuthenticatedException) {
+                // Auth window lapsed (or first use this session) — fall through to prompt.
+            }
             val signature = manager.getSignatureObject(deviceId)
             bridge.executeOnMainThread {
                 showBiometricPrompt(
