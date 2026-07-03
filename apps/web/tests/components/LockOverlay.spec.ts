@@ -304,11 +304,23 @@ describe('LockOverlay — biometric-only until failure', () => {
     return { w, crypto, vault };
   }
 
-  it('hides the password form (no manual fallback link either) before any biometric attempt', async () => {
+  it('hides the password form but keeps a manual fallback link visible before any biometric attempt', async () => {
     const { w } = await mountWithBiometricReady();
 
     expect(passwordFormHidden(w)).toBe(true);
     expect(w.text()).not.toContain('or use master password');
+    expect(w.text()).toContain('Use master password instead');
+  });
+
+  it('reveals the password form when the fallback link is clicked', async () => {
+    const { w } = await mountWithBiometricReady();
+
+    const fallbackLink = w.findAll('button').find((b) => b.text().includes('Use master password instead'));
+    expect(fallbackLink).toBeTruthy();
+    await fallbackLink!.trigger('click');
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
   });
 
   it('reveals the password form after the biometric prompt is cancelled', async () => {

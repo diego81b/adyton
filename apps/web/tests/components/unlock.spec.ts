@@ -252,16 +252,32 @@ describe('unlock page — password form visibility toggle', () => {
     mockIsEnrolled.mockResolvedValue(true);
   });
 
-  it('hides the password form (and any manual fallback link) while the biometric auto-attempt is in flight', async () => {
-    // Never-resolving promise: keeps attemptBiometric() suspended mid-attempt so we
-    // can inspect the "hidden" state before any failure path reveals the form.
+  it('hides the password form but keeps the manual fallback link visible while the biometric auto-attempt is in flight', async () => {
+    // Never-resolving promise: keeps attemptBiometric() suspended mid-attempt (or
+    // simulates a hung/silently-dropped native prompt that never calls back) so we
+    // can confirm the escape hatch is available even before any failure fires —
+    // a hang must never require force-closing the app.
     mockUnlockWithBiometrics.mockReturnValue(new Promise(() => {}));
 
     const w = mountPage();
     await flushPromises();
 
     expect(passwordFormHidden(w)).toBe(true);
-    expect(w.text()).not.toContain('Use master password instead');
+    expect(w.text()).toContain('Use master password instead');
+  });
+
+  it('reveals the password form when the fallback link is clicked', async () => {
+    mockUnlockWithBiometrics.mockReturnValue(new Promise(() => {}));
+
+    const w = mountPage();
+    await flushPromises();
+
+    const fallbackLink = w.findAll('button').find((b) => b.text().includes('Use master password instead'));
+    expect(fallbackLink).toBeTruthy();
+    await fallbackLink!.trigger('click');
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
   });
 
   it('reveals the password form after the biometric prompt is cancelled', async () => {
