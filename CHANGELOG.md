@@ -6,6 +6,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.4.0] — 2026-07-03
+
+PAK (Phone-as-Key) and biometric unlock reliability pass, after broader real-device use surfaced several dead ends.
+
+### Fixed
+
+- Native biometric prompt calls on Android could hang indefinitely with no callback, leaving the unlock button permanently disabled with no recovery short of a force-close. Calls are now bounded by a client-side timeout that always settles.
+- The manual "use master password" fallback link could be unavailable while a biometric unlock was in progress, briefly trapping users behind a biometric-only screen on both the lock overlay and the full unlock page.
+- PAK approve on mobile issued two separate fingerprint prompts (wrap key, then sign key) for a single approval. The sign step now reuses the wrap key's just-satisfied auth window when still valid, collapsing this to one prompt in the common case.
+- QR codes for PAK enrollment and desktop unlock could fail to scan or autofocus due to high module density. Error-correction level, canvas size, and quiet-zone margin adjusted for reliable scanning.
+- PAK QR unlock was unreachable from a manually-locked vault: the lock overlay never rendered it, only the full-page unlock route did. The overlay now supports PAK QR unlock and resets any stale poll/relay session on open and close.
+- A dependency used by the recovery kit was not hoisted for the build tool's import analysis, silently breaking any page importing the shared package's barrel export — most visibly the PAK panel disappearing on the unlock page, worse after a refresh.
+- Newly-enrolled PAK devices did not appear in the Settings device list without a manual reload.
+- API 401 responses on JWT-protected endpoints nested under the auth route prefix (PAK's QR relay/enroll-vault, current-user, account deletion) were treated as credential errors and skipped the silent refresh-and-retry that applies to every other expired-session case.
+- README's "no password recovery" callout predated the recovery kit feature and no longer reflected it; corrected, and the recovery kit documented in "How it works".
+
+---
+
 ## [1.3.0] — 2026-07-02
 
 Recovery kit is now discoverable independent of PAK enrollment.
