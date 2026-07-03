@@ -1,6 +1,6 @@
 {
   "name": "@adyton/shared",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Adyton shared crypto + types (cross-cutting between api, web, extension)",
   "license": "UNLICENSED",

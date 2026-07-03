@@ -1,6 +1,6 @@
 {
   "name": "@adyton/api",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Adyton API — NestJS 10 on Fastify",
   "license": "UNLICENSED",

@@ -149,7 +149,11 @@ async function onSubmit() {
           </p>
         </div>
 
-        <!-- Biometric button: native only, shown when a key is enrolled. -->
+        <!-- Biometric button: native only, shown when a key is enrolled. Biometric
+             is the default affordance, but the manual "use master password"
+             link is ALWAYS present — never gated behind a biometric failure. A
+             hung or silently-dropped native BiometricPrompt (OS/lifecycle issue,
+             no callback ever fires) must never be a dead end. -->
         <div v-if="biometricAvailable" class="mb-5">
           <UButton
             block
@@ -169,6 +173,14 @@ async function onSubmit() {
             <span class="mx-3 text-[11px] text-muted">or use master password</span>
             <div class="flex-1 border-t border-default" />
           </div>
+          <button
+            v-else
+            type="button"
+            class="mt-4 block w-full text-center text-xs text-muted hover:text-default hover:underline"
+            @click="passwordFormRevealed = true"
+          >
+            Use master password instead
+          </button>
         </div>
 
         <!-- PAK QR unlock: desktop-only — phone holds the encrypted vault key -->
