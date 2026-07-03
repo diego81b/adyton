@@ -22,7 +22,8 @@ function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-export function usePakQrLogin() {
+export function usePakQrLogin(opts: { navigateOnUnlock?: boolean } = {}) {
+  const { navigateOnUnlock = true } = opts;
   const phase = ref<QrPhase>('idle');
   const qrUrl = ref<string | null>(null);
   const error = ref<string | null>(null);
@@ -67,12 +68,17 @@ export function usePakQrLogin() {
 
       const cryptoStore = useCryptoStore();
       const vaultStore = useVaultStore();
-      const router = useRouter();
 
       await cryptoStore.unlockWithRawKey(rawKeyBytes.buffer as ArrayBuffer);
       phase.value = 'approved';
       await vaultStore.fetchAll();
-      await router.push('/vault');
+      // /unlock is a route page — leaving it requires an explicit push. The lock
+      // overlay unlocks in place (same pattern as its password/biometric paths) and
+      // closes itself once cryptoStore.isUnlocked flips, so it opts out here.
+      if (navigateOnUnlock) {
+        const router = useRouter();
+        await router.push('/vault');
+      }
     } catch (err: unknown) {
       const cryptoStore = useCryptoStore();
       const vaultStore = useVaultStore();

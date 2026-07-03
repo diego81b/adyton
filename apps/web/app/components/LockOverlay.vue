@@ -5,6 +5,7 @@ import { useCryptoStore } from '../stores/crypto';
 import { useVaultStore } from '../stores/vault';
 import { useNativeRuntime } from '../composables/useNativeRuntime';
 import { useBiometricUnlock } from '../composables/useBiometricUnlock';
+import { usePakQrLogin } from '../composables/usePakQrLogin';
 
 const authStore = useAuthStore();
 const cryptoStore = useCryptoStore();
@@ -21,10 +22,35 @@ const open = computed(() => !cryptoStore.isUnlocked);
 const biometricAvailable = ref(false);
 const biometricLoading = ref(false);
 
+// PAK QR unlock — desktop-only. Unlike /unlock.vue (a route page that tears down
+// its own PAK state on navigation), this overlay never unmounts — only `open`
+// toggles. The watch below resets/cancels PAK on every open AND close so a stale
+// poll/relay session never survives past unlocking via password or biometrics,
+// and a fresh QR is always generated the next time the overlay opens.
+const pak = usePakQrLogin({ navigateOnUnlock: false });
+const showQr = ref(false);
+
+function openQr() {
+  showQr.value = true;
+  void pak.start();
+}
+
+function closeQr() {
+  void pak.cancel();
+  showQr.value = false;
+}
+
+function retryQr() {
+  pak.reset();
+  void pak.start();
+}
+
 // When the overlay opens, check enrollment and show the biometric button if available.
 // No auto-attempt here — the user chose to lock explicitly, so we let them decide
 // whether to use biometrics or the password form.
 watch(open, async (isOpen) => {
+  void pak.cancel();
+  showQr.value = false;
   if (!isOpen || !isNative || !authStore.user?.id) return;
   biometricAvailable.value = false;
   try {
@@ -135,7 +161,39 @@ async function onSubmit() {
           </div>
         </div>
 
-        <UForm :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
+        <!-- PAK QR unlock: desktop-only — phone holds the encrypted vault key -->
+        <template v-if="!isNative">
+          <div v-if="!showQr" class="mb-5">
+            <UButton
+              block
+              size="lg"
+              color="primary"
+              variant="subtle"
+              icon="i-lucide-smartphone"
+              aria-label="Unlock with Phone"
+              @click="openQr"
+            >
+              Unlock with Phone
+            </UButton>
+            <div class="relative my-5 flex items-center">
+              <div class="flex-1 border-t border-default" />
+              <span class="mx-3 text-[11px] text-muted">or use master password</span>
+              <div class="flex-1 border-t border-default" />
+            </div>
+          </div>
+
+          <div v-if="showQr" class="mb-5">
+            <PakQrPanel
+              :qr-url="pak.qrUrl.value"
+              :phase="pak.phase.value"
+              :error="pak.error.value"
+              @cancel="closeQr"
+              @retry="retryQr"
+            />
+          </div>
+        </template>
+
+        <UForm v-show="!showQr" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
           <UFormField
             name="password"
             label="Master Password"

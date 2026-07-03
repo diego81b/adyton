@@ -261,6 +261,25 @@ describe('usePakQrLogin — handleApproved()', () => {
     expect(mockRouterPush).toHaveBeenCalledWith('/vault');
   });
 
+  it('skips the router push when navigateOnUnlock is false (LockOverlay unlocks in place)', async () => {
+    const pak = usePakQrLogin({ navigateOnUnlock: false });
+    await pak.start();
+
+    mockApiFetch.mockResolvedValueOnce({
+      status: 'approved',
+      phoneEphemeralPub: FAKE_PHONE_PUB,
+      ciphertext: FAKE_CIPHERTEXT,
+      iv: FAKE_IV,
+      deviceId: 'device-1',
+    });
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(pak.phase.value).toBe('approved');
+    expect(mockUnlockWithRawKey).toHaveBeenCalledWith(FAKE_RAW_BYTES.buffer);
+    expect(mockFetchAll).toHaveBeenCalledOnce();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
   it('sets phase=error, locks crypto, clears vault on DOMException', async () => {
     mockDecryptFromTransport.mockRejectedValueOnce(
       new DOMException('The operation failed for an operation-specific reason', 'OperationError'),
