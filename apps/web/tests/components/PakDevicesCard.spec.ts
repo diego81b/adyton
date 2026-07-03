@@ -194,6 +194,20 @@ describe('PakDevicesCard — native gate', () => {
     expect(wrapper.find('[data-title="Phone keys"]').exists()).toBe(true);
     expect(mockFetchDevices).toHaveBeenCalledOnce();
   });
+
+  // Regression: settings/index.vue only fetches devices on this card's own mount,
+  // so a freshly-completed enrollment in the sibling PakEnrollCard never appeared
+  // without a manual page reload. The page now calls this exposed method via a
+  // template ref when PakEnrollCard emits 'enrolled'.
+  it('exposes refresh() that calls fetchDevices again', async () => {
+    mockFetchDevices.mockResolvedValue(undefined);
+    const wrapper = mountCard();
+    await flushPromises();
+    expect(mockFetchDevices).toHaveBeenCalledOnce();
+
+    await (wrapper.vm as unknown as { refresh: () => Promise<void> }).refresh();
+    expect(mockFetchDevices).toHaveBeenCalledTimes(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

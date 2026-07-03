@@ -26,6 +26,22 @@ function getBaseUrl(): string {
   return `${base}/api`;
 }
 
+// Endpoints where a 401 means "wrong credentials / expired refresh cookie / dead
+// mfaToken" — no access token was sent, or retrying would recurse through
+// /auth/refresh itself, so silent refresh-and-retry does not apply and the error
+// must surface as-is (e.g. inline "invalid credentials" on the login form).
+// Every other endpoint, INCLUDING JwtAuthGuard-protected ones nested under /auth/
+// for URL-scheme reasons (PAK's qr-relay/enroll-vault, /auth/me, /auth/account),
+// gets the normal refresh-then-retry treatment below — a 401 there reflects an
+// expired access token, which is exactly what that dance exists to recover from.
+const CREDENTIAL_PATHS = new Set([
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/2fa/authenticate',
+  '/auth/webauthn/authenticate/verify',
+]);
+
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(null);
   const user = ref<AuthUser | null>(null);
@@ -63,15 +79,14 @@ export const useAuthStore = defineStore('auth', () => {
       credentials: 'include',
     });
     if (!res.ok) {
-      // Expired access token on a non-auth route: silent-refresh once and retry.
-      // Still 401 (or refresh failed) → the session is dead; never leave the user on a
-      // half-rendered page — clear client state and send them to /login. Auth routes
-      // are excluded: their 401s are real credential errors (and /auth/refresh going
-      // through here would recurse).
-      if (res.status === 401 && !path.startsWith('/auth/') && !retried) {
+      // Expired access token: silent-refresh once and retry. Still 401 (or refresh
+      // failed) → the session is dead; never leave the user on a half-rendered page —
+      // clear client state and send them to /login.
+      const isCredentialPath = CREDENTIAL_PATHS.has(path);
+      if (res.status === 401 && !isCredentialPath && !retried) {
         if (await refresh()) return apiFetch<T>(path, options, true);
         await redirectToLogin();
-      } else if (res.status === 401 && !path.startsWith('/auth/')) {
+      } else if (res.status === 401 && !isCredentialPath) {
         await redirectToLogin();
       }
       const data = await res.json().catch(() => ({})) as { message?: string };

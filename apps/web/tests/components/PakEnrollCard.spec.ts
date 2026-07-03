@@ -302,6 +302,26 @@ describe('PakEnrollCard — enrolled', () => {
     await btn.trigger('click');
     expect(mockReset).toHaveBeenCalledOnce();
   });
+
+  // Regression: settings/index.vue's PakDevicesCard only refetches on mount, so
+  // finishing enrollment left "No phone keys enrolled" showing until a manual page
+  // reload. PakEnrollCard must emit 'enrolled' the moment phase flips so the page
+  // can trigger PakDevicesCard's refresh.
+  it('emits "enrolled" when phase transitions to enrolled', async () => {
+    mockPhase.value = 'finalizing';
+    const wrapper = mountCard();
+    expect(wrapper.emitted('enrolled')).toBeUndefined();
+
+    mockPhase.value = 'enrolled';
+    await flushPromises();
+    expect(wrapper.emitted('enrolled')).toHaveLength(1);
+  });
+
+  it('does not emit "enrolled" when mounted directly into the enrolled phase', () => {
+    mockPhase.value = 'enrolled';
+    const wrapper = mountCard();
+    expect(wrapper.emitted('enrolled')).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
