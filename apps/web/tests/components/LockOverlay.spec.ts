@@ -282,6 +282,73 @@ describe('LockOverlay — biometric attempt', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Password form hidden while biometric is available and hasn't failed
+// ---------------------------------------------------------------------------
+function passwordFormHidden(w: ReturnType<typeof mount>): boolean {
+  const style = w.find('form').attributes('style') ?? '';
+  return style.includes('display: none') || style.includes('display:none');
+}
+
+describe('LockOverlay — biometric-only until failure', () => {
+  async function mountWithBiometricReady() {
+    mockIsNative = true;
+    mockIsEnrolled.mockResolvedValue(true);
+
+    const crypto = useCryptoStore();
+    const vault = useVaultStore();
+    crypto.cryptoKey = FAKE_KEY;
+    const w = mount(LockOverlay, { global: { stubs } });
+
+    crypto.lock();
+    await flushPromises();
+    return { w, crypto, vault };
+  }
+
+  it('hides the password form (no manual fallback link either) before any biometric attempt', async () => {
+    const { w } = await mountWithBiometricReady();
+
+    expect(passwordFormHidden(w)).toBe(true);
+    expect(w.text()).not.toContain('or use master password');
+  });
+
+  it('reveals the password form after the biometric prompt is cancelled', async () => {
+    const { w } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockResolvedValue(false);
+
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
+  });
+
+  it('reveals the password form on a hardware-error biometric failure', async () => {
+    const { w } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockRejectedValue(new Error('hardware failure'));
+
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(false);
+  });
+
+  it('re-hides the password form on the next lock cycle (state does not leak)', async () => {
+    const { w, crypto } = await mountWithBiometricReady();
+    mockUnlockWithBiometrics.mockResolvedValue(false);
+    await w.find('[aria-label="Unlock with biometrics"]').trigger('click');
+    await flushPromises();
+    expect(passwordFormHidden(w)).toBe(false);
+
+    // Unlock, then lock again — a fresh cycle must not carry over the reveal.
+    crypto.cryptoKey = FAKE_KEY;
+    await flushPromises();
+    crypto.lock();
+    await flushPromises();
+
+    expect(passwordFormHidden(w)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PAK QR unlock — the bug this suite guards: manual lock shows THIS overlay
 // (not /unlock.vue), so PAK must be reachable here too.
 // ---------------------------------------------------------------------------
