@@ -21,6 +21,12 @@ const open = computed(() => !cryptoStore.isUnlocked);
 
 const biometricAvailable = ref(false);
 const biometricLoading = ref(false);
+// While biometric is available and hasn't failed yet, it's the ONLY unlock
+// affordance shown — no password form, no manual fallback link (mirrors
+// /unlock.vue). Failure paths in attemptBiometric() (cancel/hardware-error/
+// stale-key/network) set this so the form appears as a fallback.
+const passwordFormRevealed = ref(false);
+const showPasswordForm = computed(() => !biometricAvailable.value || passwordFormRevealed.value);
 
 // PAK QR unlock — desktop-only. Unlike /unlock.vue (a route page that tears down
 // its own PAK state on navigation), this overlay never unmounts — only `open`
@@ -51,6 +57,7 @@ function retryQr() {
 watch(open, async (isOpen) => {
   void pak.cancel();
   showQr.value = false;
+  passwordFormRevealed.value = false;
   if (!isOpen || !isNative || !authStore.user?.id) return;
   biometricAvailable.value = false;
   try {
@@ -69,6 +76,8 @@ async function attemptBiometric() {
   try {
     const ok = await biometric.unlockWithBiometrics(authStore.user.id);
     if (!ok) {
+      // User cancelled the prompt — reveal the password fallback.
+      passwordFormRevealed.value = true;
       biometricLoading.value = false;
       return;
     }
@@ -77,6 +86,7 @@ async function attemptBiometric() {
     await vaultStore.fetchEntries(true);
     // overlay closes automatically when cryptoStore.isUnlocked becomes true
   } catch (err: unknown) {
+    passwordFormRevealed.value = true;
     if (err !== null && typeof err === 'object' && 'status' in err) {
       // Network error — key may be fine, keep enrollment.
       cryptoStore.lock();
@@ -154,7 +164,7 @@ async function onSubmit() {
           >
             Unlock with biometrics
           </UButton>
-          <div class="relative my-5 flex items-center">
+          <div v-if="showPasswordForm" class="relative my-5 flex items-center">
             <div class="flex-1 border-t border-default" />
             <span class="mx-3 text-[11px] text-muted">or use master password</span>
             <div class="flex-1 border-t border-default" />
@@ -193,7 +203,7 @@ async function onSubmit() {
           </div>
         </template>
 
-        <UForm v-show="!showQr" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
+        <UForm v-show="!showQr && showPasswordForm" :state="{ password }" class="space-y-5" @submit.prevent="onSubmit">
           <UFormField
             name="password"
             label="Master Password"

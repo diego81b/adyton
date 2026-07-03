@@ -203,8 +203,11 @@ async function onSubmit() {
         </p>
       </div>
 
-      <!-- Biometric retry button: shown on native when a key is enrolled, so the
-           user can re-trigger the prompt after cancelling or after auto-attempt. -->
+      <!-- Biometric button: shown on native when a key is enrolled. While biometric
+           is available and hasn't failed yet, this is the ONLY unlock affordance —
+           no password form, no manual "use password instead" link. The failure
+           paths in attemptBiometric() (cancel/hardware-error/stale-key/network) set
+           passwordFormRevealed=true to reveal the form as a fallback. -->
       <div v-if="biometricAvailable" class="mb-5">
         <UButton
           block
@@ -224,14 +227,6 @@ async function onSubmit() {
           <span class="mx-3 text-[11px] text-muted">or use master password</span>
           <div class="flex-1 border-t border-default" />
         </div>
-        <button
-          v-else
-          type="button"
-          class="mt-4 block w-full text-center text-xs text-muted hover:text-default hover:underline"
-          @click="passwordFormRevealed = true"
-        >
-          Use master password instead
-        </button>
       </div>
 
       <!-- PAK QR unlock: desktop-only — phone holds the encrypted vault key -->
